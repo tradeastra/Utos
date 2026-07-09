@@ -1,6 +1,6 @@
 # ARCHITECTURE REVIEW
 
-**Version:** 1.0.0  
+**Version:** 1.1.0  
 **Last Updated:** 2026-07-09  
 **Reviewer:** Principal Software Architect  
 **Scope:** Entire `docs/` folder  

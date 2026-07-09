@@ -284,18 +284,26 @@ async def test_full_trading_flow(client, auth_token):
     assert response.status_code == 201
     grid_profile_id = response.json()["data"]["id"]
     
-    # 3. Create trading process
+    # 3. Create trading instance
     response = await client.post(
-        "/api/v1/trading-processes",
+        "/api/v1/trading-instances",
         json={...},
         headers={"Authorization": f"Bearer {auth_token}"},
     )
     assert response.status_code == 201
-    process_id = response.json()["data"]["id"]
+    instance_id = response.json()["data"]["id"]
     
-    # 4. Start trading process
+    # 4. Prepare trading instance (CREATED -> READY)
     response = await client.post(
-        f"/api/v1/trading-processes/{process_id}/start",
+        f"/api/v1/trading-instances/{instance_id}/prepare",
+        headers={"Authorization": f"Bearer {auth_token}"},
+    )
+    assert response.status_code == 200
+    assert response.json()["data"]["status"] == "ready"
+    
+    # 5. Start trading instance (READY -> RUNNING)
+    response = await client.post(
+        f"/api/v1/trading-instances/{instance_id}/start",
         headers={"Authorization": f"Bearer {auth_token}"},
     )
     assert response.status_code == 200
@@ -584,8 +592,8 @@ class UTOSUser(HttpUser):
         self.client.get("/api/v1/portfolio", headers=self.headers)
     
     @task
-    def list_trading_processes(self):
-        self.client.get("/api/v1/trading-processes", headers=self.headers)
+    def list_trading_instances(self):
+        self.client.get("/api/v1/trading-instances", headers=self.headers)
     
     @task(3)
     def list_orders(self):

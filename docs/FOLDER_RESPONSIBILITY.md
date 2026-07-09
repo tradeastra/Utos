@@ -512,7 +512,7 @@ repositories/
 ├── base.py              # IRepository generic base
 ├── user_repository.py
 ├── exchange_account_repository.py
-├── trading_process_repository.py
+├── trading_instance_repository.py
 ├── order_repository.py
 ├── position_repository.py
 ├── grid_profile_repository.py

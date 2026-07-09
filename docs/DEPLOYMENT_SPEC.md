@@ -634,7 +634,7 @@ jobs:
 |--------|------|-------------|
 | `utos_orders_total` | Counter | Total orders placed |
 | `utos_orders_filled_total` | Counter | Total orders filled |
-| `utos_trading_instances_active` | Gauge | Active trading processes |
+| `utos_trading_instances_active` | Gauge | Active trading instances |
 | `utos_grid_cycles_total` | Counter | Total grid cycles completed |
 | `utos_api_request_duration_seconds` | Histogram | API request latency |
 | `utos_websocket_connections` | Gauge | Active WebSocket connections |
