@@ -33,7 +33,7 @@ The architecture of the **UTOS Trading Engine** has been reviewed and approved. 
 
 | Document | Version | Status | Key Changes |
 |----------|---------|--------|-------------|
-| `ARCHITECTURE_REVIEW.md` | 1.0.0 | Reviewed | Source of findings and recommendations. |
+| `ARCHITECTURE_REVIEW.md` | 1.1.0 | Reviewed | Findings plus resolution status; issues addressed. |
 | `INTERFACE_DEFINITIONS.md` | 2.0.0 | Consistent | TradingContext, KernelContext, ProcessMemory, IExchangeAdapter lifecycle, PortfolioLock, TradingInstance. |
 | `DATABASE.md` | 2.0.0 | Consistent | `trading_instances` table, READY state, ProcessMemory columns, TP/ProfitLock/PortfolioLock fields, scalability section. |
 | `API_GUIDELINES.md` | 2.0.0 | Consistent | `/trading-instances`, `/prepare` endpoint, instance_id, versioning strategy. |
@@ -43,11 +43,11 @@ The architecture of the **UTOS Trading Engine** has been reviewed and approved. 
 | `FOLDER_RESPONSIBILITY.md` | 2.0.0 | Consistent | `memory/` folder, `trading_instance.py`, `KernelContext`, `TradingContext`. |
 | `ROADMAP.md` | 2.0.0 | Consistent | Layer-based sprints, ProcessMemory, KernelContext, separate connections. |
 | `DEPLOYMENT_SPEC.md` | 2.0.0 | Consistent | Scalability section, worker pool, database scaling. |
-| `PROJECT_BIBLE.md` | 1.0.0 | Approved template | Foundation document. |
-| `MASTER_PROMPT.md` | 1.0.0 | Approved | AI assistant guidelines. |
-| `CODING_STANDARD.md` | 1.0.0 | Approved | Coding conventions. |
-| `ERROR_HANDLING.md` | 1.0.0 | Approved | Error strategy. |
-| `TESTING_STANDARD.md` | 1.0.0 | Approved | Testing strategy. |
+| `PROJECT_BIBLE.md` | 2.0.0 | Approved template | Foundation document with new component placeholders. |
+| `MASTER_PROMPT.md` | 2.0.0 | Approved | AI assistant guidelines with gated workflow and new architecture. |
+| `CODING_STANDARD.md` | 2.0.0 | Approved | Coding conventions. |
+| `ERROR_HANDLING.md` | 2.0.0 | Approved | Error strategy with project rename. |
+| `TESTING_STANDARD.md` | 2.0.0 | Approved | Testing strategy with Trading Instance lifecycle. |
 
 ---
 
