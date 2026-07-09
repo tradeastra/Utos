@@ -199,7 +199,7 @@ async def test_trading_engine_start():
 
 ```python
 import factory
-from models import User, Order, TradingProcess
+from models import User, Order, TradingInstance
 
 class UserFactory(factory.Factory):
     class Meta:
@@ -227,9 +227,9 @@ class OrderFactory(factory.Factory):
     price = Decimal("50000.0")
     status = "pending"
 
-class TradingProcessFactory(factory.Factory):
+class TradingInstanceFactory(factory.Factory):
     class Meta:
-        model = TradingProcess
+        model = TradingInstance
     
     id = factory.LazyFunction(lambda: str(uuid4()))
     user_id = factory.SubFactory(UserFactory).id
@@ -375,10 +375,10 @@ frontend/src/
 │   ├── __tests__/
 │   │   ├── Button.test.tsx
 │   │   ├── OrderCard.test.tsx
-│   │   └── TradingProcessList.test.tsx
+│   │   └── TradingInstanceList.test.tsx
 ├── hooks/
 │   ├── __tests__/
-│   │   ├── useTradingProcess.test.ts
+│   │   ├── useTradingInstance.test.ts
 │   │   └── useWebSocket.test.ts
 ├── stores/
 │   ├── __tests__/
@@ -429,25 +429,25 @@ describe("OrderCard", () => {
 ```typescript
 import { renderHook, act } from "@testing-library/react";
 import { describe, it, expect, beforeEach } from "vitest";
-import { useTradingProcess } from "../useTradingProcess";
+import { useTradingInstance } from "../useTradingInstance";
 
-describe("useTradingProcess", () => {
+describe("useTradingInstance", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it("starts trading process", async () => {
-    const { result } = renderHook(() => useTradingProcess());
+    const { result } = renderHook(() => useTradingInstance());
     
     await act(async () => {
-      await result.current.start("test-process-id");
+      await result.current.start("test-instance-id");
     });
     
     expect(result.current.status).toBe("running");
   });
 
   it("handles error when start fails", async () => {
-    const { result } = renderHook(() => useTradingProcess());
+    const { result } = renderHook(() => useTradingInstance());
     
     await act(async () => {
       await result.current.start("invalid-id");
