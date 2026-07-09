@@ -1,143 +1,59 @@
 """
-User management endpoints for UTOS Trading Engine.
-
-This module provides endpoints for user management operations.
+User endpoints — Sprint 01: GET /users/me.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr
-from typing import Optional, List
-from datetime import datetime
+import uuid
+from datetime import datetime, timezone
 
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from core.exceptions import AuthenticationError
 from core.logging import get_logger
+from core.security import TokenManager
+from database.base import get_db
+from repositories.user_repository import UserRepository
+from schemas.auth import UserResponse
 
 router = APIRouter()
 logger = get_logger(__name__)
+_bearer = HTTPBearer()
+token_manager = TokenManager()
 
 
-# Pydantic models
-class UserResponse(BaseModel):
-    """User response model."""
-    id: str
-    email: str
-    full_name: Optional[str] = None
-    is_active: bool
-    is_verified: bool
-    subscription_tier: str
-    created_at: datetime
-    updated_at: datetime
-
-
-class UserUpdate(BaseModel):
-    """User update model."""
-    full_name: Optional[str] = None
-    email: Optional[EmailStr] = None
-
-
-class PasswordChange(BaseModel):
-    """Password change model."""
-    current_password: str
-    new_password: str
-
-
-@router.get("/me", response_model=UserResponse)
-async def get_current_user():
-    """Get current user profile."""
+async def get_current_user_from_token(
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer),
+    db: AsyncSession = Depends(get_db),
+) -> UserResponse:
+    """Dependency: validate bearer token and return the DB user."""
     try:
-        # TODO: Implement actual user retrieval logic
-        # - Validate access token
-        # - Get user from database
-        # - Return user information
-        
-        return UserResponse(
-            id="user123",
-            email="user@example.com",
-            full_name="Test User",
-            is_active=True,
-            is_verified=True,
-            subscription_tier="free",
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
-        )
-        
-    except Exception as e:
-        logger.error(f"Get current user failed: {e}")
+        payload = token_manager.verify_token(credentials.credentials, token_type="access")
+    except AuthenticationError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication"
-        )
+            detail={"error": {"code": "INVALID_TOKEN", "message": str(exc), "details": None}},
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
 
+    user_id_str = payload.get("sub")
+    if not user_id_str:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
 
-@router.put("/me", response_model=UserResponse)
-async def update_current_user(user_data: UserUpdate):
-    """Update current user profile."""
-    try:
-        logger.info("Updating current user profile")
-        
-        # TODO: Implement actual user update logic
-        # - Validate access token
-        # - Update user in database
-        # - Return updated user information
-        
-        return UserResponse(
-            id="user123",
-            email=user_data.email or "user@example.com",
-            full_name=user_data.full_name or "Test User",
-            is_active=True,
-            is_verified=True,
-            subscription_tier="free",
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
-        )
-        
-    except Exception as e:
-        logger.error(f"Update current user failed: {e}")
+    repo = UserRepository(db)
+    user = await repo.get_by_id(uuid.UUID(user_id_str))
+    if not user or not user.is_active:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Update failed"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"error": {"code": "USER_NOT_FOUND", "message": "User not found or inactive", "details": None}},
         )
+    return user  # type: ignore[return-value]
 
 
-@router.post("/change-password")
-async def change_password(password_data: PasswordChange):
-    """Change user password."""
-    try:
-        logger.info("Changing user password")
-        
-        # TODO: Implement actual password change logic
-        # - Validate access token
-        # - Verify current password
-        # - Hash new password
-        # - Update password in database
-        # - Invalidate other sessions
-        
-        return {"message": "Password changed successfully"}
-        
-    except Exception as e:
-        logger.error(f"Change password failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password change failed"
-        )
-
-
-@router.delete("/me")
-async def delete_current_user():
-    """Delete current user account."""
-    try:
-        logger.info("Deleting current user account")
-        
-        # TODO: Implement actual user deletion logic
-        # - Validate access token
-        # - Check user has no active trading instances
-        # - Delete user from database
-        # - Clean up user data
-        
-        return {"message": "Account deleted successfully"}
-        
-    except Exception as e:
-        logger.error(f"Delete current user failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Account deletion failed"
-        )
+@router.get("/me", response_model=dict)
+async def get_me(user=Depends(get_current_user_from_token)) -> dict:
+    """Return the authenticated user's profile."""
+    return {
+        "data": UserResponse.model_validate(user).model_dump(),
+        "meta": {"timestamp": datetime.now(tz=timezone.utc).isoformat()},
+    }

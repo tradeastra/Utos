@@ -1,78 +1,81 @@
 """
-Base database configuration for UTOS Trading Engine.
+Async database configuration for UTOS Trading Engine.
 
-This module defines the base database configuration and session management.
+SQLAlchemy 2.0 async engine + session factory using asyncpg.
 """
 
-from sqlalchemy import create_engine, MetaData
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.pool import StaticPool
-from typing import Generator
+from collections.abc import AsyncGenerator
+
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+from sqlalchemy.orm import DeclarativeBase
 
 from core.config import get_database_url
 from core.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Create base class for all models
-Base = declarative_base()
 
-# Metadata for migrations
-metadata = MetaData()
-
-# Database engine
-engine = create_engine(
-    get_database_url(),
-    pool_pre_ping=True,
-    pool_recycle=300,
-    echo=False,  # Set to True for SQL logging
-)
-
-# Session factory
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+class Base(DeclarativeBase):
+    """Declarative base for all ORM models."""
 
 
-def get_db() -> Generator[Session, None, None]:
-    """Get database session."""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+# Module-level engine — initialized in lifespan, replaced during tests.
+_engine: AsyncEngine | None = None
+_session_factory: async_sessionmaker[AsyncSession] | None = None
 
 
-def create_tables():
-    """Create all database tables."""
-    Base.metadata.create_all(bind=engine)
-    logger.info("Database tables created successfully")
+def init_engine(database_url: str | None = None) -> AsyncEngine:
+    """Create (or recreate) the async engine."""
+    global _engine, _session_factory
+    url = database_url or get_database_url()
+    _engine = create_async_engine(
+        url,
+        pool_pre_ping=True,
+        pool_size=10,
+        max_overflow=20,
+        echo=False,
+    )
+    _session_factory = async_sessionmaker(
+        _engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+    logger.info("Async database engine initialised", extra={"url": url.split("@")[-1]})
+    return _engine
 
 
-def drop_tables():
-    """Drop all database tables."""
-    Base.metadata.drop_all(bind=engine)
-    logger.info("Database tables dropped successfully")
+def get_engine() -> AsyncEngine:
+    if _engine is None:
+        return init_engine()
+    return _engine
 
 
-def get_session() -> Session:
-    """Get a new database session."""
-    return SessionLocal()
+async def close_engine() -> None:
+    """Dispose of the engine on shutdown."""
+    global _engine, _session_factory
+    if _engine:
+        await _engine.dispose()
+        _engine = None
+        _session_factory = None
+        logger.info("Database engine disposed")
 
 
-# Test database configuration
-test_engine = create_engine(
-    "sqlite:///:memory:",
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
-
-TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
-
-
-def get_test_db() -> Generator[Session, None, None]:
-    """Get test database session."""
-    db = TestSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    """FastAPI dependency — yields an async database session."""
+    factory = _session_factory
+    if factory is None:
+        init_engine()
+        factory = _session_factory
+    assert factory is not None
+    async with factory() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise

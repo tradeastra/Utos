@@ -1,21 +1,21 @@
 """
-User model for UTOS Trading Engine.
+User model — Sprint 01 scope only.
 
-This module defines the User model and related database entities.
+Defines the `users` table used by the auth system.
 """
 
-from sqlalchemy import Column, String, Boolean, DateTime, Text, Integer, Enum, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID, JSONB
-from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
-import uuid
 import enum
+import uuid
+
+from sqlalchemy import Boolean, DateTime, Enum, String
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.sql import func
 
 from database.base import Base
 
 
 class SubscriptionTier(str, enum.Enum):
-    """Subscription tier enum."""
     FREE = "free"
     BASIC = "basic"
     PREMIUM = "premium"
@@ -23,88 +23,44 @@ class SubscriptionTier(str, enum.Enum):
 
 
 class UserRole(str, enum.Enum):
-    """User role enum."""
     USER = "user"
     ADMIN = "admin"
     MODERATOR = "moderator"
 
 
 class User(Base):
-    """User model."""
-    
+    """Users table."""
+
     __tablename__ = "users"
-    
-    # Primary key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    
-    # Basic information
-    email = Column(String(255), unique=True, index=True, nullable=False)
-    password_hash = Column(String(255), nullable=False)
-    full_name = Column(String(255), nullable=True)
-    
-    # Status and verification
-    is_active = Column(Boolean, default=True, nullable=False)
-    is_verified = Column(Boolean, default=False, nullable=False)
-    email_verification_token = Column(String(255), nullable=True)
-    
-    # Subscription and role
-    subscription_tier = Column(Enum(SubscriptionTier), default=SubscriptionTier.FREE, nullable=False)
-    role = Column(Enum(UserRole), default=UserRole.USER, nullable=False)
-    
-    # Security
-    last_login_at = Column(DateTime(timezone=True), nullable=True)
-    password_reset_token = Column(String(255), nullable=True)
-    password_reset_expires_at = Column(DateTime(timezone=True), nullable=True)
-    
-    # Preferences and settings
-    preferences = Column(JSONB, nullable=True)
-    
-    # Metadata
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
-    
-    # Relationships
-    exchange_accounts = relationship("ExchangeAccount", back_populates="user", cascade="all, delete-orphan")
-    trading_instances = relationship("TradingInstance", back_populates="user", cascade="all, delete-orphan")
-    
-    def __repr__(self):
-        return f"<User(id={self.id}, email={self.email})>"
 
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+    )
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    full_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
-class UserSession(Base):
-    """User session model for tracking active sessions."""
-    
-    __tablename__ = "user_sessions"
-    
-    # Primary key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    
-    # Foreign key
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
-    
-    # Session information
-    session_token = Column(String(255), unique=True, nullable=False, index=True)
-    refresh_token = Column(String(255), unique=True, nullable=True, index=True)
-    
-    # Device and location info
-    device_info = Column(JSONB, nullable=True)
-    ip_address = Column(String(45), nullable=True)
-    user_agent = Column(Text, nullable=True)
-    
-    # Status
-    is_active = Column(Boolean, default=True, nullable=False)
-    
-    # Timestamps
-    expires_at = Column(DateTime(timezone=True), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
-    
-    # Relationships
-    user = relationship("User", back_populates="sessions")
-    
-    def __repr__(self):
-        return f"<UserSession(id={self.id}, user_id={self.user_id})>"
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
+    role: Mapped[UserRole] = mapped_column(
+        Enum(UserRole, name="userrole"), default=UserRole.USER, nullable=False
+    )
+    subscription_tier: Mapped[SubscriptionTier] = mapped_column(
+        Enum(SubscriptionTier, name="subscriptiontier"),
+        default=SubscriptionTier.FREE,
+        nullable=False,
+    )
 
-# Add sessions relationship to User
-User.sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
+    created_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    def __repr__(self) -> str:
+        return f"<User id={self.id} email={self.email}>"

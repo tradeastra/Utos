@@ -1,47 +1,65 @@
 """
-Redis client configuration for UTOS Trading Engine.
+Async Redis client for UTOS Trading Engine.
 
-This module provides Redis connection and utility functions.
+Uses redis.asyncio (bundled with redis-py >= 4.2).
+Initialised in app lifespan; health-checked via ping().
 """
 
-import redis
-from typing import Any, Optional, Union, List
-import json
-from datetime import datetime, timedelta
+from typing import Optional
+
+import redis.asyncio as aioredis
 
 from core.config import get_redis_url
 from core.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Redis client instance
-redis_client: Optional[redis.Redis] = None
+_redis: Optional[aioredis.Redis] = None  # type: ignore[type-arg]
 
 
-def get_redis() -> redis.Redis:
-    """Get Redis client instance."""
-    global redis_client
-    if redis_client is None:
-        redis_client = redis.from_url(
-            get_redis_url(),
-            encoding="utf-8",
-            decode_responses=True,
-            max_connections=100,
-            retry_on_timeout=True,
-            socket_timeout=5,
-            socket_connect_timeout=5,
-        )
-        logger.info("Redis client initialized")
-    return redis_client
+async def init_redis(redis_url: str | None = None) -> aioredis.Redis:  # type: ignore[type-arg]
+    """Create the async Redis connection pool and verify connectivity."""
+    global _redis
+    url = redis_url or get_redis_url()
+    _redis = aioredis.from_url(
+        url,
+        encoding="utf-8",
+        decode_responses=True,
+        max_connections=50,
+        socket_timeout=5,
+        socket_connect_timeout=5,
+    )
+    try:
+        await _redis.ping()
+        logger.info("Redis connected", extra={"url": url})
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Redis ping failed — continuing without cache", extra={"error": str(exc)})
+    return _redis
 
 
-def close_redis():
-    """Close Redis connection."""
-    global redis_client
-    if redis_client:
-        redis_client.close()
-        redis_client = None
+async def close_redis() -> None:
+    """Close the Redis connection pool."""
+    global _redis
+    if _redis:
+        await _redis.aclose()
+        _redis = None
         logger.info("Redis connection closed")
+
+
+def get_redis() -> Optional[aioredis.Redis]:  # type: ignore[type-arg]
+    """Return the active Redis client (None if not yet initialised)."""
+    return _redis
+
+
+async def redis_ping() -> bool:
+    """Return True if Redis is reachable."""
+    client = get_redis()
+    if client is None:
+        return False
+    try:
+        return await client.ping()  # type: ignore[return-value]
+    except Exception:  # noqa: BLE001
+        return False
 
 
 class RedisCache:

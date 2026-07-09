@@ -1,181 +1,139 @@
 """
-Authentication endpoints for UTOS Trading Engine.
-
-This module provides endpoints for user authentication and authorization.
+Authentication endpoints — register, login, refresh, logout.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import HTTPBearer
-from pydantic import BaseModel
-from datetime import datetime, timedelta
-from typing import Optional
+from datetime import datetime, timezone
 
-from core.logging import get_logger
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from core.config import settings
+from core.exceptions import AuthenticationError
+from core.logging import get_logger
+from core.security import PasswordManager, TokenManager
+from database.base import get_db
+from repositories.user_repository import UserRepository
+from schemas.auth import (
+    AccessTokenResponse,
+    MessageResponse,
+    RefreshTokenRequest,
+    TokenResponse,
+    UserLoginRequest,
+    UserRegisterRequest,
+    UserResponse,
+)
 
 router = APIRouter()
 logger = get_logger(__name__)
-security = HTTPBearer()
+_bearer = HTTPBearer()
+
+password_manager = PasswordManager()
+token_manager = TokenManager()
 
 
-# Pydantic models
-class LoginRequest(BaseModel):
-    """Login request model."""
-    email: str
-    password: str
+def _now_iso() -> str:
+    return datetime.now(tz=timezone.utc).isoformat()
 
 
-class LoginResponse(BaseModel):
-    """Login response model."""
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
-    expires_in: int
-
-
-class RegisterRequest(BaseModel):
-    """Register request model."""
-    email: str
-    password: str
-    full_name: Optional[str] = None
-
-
-class RefreshTokenRequest(BaseModel):
-    """Refresh token request model."""
-    refresh_token: str
-
-
-@router.post("/login", response_model=LoginResponse)
-async def login(login_data: LoginRequest):
-    """User login endpoint."""
-    try:
-        logger.info(f"Login attempt for email: {login_data.email}")
-        
-        # TODO: Implement actual authentication logic
-        # - Validate email format
-        # - Check if user exists
-        # - Verify password hash
-        # - Generate JWT tokens
-        # - Log login event
-        
-        # Placeholder response
-        access_token = "placeholder_access_token"
-        refresh_token = "placeholder_refresh_token"
-        
-        logger.info(f"Login successful for email: {login_data.email}")
-        return LoginResponse(
-            access_token=access_token,
-            refresh_token=refresh_token,
-            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+@router.post("/register", response_model=dict, status_code=status.HTTP_201_CREATED)
+async def register(
+    body: UserRegisterRequest,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Register a new user account."""
+    repo = UserRepository(db)
+    if await repo.exists_by_email(body.email):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error": {
+                    "code": "EMAIL_EXISTS",
+                    "message": "Email already registered",
+                    "details": None,
+                }
+            },
         )
-        
-    except Exception as e:
-        logger.error(f"Login failed for email {login_data.email}: {e}")
+    hashed = password_manager.hash_password(body.password)
+    user = await repo.create(body.email, hashed, body.full_name)
+    logger.info("User registered", extra={"user_id": str(user.id)})
+    return {
+        "data": UserResponse.model_validate(user).model_dump(),
+        "meta": {"timestamp": _now_iso()},
+    }
+
+
+@router.post("/login", response_model=dict)
+async def login(
+    body: UserLoginRequest,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Authenticate and return JWT tokens."""
+    repo = UserRepository(db)
+    user = await repo.get_by_email(body.email)
+    if not user or not password_manager.verify_password(body.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials"
+            detail={
+                "error": {
+                    "code": "INVALID_CREDENTIALS",
+                    "message": "Invalid email or password",
+                    "details": None,
+                }
+            },
         )
-
-
-@router.post("/register", response_model=dict)
-async def register(register_data: RegisterRequest):
-    """User registration endpoint."""
-    try:
-        logger.info(f"Registration attempt for email: {register_data.email}")
-        
-        # TODO: Implement actual registration logic
-        # - Validate email format
-        # - Check if email already exists
-        # - Validate password strength
-        # - Hash password
-        # - Create user in database
-        # - Send verification email
-        # - Log registration event
-        
-        logger.info(f"Registration successful for email: {register_data.email}")
-        return {"message": "User registered successfully"}
-        
-    except Exception as e:
-        logger.error(f"Registration failed for email {register_data.email}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Registration failed"
-        )
-
-
-@router.post("/refresh", response_model=LoginResponse)
-async def refresh_token(refresh_data: RefreshTokenRequest):
-    """Refresh access token endpoint."""
-    try:
-        logger.info("Token refresh attempt")
-        
-        # TODO: Implement actual token refresh logic
-        # - Validate refresh token
-        # - Check if token is revoked
-        # - Generate new access token
-        # - Update token expiration
-        
-        # Placeholder response
-        access_token = "placeholder_new_access_token"
-        
-        logger.info("Token refresh successful")
-        return LoginResponse(
-            access_token=access_token,
-            refresh_token=refresh_data.refresh_token,
-            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
-        )
-        
-    except Exception as e:
-        logger.error(f"Token refresh failed: {e}")
+    if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid refresh token"
+            detail={"error": {"code": "ACCOUNT_DISABLED", "message": "Account is disabled", "details": None}},
         )
+    payload = {"sub": str(user.id), "email": user.email}
+    access_token = token_manager.create_access_token(payload)
+    refresh_token = token_manager.create_refresh_token(payload)
+    logger.info("User logged in", extra={"user_id": str(user.id)})
+    return {
+        "data": {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        },
+        "meta": {"timestamp": _now_iso()},
+    }
 
 
-@router.post("/logout")
-async def logout():
-    """User logout endpoint."""
+@router.post("/refresh", response_model=dict)
+async def refresh_token(body: RefreshTokenRequest) -> dict:
+    """Return a new access token given a valid refresh token."""
     try:
-        logger.info("Logout attempt")
-        
-        # TODO: Implement actual logout logic
-        # - Revoke refresh token
-        # - Clear user session
-        # - Log logout event
-        
-        logger.info("Logout successful")
-        return {"message": "Logged out successfully"}
-        
-    except Exception as e:
-        logger.error(f"Logout failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Logout failed"
-        )
-
-
-@router.get("/me")
-async def get_current_user():
-    """Get current user information."""
-    try:
-        # TODO: Implement actual user retrieval logic
-        # - Validate access token
-        # - Get user from database
-        # - Return user information
-        
-        return {
-            "id": "user123",
-            "email": "user@example.com",
-            "full_name": "Test User",
-            "is_active": True,
-            "is_verified": True,
-            "subscription_tier": "free"
-        }
-        
-    except Exception as e:
-        logger.error(f"Get current user failed: {e}")
+        payload = token_manager.verify_token(body.refresh_token, token_type="refresh")
+    except AuthenticationError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication"
-        )
+            detail={"error": {"code": "INVALID_TOKEN", "message": str(exc), "details": None}},
+        ) from exc
+    new_token = token_manager.create_access_token(
+        {"sub": payload["sub"], "email": payload.get("email")}
+    )
+    return {
+        "data": {
+            "access_token": new_token,
+            "token_type": "bearer",
+            "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        },
+        "meta": {"timestamp": _now_iso()},
+    }
+
+
+@router.post("/logout", response_model=dict)
+async def logout(credentials: HTTPAuthorizationCredentials = Depends(_bearer)) -> dict:
+    """Invalidate the current session.
+
+    Note: token blocklist not implemented in Sprint 01 — the token expires
+    naturally after ACCESS_TOKEN_EXPIRE_MINUTES.
+    """
+    logger.info("User logged out")
+    return {
+        "data": {"message": "Successfully logged out"},
+        "meta": {"timestamp": _now_iso()},
+    }

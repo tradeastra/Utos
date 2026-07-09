@@ -1,6 +1,6 @@
 # MASTER PROMPT
 
-**Version:** 2.0.0  
+**Version:** 2.1.0  
 **Last Updated:** 2026-07-09  
 **Status:** DRAFT
 
@@ -554,5 +554,6 @@ Example: `feat(trading): add smart grid strategy implementation`
 
 | Date | Version | Changes |
 |------|---------|---------|
-| 2026-07-09 | 1.0.0 | Initial master prompt |
+| 2026-07-09 | 2.1.0 | Added Sprint Source of Truth rule: implementation must follow SPRINT_xx.md; ROADMAP is informative only; stop if sprint doc is missing or empty |
 | 2026-07-09 | 2.0.0 | Architecture revision: project rename, Trading Instance, KernelContext, TradingContext, ProcessMemory, TP/ProfitLock/PortfolioLock, gated workflow, scalability |
+| 2026-07-09 | 1.0.0 | Initial master prompt |
