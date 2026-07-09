@@ -6,6 +6,7 @@ This module provides endpoints for user authentication and authorization.
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer
+from pydantic import BaseModel
 from datetime import datetime, timedelta
 from typing import Optional
 

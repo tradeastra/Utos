@@ -45,6 +45,15 @@ You must respect this strict workflow:
 
 Never skip a gate. If `ARCHITECTURE_APPROVED.md` is not consistent, stop and ask for clarification.
 
+### 1.2.1 Sprint Source of Truth
+
+For every sprint, the corresponding `docs/sprint/SPRINT_xx.md` is the single source of truth for implementation.
+
+- **Never infer sprint requirements from `docs/ROADMAP.md`.** The ROADMAP is informative only and describes high-level progression.
+- **Implementation MUST follow the matching `SPRINT_xx.md`.**
+- **If `SPRINT_xx.md` is missing, empty, or unclear, STOP and report an error.** Do not guess, do not fill gaps using the ROADMAP, and do not proceed with implementation until the sprint document is complete.
+- Do not create the next sprint document or implement features belonging to future sprints without explicit approval.
+
 ### 1.3 Technology Stack
 
 **Backend:**
