@@ -1,6 +1,6 @@
 # SEQUENCE DIAGRAMS
 
-**Version:** 1.0.0  
+**Version:** 2.0.0  
 **Last Updated:** 2026-07-09  
 **Status:** DRAFT
 
@@ -8,7 +8,7 @@
 
 ## 1. OVERVIEW
 
-This document defines the sequence diagrams for all critical flows in the UTOS trading system. Each diagram shows the exact order of operations, the participants involved, and the events emitted.
+This document defines the sequence diagrams for all critical flows in the UTOS Trading Engine trading system. Each diagram shows the exact order of operations, the participants involved, and the events emitted.
 
 ### 1.1 Participants
 
@@ -24,6 +24,7 @@ This document defines the sequence diagrams for all critical flows in the UTOS t
 | `PE` | Portfolio Engine |
 | `RE` | Risk Engine |
 | `PLE` | Profit Lock Engine |
+| `PLOE` | Portfolio Lock Engine |
 | `MH` | Market Hub |
 | `EB` | Event Bus |
 | `NS` | Notification Service |
@@ -463,7 +464,7 @@ User    API     AUTH    DB      EB      NS
 
 ---
 
-## 9. STOP TRADING PROCESS FLOW
+## 9. STOP TRADING INSTANCE FLOW
 
 ```
 User    API     TE      EB      GE      EE      EA      EX      PE      NS
@@ -584,3 +585,4 @@ EE      EA      EX      EB      TE      NS
 | Date | Version | Changes |
 |------|---------|---------|
 | 2026-07-09 | 1.0.0 | Initial sequence diagrams |
+| 2026-07-09 | 2.0.0 | Architecture revision: project rename, Trading Instance terminology, PLOE participant |

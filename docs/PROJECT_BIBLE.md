@@ -1,6 +1,6 @@
 # PROJECT BIBLE
 
-**Version:** 1.0.0  
+**Version:** 2.0.0  
 **Last Updated:** 2026-07-09  
 **Status:** DRAFT
 
@@ -8,17 +8,21 @@
 
 ## 1. PROJECT OVERVIEW
 
-### 1.1 Vision
-<!-- What is the ultimate goal of UTOS? -->
+### 1.1 Project Name
 
-### 1.2 Mission
-<!-- What problem does UTOS solve? -->
+**UTOS Trading Engine** — Unified Trading Operating System Trading Engine
 
-### 1.3 Target Users
+### 1.2 Vision
+<!-- What is the ultimate goal of UTOS Trading Engine? -->
+
+### 1.3 Mission
+<!-- What problem does UTOS Trading Engine solve? -->
+
+### 1.4 Target Users
 <!-- Who will use this system? -->
 
-### 1.4 Core Value Proposition
-<!-- Why UTOS? What makes it different? -->
+### 1.5 Core Value Proposition
+<!-- Why UTOS Trading Engine? What makes it different? -->
 
 ---
 
@@ -51,14 +55,14 @@
 
 ### 2.3 Core Components
 
-#### 2.3.1 Trading Engine
-<!-- Describe trading engine responsibilities -->
+#### 2.3.1 Trading Engine & Trading Instance
+<!-- Describe trading engine responsibilities and Trading Instance lifecycle -->
 
 #### 2.3.2 Market Hub
 <!-- Describe market data aggregation -->
 
 #### 2.3.3 Exchange Adapters
-<!-- Describe exchange integration layer -->
+<!-- Describe exchange integration layer (initialize, authenticate, connect_market, connect_account, disconnect) -->
 
 #### 2.3.4 Portfolio Engine
 <!-- Describe portfolio management -->
@@ -66,14 +70,23 @@
 #### 2.3.5 Risk Engine
 <!-- Describe risk management -->
 
-#### 2.3.6 Worker Engine
-<!-- Describe background task processing -->
+#### 2.3.6 Worker Engine & Process Memory
+<!-- Describe background task processing and per-instance ProcessMemory snapshots -->
 
 #### 2.3.7 Event Bus
 <!-- Describe event-driven architecture -->
 
 #### 2.3.8 Security Layer
 <!-- Describe authentication and authorization -->
+
+#### 2.3.9 Context Objects
+<!-- Describe KernelContext and TradingContext -->
+
+#### 2.3.10 Profit Lock, Portfolio Lock, and Take Profit
+<!-- Describe separation between per-layer TP, per-position ProfitLock, and per-instance PortfolioLock -->
+
+#### 2.3.11 Scalability Target
+<!-- Describe 100,000+ Trading Instances strategy -->
 
 ---
 

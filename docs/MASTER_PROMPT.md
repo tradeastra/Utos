@@ -1,6 +1,6 @@
 # MASTER PROMPT
 
-**Version:** 1.0.0  
+**Version:** 2.0.0  
 **Last Updated:** 2026-07-09  
 **Status:** DRAFT
 
@@ -8,7 +8,7 @@
 
 ## PURPOSE
 
-This document is the master prompt for AI assistants (Codex, Cascade, etc.) working on the UTOS project. It provides the context, guidelines, and rules for implementing features consistently.
+This document is the master prompt for AI assistants (Codex, Cascade, etc.) working on the UTOS Trading Engine project. It provides the context, guidelines, and rules for implementing features consistently.
 
 **ALWAYS READ THIS BEFORE STARTING ANY WORK.**
 
@@ -16,19 +16,36 @@ This document is the master prompt for AI assistants (Codex, Cascade, etc.) work
 
 ## 1. PROJECT CONTEXT
 
-### 1.1 What is UTOS?
+### 1.1 What is UTOS Trading Engine?
 
-UTOS is an automated cryptocurrency trading system that supports multiple exchanges and trading strategies. Key features:
+UTOS Trading Engine is an automated cryptocurrency trading system that supports multiple exchanges and trading strategies. Key features:
 
 - Multi-exchange support (Binance, Hyperliquid, Bybit, OKX, MEXC)
+- **Trading Instance**: one running trading session per pair/strategy/capital combination
+- **TradingContext** and **KernelContext**: reduce parameter complexity by passing context objects
+- **ProcessMemory**: in-memory snapshots for runtime state, database for recovery
 - Grid trading strategies (Smart Grid, Adaptive Grid, Infinity Grid)
 - DCA (Dollar Cost Averaging) strategy
 - Portfolio management and tracking
-- Risk management and profit locking
+- **Take Profit** (per-layer), **Profit Lock** (per-position trailing), **Portfolio Lock** (per-instance trailing)
 - Real-time market data processing
-- Event-driven architecture
+- Event-driven architecture with explicit `INSTANCE_*` events
+- Scalability target: 100,000+ concurrent Trading Instances
 
-### 1.2 Technology Stack
+### 1.2 Architecture Gated Workflow
+
+You must respect this strict workflow:
+
+1. **Documentation** → Complete before coding.
+2. **Architecture Review** → Identify inconsistencies and critical issues.
+3. **Architecture Approved** → `docs/ARCHITECTURE_APPROVED.md` must exist and be consistent.
+4. **Sprint 1** → Implement approved interfaces only.
+5. **Code Review** → Review before next sprint.
+6. **Sprint 2** → Continue implementation.
+
+Never skip a gate. If `ARCHITECTURE_APPROVED.md` is not consistent, stop and ask for clarification.
+
+### 1.3 Technology Stack
 
 **Backend:**
 - Python 3.11+
@@ -521,3 +538,12 @@ Example: `feat(trading): add smart grid strategy implementation`
 ---
 
 **REMEMBER: The Project Bible is the single source of truth. Always reference it before implementing anything.**
+
+---
+
+## 16. CHANGE LOG
+
+| Date | Version | Changes |
+|------|---------|---------|
+| 2026-07-09 | 1.0.0 | Initial master prompt |
+| 2026-07-09 | 2.0.0 | Architecture revision: project rename, Trading Instance, KernelContext, TradingContext, ProcessMemory, TP/ProfitLock/PortfolioLock, gated workflow, scalability |

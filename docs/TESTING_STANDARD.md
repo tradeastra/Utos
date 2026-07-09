@@ -1,6 +1,6 @@
 # TESTING STANDARD
 
-**Version:** 1.0.0  
+**Version:** 2.0.0  
 **Last Updated:** 2026-07-09  
 **Status:** DRAFT
 
@@ -8,7 +8,7 @@
 
 ## 1. OVERVIEW
 
-This document defines the testing strategy for the UTOS trading system. Testing is mandatory — no code is merged without tests.
+This document defines the testing strategy for the UTOS Trading Engine. Testing is mandatory — no code is merged without tests.
 
 ### 1.1 Testing Pyramid
 
@@ -721,3 +721,4 @@ repos:
 | Date | Version | Changes |
 |------|---------|---------|
 | 2026-07-09 | 1.0.0 | Initial testing standard |
+| 2026-07-09 | 2.0.0 | Architecture revision: project rename, UTOS Trading Engine |

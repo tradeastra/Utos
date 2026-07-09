@@ -1,6 +1,6 @@
 # ERROR HANDLING SPECIFICATION
 
-**Version:** 1.0.0  
+**Version:** 2.0.0  
 **Last Updated:** 2026-07-09  
 **Status:** DRAFT
 
@@ -8,7 +8,7 @@
 
 ## 1. OVERVIEW
 
-This document defines the error handling strategy for the UTOS trading system. Every error scenario has a defined response, retry policy, and escalation path.
+This document defines the error handling strategy for the UTOS Trading Engine. Every error scenario has a defined response, retry policy, and escalation path.
 
 ### 1.1 Principles
 
@@ -823,7 +823,7 @@ logger.error(
         "exchange": "binance",
         "operation": "place_order",
         "symbol": "BTCUSDT",
-        "trading_process_id": "uuid",
+        "trading_instance_id": "uuid",
         "user_id": "uuid",
         "retry_count": 3,
         "elapsed_seconds": 30.0,
@@ -891,3 +891,4 @@ logger.error(
 | Date | Version | Changes |
 |------|---------|---------|
 | 2026-07-09 | 1.0.0 | Initial error handling specification |
+| 2026-07-09 | 2.0.0 | Architecture revision: project rename, UTOS Trading Engine |

@@ -1,6 +1,6 @@
 # DATABASE DESIGN
 
-**Version:** 1.0.0  
+**Version:** 2.0.0  
 **Last Updated:** 2026-07-09  
 **Status:** DRAFT
 
@@ -8,7 +8,7 @@
 
 ## 1. OVERVIEW
 
-This document defines the database schema for the UTOS trading system. The database is built on PostgreSQL and uses SQLAlchemy ORM for Python.
+This document defines the database schema for the UTOS Trading Engine. The database is built on PostgreSQL and uses SQLAlchemy ORM for Python.
 
 ### 1.1 Design Principles
 
@@ -62,7 +62,7 @@ This document defines the database schema for the UTOS trading system. The datab
 
 **Relationships**:
 - One-to-Many with `exchange_accounts`
-- One-to-Many with `trading_processes`
+- One-to-Many with `trading_instances`
 - One-to-Many with `orders`
 - One-to-Many with `positions`
 - One-to-Many with `notifications`
@@ -104,29 +104,38 @@ This document defines the database schema for the UTOS trading system. The datab
 
 ---
 
-### 2.3 Trading Processes
+### 2.3 Trading Instances
 
-**Table**: `trading_processes`
+**Table**: `trading_instances`
 
-**Description**: Active trading processes (grid trading sessions).
+**Description**: Active trading instances (grid trading sessions). A user can have multiple instances for the same pair and strategy with different capital, grid, and risk settings.
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
-| id | UUID | PK, NOT NULL | Unique trading process identifier |
-| user_id | UUID | FK → users.id, NOT NULL, INDEX | User who owns this process |
+| id | UUID | PK, NOT NULL | Unique trading instance identifier |
+| user_id | UUID | FK → users.id, NOT NULL, INDEX | User who owns this instance |
 | exchange_account_id | UUID | FK → exchange_accounts.id, NOT NULL, INDEX | Exchange account used |
 | strategy_id | UUID | FK → strategies.id, NOT NULL, INDEX | Strategy being used |
 | grid_profile_id | UUID | FK → grid_profiles.id, NOT NULL, INDEX | Grid configuration |
 | symbol | VARCHAR(20) | NOT NULL, INDEX | Trading pair symbol |
-| status | VARCHAR(20) | NOT NULL, INDEX, DEFAULT 'created' | Process status |
-| start_price | DECIMAL(20, 8) | NOT NULL | Price when process started |
+| status | VARCHAR(20) | NOT NULL, INDEX, DEFAULT 'created' | Instance status |
+| start_price | DECIMAL(20, 8) | NOT NULL | Price when instance started |
 | current_price | DECIMAL(20, 8) | | Current market price |
 | total_investment | DECIMAL(20, 8) | NOT NULL | Total investment amount |
 | base_currency | VARCHAR(10) | NOT NULL | Base currency (e.g., BTC) |
 | quote_currency | VARCHAR(10) | NOT NULL | Quote currency (e.g., USDT) |
+| profit_lock_enabled | BOOLEAN | DEFAULT FALSE | Enable per-position trailing profit lock |
+| profit_lock_trigger_percentage | DECIMAL(5, 2) | | Profit lock trigger percentage |
+| profit_lock_trail_percentage | DECIMAL(5, 2) | | Profit lock trail percentage |
+| portfolio_lock_enabled | BOOLEAN | DEFAULT FALSE | Enable instance-level trailing portfolio lock |
+| portfolio_lock_trigger_percentage | DECIMAL(5, 2) | | Portfolio lock trigger percentage |
+| portfolio_lock_trail_percentage | DECIMAL(5, 2) | | Portfolio lock trail percentage |
+| worker_id | VARCHAR(100) | INDEX | Assigned worker ID for this instance |
+| memory_snapshot | JSONB | | Last persisted ProcessMemory snapshot |
+| memory_version | INTEGER | DEFAULT 0 | ProcessMemory snapshot version |
 | error_message | TEXT | | Error message if status is error |
-| started_at | TIMESTAMP | | Process start timestamp |
-| stopped_at | TIMESTAMP | | Process stop timestamp |
+| started_at | TIMESTAMP | | Instance start timestamp |
+| stopped_at | TIMESTAMP | | Instance stop timestamp |
 | deleted_at | TIMESTAMP | | Soft delete timestamp |
 | created_at | TIMESTAMP | NOT NULL, DEFAULT NOW() | Creation timestamp |
 | updated_at | TIMESTAMP | NOT NULL, DEFAULT NOW() | Last update timestamp |
@@ -134,11 +143,11 @@ This document defines the database schema for the UTOS trading system. The datab
 **Status Values**: `created`, `ready`, `running`, `paused`, `stopping`, `stopped`, `error`, `recovering`
 
 **Indexes**:
-- `idx_trading_processes_user_id` on `user_id`
-- `idx_trading_processes_exchange_account_id` on `exchange_account_id`
-- `idx_trading_processes_strategy_id` on `strategy_id`
-- `idx_trading_processes_status` on `status`
-- `idx_trading_processes_symbol` on `symbol`
+- `idx_trading_instances_user_id` on `user_id`
+- `idx_trading_instances_exchange_account_id` on `exchange_account_id`
+- `idx_trading_instances_strategy_id` on `strategy_id`
+- `idx_trading_instances_status` on `status`
+- `idx_trading_instances_symbol` on `symbol`
 
 **Relationships**:
 - Many-to-One with `users`
@@ -159,7 +168,7 @@ This document defines the database schema for the UTOS trading system. The datab
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | id | UUID | PK, NOT NULL | Unique position identifier |
-| trading_process_id | UUID | FK → trading_processes.id, NOT NULL, INDEX | Associated trading process |
+| trading_instance_id | UUID | FK → trading_instances.id, NOT NULL, INDEX | Associated trading instance |
 | symbol | VARCHAR(20) | NOT NULL, INDEX | Trading pair symbol |
 | side | VARCHAR(10) | NOT NULL | Position side (long, short) |
 | entry_price | DECIMAL(20, 8) | NOT NULL | Average entry price |
@@ -172,11 +181,11 @@ This document defines the database schema for the UTOS trading system. The datab
 | updated_at | TIMESTAMP | NOT NULL, DEFAULT NOW() | Last update timestamp |
 
 **Indexes**:
-- `idx_positions_trading_process_id` on `trading_process_id`
+- `idx_positions_trading_instance_id` on `trading_instance_id`
 - `idx_positions_symbol` on `symbol`
 
 **Relationships**:
-- Many-to-One with `trading_processes`
+- Many-to-One with `trading_instances`
 
 ---
 
@@ -191,7 +200,7 @@ This document defines the database schema for the UTOS trading system. The datab
 | id | UUID | PK, NOT NULL | Unique order identifier |
 | user_id | UUID | FK → users.id, NOT NULL, INDEX | User who placed the order |
 | exchange_account_id | UUID | FK → exchange_accounts.id, NOT NULL, INDEX | Exchange account used |
-| trading_process_id | UUID | FK → trading_processes.id, INDEX | Associated trading process |
+| trading_instance_id | UUID | FK → trading_instances.id, INDEX | Associated trading instance |
 | exchange_order_id | VARCHAR(100) | INDEX | Exchange's order ID |
 | symbol | VARCHAR(20) | NOT NULL, INDEX | Trading pair symbol |
 | side | VARCHAR(10) | NOT NULL | Order side (buy, sell) |
@@ -204,7 +213,8 @@ This document defines the database schema for the UTOS trading system. The datab
 | status | VARCHAR(20) | NOT NULL, INDEX, DEFAULT 'pending' | Order status |
 | error_message | TEXT | | Error message if failed |
 | grid_level | INTEGER | | Grid level number (for grid orders) |
-| is_profit_lock | BOOLEAN | DEFAULT FALSE | Whether this is a profit lock order |
+| purpose | VARCHAR(30) | NOT NULL, DEFAULT 'grid' | Order purpose: grid, take_profit, profit_lock, portfolio_lock, stop_loss |
+| is_profit_lock | BOOLEAN | DEFAULT FALSE | Whether this is a profit lock order (deprecated, use purpose) |
 | created_at | TIMESTAMP | NOT NULL, DEFAULT NOW() | Creation timestamp |
 | updated_at | TIMESTAMP | NOT NULL, DEFAULT NOW() | Last update timestamp |
 | filled_at | TIMESTAMP | | Fill timestamp |
@@ -214,7 +224,7 @@ This document defines the database schema for the UTOS trading system. The datab
 **Indexes**:
 - `idx_orders_user_id` on `user_id`
 - `idx_orders_exchange_account_id` on `exchange_account_id`
-- `idx_orders_trading_process_id` on `trading_process_id`
+- `idx_orders_trading_instance_id` on `trading_instance_id`
 - `idx_orders_exchange_order_id` on `exchange_order_id`
 - `idx_orders_symbol` on `symbol`
 - `idx_orders_status` on `status`
@@ -222,7 +232,7 @@ This document defines the database schema for the UTOS trading system. The datab
 **Relationships**:
 - Many-to-One with `users`
 - Many-to-One with `exchange_accounts`
-- Many-to-One with `trading_processes`
+- Many-to-One with `trading_instances`
 
 ---
 
@@ -243,8 +253,8 @@ This document defines the database schema for the UTOS trading system. The datab
 | grid_count | INTEGER | NOT NULL | Number of grid levels |
 | grid_spacing | DECIMAL(20, 8) | | Spacing between grid levels |
 | investment_per_grid | DECIMAL(20, 8) | NOT NULL | Investment per grid level |
-| take_profit_enabled | BOOLEAN | DEFAULT FALSE | Enable take profit |
-| take_profit_percentage | DECIMAL(5, 2) | | Take profit percentage |
+| take_profit_enabled | BOOLEAN | DEFAULT FALSE | Enable per-layer take profit |
+| take_profit_percentage | DECIMAL(5, 2) | | Per-layer take profit percentage |
 | stop_loss_enabled | BOOLEAN | DEFAULT FALSE | Enable stop loss |
 | stop_loss_percentage | DECIMAL(5, 2) | | Stop loss percentage |
 | is_default | BOOLEAN | DEFAULT FALSE | Whether this is default profile |
@@ -256,7 +266,7 @@ This document defines the database schema for the UTOS trading system. The datab
 
 **Relationships**:
 - Many-to-One with `users`
-- One-to-Many with `trading_processes`
+- One-to-Many with `trading_instances`
 
 ---
 
@@ -284,7 +294,7 @@ This document defines the database schema for the UTOS trading system. The datab
 - `uq_strategies_name` on `name`
 
 **Relationships**:
-- One-to-Many with `trading_processes`
+- One-to-Many with `trading_instances`
 
 ---
 
@@ -466,7 +476,7 @@ This document defines the database schema for the UTOS trading system. The datab
          ▼                        │
 ┌─────────────────┐               │
 │  trading_       │               │
-│   processes     │               │
+│   instances     │               │
 ├─────────────────┤               │
 │ id (PK)         │               │
 │ user_id (FK)    │               │
@@ -477,6 +487,8 @@ This document defines the database schema for the UTOS trading system. The datab
 │   (FK)          │               │
 │ symbol          │               │
 │ status          │               │
+│ worker_id       │               │
+│ memory_snapshot │               │
 │ ...             │               │
 └─────────────────┘               │
          │                        │
@@ -490,13 +502,14 @@ This document defines the database schema for the UTOS trading system. The datab
 ├─────────────────┤ ├─────────────┤
 │ id (PK)         │ │ id (PK)     │
 │ user_id (FK)    │ │ trading_    │
-│ exchange_account│ │   process_id│
+│ exchange_account│ │  instance_id│
 │   _id (FK)      │ │   (FK)      │
-│ trading_process │ │ symbol      │
+│ trading_instance │ │ symbol      │
 │   _id (FK)      │ │ side        │
 │ symbol          │ │ quantity    │
 │ side            │ │ ...         │
 │ status          │ └─────────────┘
+│ purpose         │
 │ ...             │
 └─────────────────┘
 
@@ -627,7 +640,7 @@ alembic current
 Use descriptive names in snake_case:
 - `create_users_table`
 - `add_exchange_accounts_table`
-- `add_trading_processes_table`
+- `add_trading_instances_table`
 - `add_orders_index_on_status`
 
 ---
@@ -779,8 +792,77 @@ pg_dump -U postgres -d utos -f backup_$(date +%Y%m%d).sql
 
 ---
 
-## 10. CHANGE LOG
+## 10. PROCESS MEMORY PERSISTENCE
+
+### 10.1 Philosophy
+
+Database is the **source of truth for recovery**, but runtime state lives in **ProcessMemory**.
+
+Each Trading Instance has a worker that owns an in-memory snapshot. The database is updated asynchronously:
+
+- On state transitions (`created` → `ready` → `running` → `paused` → `stopped` → `error`)
+- On order/position changes (debounced, every 1-5 seconds)
+- On worker shutdown (final snapshot)
+- On explicit `sync_instance_state()` call
+
+### 10.2 `memory_snapshot` Format
+
+```json
+{
+  "instance_id": "uuid",
+  "version": 42,
+  "status": "running",
+  "grid_state": { ... },
+  "positions": [...],
+  "open_orders": [...],
+  "balances": [...],
+  "profit_lock_state": { ... },
+  "portfolio_lock_state": { ... },
+  "market_data": { "BTCUSDT": { ... } },
+  "last_synced_at": "2026-07-09T10:00:00Z"
+}
+```
+
+### 10.3 Recovery
+
+On restart, workers reload the latest `memory_snapshot` from the database, then reconcile with the exchange. This minimizes startup time for 100,000+ instances.
+
+---
+
+## 11. SCALABILITY FOR 100,000+ TRADING INSTANCES
+
+### 11.1 Database Strategy
+
+| Technique | Purpose |
+|-----------|---------|
+| Connection Pooling | PgBouncer with transaction pooling |
+| Read Replicas | Portfolio/history queries on replicas |
+| Partitioning | Partition `orders` by `created_at` (monthly) and `trading_instance_id` hash |
+| Bulk Writes | Batch memory snapshot updates |
+| Async Persistence | Workers persist snapshots to DB in background |
+| Hot Indexes | Index on `(user_id, status)`, `(worker_id, status)`, `(symbol, status)` |
+
+### 11.2 Write Patterns
+
+- **High frequency**: `memory_snapshot` updates every 1-5 seconds per instance
+- **Medium frequency**: Order fills, position updates
+- **Low frequency**: User profile changes, grid profile updates
+
+### 11.3 Scaling Targets
+
+| Metric | Target |
+|--------|--------|
+| Concurrent Trading Instances | 100,000+ |
+| Orders per second | 10,000+ |
+| Memory snapshots per second | 20,000+ (batched) |
+| Database connections | 500-1000 via PgBouncer |
+| Read replicas | 2-3 replicas |
+
+---
+
+## 12. CHANGE LOG
 
 | Date | Version | Changes |
 |------|---------|---------|
 | 2026-07-09 | 1.0.0 | Initial database design |
+| 2026-07-09 | 2.0.0 | Architecture revision: Trading Instance, Process Memory, TP/ProfitLock/PortfolioLock separation, READY state, scalability targets |

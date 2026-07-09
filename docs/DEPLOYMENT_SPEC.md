@@ -1,6 +1,6 @@
 # DEPLOYMENT SPECIFICATION
 
-**Version:** 1.0.0  
+**Version:** 2.0.0  
 **Last Updated:** 2026-07-09  
 **Status:** DRAFT
 
@@ -8,7 +8,7 @@
 
 ## 1. OVERVIEW
 
-This document defines the deployment architecture, processes, and environments for the UTOS trading system.
+This document defines the deployment architecture, processes, and environments for the UTOS Trading Engine.
 
 ### 1.1 Environments
 
@@ -634,7 +634,7 @@ jobs:
 |--------|------|-------------|
 | `utos_orders_total` | Counter | Total orders placed |
 | `utos_orders_filled_total` | Counter | Total orders filled |
-| `utos_trading_processes_active` | Gauge | Active trading processes |
+| `utos_trading_instances_active` | Gauge | Active trading processes |
 | `utos_grid_cycles_total` | Counter | Total grid cycles completed |
 | `utos_api_request_duration_seconds` | Histogram | API request latency |
 | `utos_websocket_connections` | Gauge | Active WebSocket connections |
@@ -700,7 +700,46 @@ pg_restore -U postgres -d utos -c backup_20260709.sql
 
 ---
 
-## 10. SECURITY CHECKLIST
+## 10. SCALABILITY FOR 100,000+ TRADING INSTANCES
+
+### 10.1 Horizontal Pod Autoscaling (HPA)
+
+| Service | Min Replicas | Max Replicas | Trigger |
+|---------|-------------|--------------|---------|
+| API | 3 | 20 | CPU > 70%, memory > 80% |
+| Workers | 10 | 200 | Active instances per worker > 1000 |
+| Event Bus | 3 | 10 | Message lag > 10,000 |
+| Market Hub | 3 | 10 | Active symbol subscriptions > 5,000 |
+
+### 10.2 Worker Pool Architecture
+
+- Workers are **stateful per instance** (one Trading Instance is owned by one worker).
+- Worker assignment uses consistent hashing on `instance_id`.
+- Workers load `ProcessMemory` snapshot from database on startup and reconcile with exchange.
+- Graceful shutdown: persist snapshot, stop accepting new instances, drain existing instances.
+
+### 10.3 Database Scaling
+
+- PostgreSQL primary + 2 read replicas.
+- PgBouncer transaction pooling (500-1000 connections).
+- Partition `orders` by `created_at` (monthly) and `trading_instance_id` (hash).
+- Bulk `memory_snapshot` updates with background task.
+
+### 10.4 Redis Scaling
+
+- Redis Cluster for Pub/Sub and cache.
+- Redis Streams (Phase 2) for ordered event processing at scale.
+- Separate Redis for sessions, cache, and event bus.
+
+### 10.5 Network & Storage
+
+- WebSocket ingress with sticky sessions for account streams.
+- S3 for persistent snapshots and audit logs.
+- CDN for static frontend assets.
+
+---
+
+## 11. SECURITY CHECKLIST
 
 - [ ] SSL/TLS certificates valid and auto-renewing
 - [ ] Secrets stored in Kubernetes Secrets (not in code)
@@ -721,7 +760,7 @@ pg_restore -U postgres -d utos -c backup_20260709.sql
 
 ---
 
-## 11. BACKUP STRATEGY
+## 12. BACKUP STRATEGY
 
 | Data | Frequency | Retention | Storage |
 |------|-----------|-----------|---------|
@@ -733,8 +772,9 @@ pg_restore -U postgres -d utos -c backup_20260709.sql
 
 ---
 
-## 12. CHANGE LOG
+## 13. CHANGE LOG
 
 | Date | Version | Changes |
 |------|---------|---------|
 | 2026-07-09 | 1.0.0 | Initial deployment specification |
+| 2026-07-09 | 2.0.0 | Architecture revision: project rename, scalability for 100,000+ Trading Instances, ProcessMemory, worker pool |

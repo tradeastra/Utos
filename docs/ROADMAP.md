@@ -8,7 +8,7 @@
 
 ## OVERVIEW
 
-This roadmap outlines the development timeline for the UTOS project using a **layer-based sprint** approach. Each sprint builds a complete layer of the system, ensuring stability before moving to the next.
+This roadmap outlines the development timeline for the UTOS Trading Engine project using a **layer-based sprint** approach. Each sprint builds a complete layer of the system, ensuring stability before moving to the next.
 
 **Total Duration:** ~16 weeks (~4 months)  
 **Sprint Length:** 1 week  
@@ -31,7 +31,7 @@ Sprint 05: Exchange Adapter
     ↓
 Sprint 06: Market Hub
     ↓
-Sprint 07: Trading Process
+Sprint 07: Trading Instance
     ↓
 Sprint 08: Grid Engine
     ↓
@@ -116,10 +116,14 @@ Sprint 16: Deployment & Testing
 - [ ] Implement service registry
 - [ ] Implement lifecycle management (start/stop/restart)
 - [ ] Implement health check aggregation
+- [ ] Implement `KernelContext` with logger, event bus, cache, storage, config, metrics, clock, health monitor
+- [ ] Implement `TradingContext` builder
 - [ ] Implement configuration management (`core/config.py`)
 - [ ] Implement security utilities (`core/security/`)
 - [ ] Implement logger (`core/logger/`)
 - [ ] Implement storage (`core/storage/`)
+- [ ] Implement cache (`core/cache/`)
+- [ ] Implement metrics (`core/metrics/`)
 - [ ] Implement custom exceptions (`core/exceptions.py`)
 - [ ] Implement enums and constants
 - [ ] Write unit tests for all core modules
@@ -168,9 +172,9 @@ Sprint 16: Deployment & Testing
 **Status:** ⏳ Pending
 
 **Goals:**
-- [ ] Implement `IExchangeAdapter` base class
-- [ ] Implement Binance adapter (REST + WebSocket)
-- [ ] Implement Bybit adapter (REST + WebSocket)
+- [ ] Implement `IExchangeAdapter` base class with `initialize()`, `authenticate()`, `connect_market()`, `connect_account()`, `disconnect()`
+- [ ] Implement Binance adapter (REST + separate market/account WebSocket)
+- [ ] Implement Bybit adapter (REST + separate market/account WebSocket)
 - [ ] Implement exchange data mappers
 - [ ] Implement rate limiting per exchange
 - [ ] Implement circuit breaker for exchange calls
@@ -215,23 +219,24 @@ Sprint 16: Deployment & Testing
 
 ## PHASE 3: TRADING ENGINE (Weeks 7-12)
 
-### Sprint 07: Trading Process
+### Sprint 07: Trading Instance
 **Duration:** Week 7  
-**Layer:** Trading process lifecycle  
+**Layer:** Trading instance lifecycle  
 **Status:** ⏳ Pending
 
 **Goals:**
 - [ ] Implement `ITradingEngine` and `TradingEngine`
-- [ ] Implement trading process state machine
-- [ ] Implement create/start/stop/pause/resume operations
-- [ ] Implement state transition logging and events
-- [ ] Implement process state persistence
+- [ ] Implement Trading Instance state machine with `CREATED`, `READY`, `RUNNING`, `PAUSED`, `STOPPING`, `STOPPED`, `ERROR`, `RECOVERING`
+- [ ] Implement `create`/`prepare`/`start`/`stop`/`pause`/`resume` operations
+- [ ] Implement event sourcing: `INSTANCE_CREATED`, `INSTANCE_READY`, `INSTANCE_RUNNING`, `INSTANCE_PAUSED`, `INSTANCE_RESUMED`, `INSTANCE_STOPPING`, `INSTANCE_STOPPED`, `INSTANCE_ERROR`, `INSTANCE_RECOVERING`, `INSTANCE_RECOVERED`
+- [ ] Implement `TradingContext` and `ProcessMemory` integration
+- [ ] Implement instance state persistence via `memory_snapshot`
 - [ ] Write unit tests for all state transitions
-- [ ] Write integration tests for process lifecycle
+- [ ] Write integration tests for instance lifecycle
 
 **Deliverables:**
 - Trading engine with state machine
-- Process lifecycle management
+- Instance lifecycle management
 - State transition events
 - Trading engine tests passing
 
@@ -320,28 +325,31 @@ Sprint 16: Deployment & Testing
 
 ---
 
-### Sprint 11: Profit Lock
+### Sprint 11: Profit & Portfolio Lock
 **Duration:** Week 11  
-**Layer:** Profit lock mechanism  
+**Layer:** Profit lock mechanisms  
 **Status:** ⏳ Pending
 
 **Goals:**
-- [ ] Implement `IProfitLock` and `ProfitLockEngine`
-- [ ] Implement trailing profit lock logic
-- [ ] Implement price monitoring for triggers
-- [ ] Implement lock execution (place sell order)
+- [ ] Clarify separation: per-layer `TP` (take profit), per-position `ProfitLock`, per-instance `PortfolioLock`
+- [ ] Implement `IProfitLock` and `ProfitLockEngine` (per-position trailing)
+- [ ] Implement `IPortfolioLock` and `PortfolioLockEngine` (per-instance trailing, premium feature)
+- [ ] Implement price/profit monitoring for triggers
+- [ ] Implement lock execution (place sell order for ProfitLock; close all for PortfolioLock)
 - [ ] Implement lock level updates (trailing)
-- [ ] Emit profit lock events (`PROFIT_LOCK_TRIGGERED`, `PROFIT_LOCK_UPDATED`, etc.)
+- [ ] Emit profit lock events (`PROFIT_LOCK_TRIGGERED`, `PROFIT_LOCK_UPDATED`, `PROFIT_LOCK_EXECUTED`)
+- [ ] Emit portfolio lock events (`PORTFOLIO_LOCK_TRIGGERED`, `PORTFOLIO_LOCK_UPDATED`, `PORTFOLIO_LOCK_EXECUTED`)
 - [ ] Write unit tests for trailing logic
 - [ ] Write integration tests with price simulation
 
 **Deliverables:**
-- Profit lock engine
-- Trailing stop mechanism
-- Profit lock events
-- Profit lock tests passing
+- Profit lock engine (per-position)
+- Portfolio lock engine (per-instance)
+- Trailing stop mechanisms
+- Profit and portfolio lock events
+- Profit and portfolio lock tests passing
 
-**Dependencies:** Sprint 08, Sprint 09
+**Dependencies:** Sprint 08, Sprint 09, Sprint 10
 
 ---
 
@@ -357,7 +365,7 @@ Sprint 16: Deployment & Testing
 - [ ] Implement grid state rebuild
 - [ ] Implement automatic recovery on error
 - [ ] Implement manual recovery trigger
-- [ ] Emit recovery events (`TRADING_PROCESS_RECOVERING`, etc.)
+- [ ] Emit recovery events (`INSTANCE_RECOVERING, INSTANCE_RECOVERED`, etc.)
 - [ ] Write unit tests for reconciliation logic
 - [ ] Write integration tests for recovery scenarios
 
@@ -437,7 +445,7 @@ Sprint 16: Deployment & Testing
 - [ ] Implement dashboard layout
 - [ ] Implement exchange account management UI
 - [ ] Implement grid profile management UI
-- [ ] Implement trading process management UI
+- [ ] Implement Trading Instance management UI
 - [ ] Implement order list and details UI
 - [ ] Implement portfolio overview UI
 - [ ] Implement notification system
@@ -519,4 +527,4 @@ Sprint 16: Deployment & Testing
 | Date | Version | Changes |
 |------|---------|---------|
 | 2026-07-09 | 1.0.0 | Initial roadmap with 30 feature-based sprints |
-| 2026-07-09 | 2.0.0 | Restructured to 16 layer-based sprints per user request |
+| 2026-07-09 | 2.0.0 | Restructured to 16 layer-based sprints; added Trading Instance, KernelContext, TradingContext, ProcessMemory, READY state, TP/ProfitLock/PortfolioLock separation, separate market/account connections |

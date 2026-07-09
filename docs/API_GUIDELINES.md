@@ -1,6 +1,6 @@
 # API GUIDELINES
 
-**Version:** 1.0.0  
+**Version:** 2.0.0  
 **Last Updated:** 2026-07-09  
 **Status:** DRAFT
 
@@ -8,7 +8,7 @@
 
 ## 1. OVERVIEW
 
-This document defines the API specifications for the UTOS trading system. The API follows RESTful principles and uses JSON for data exchange.
+This document defines the API specifications for the UTOS Trading Engine. The API follows RESTful principles and uses JSON for data exchange.
 
 ### 1.1 Base URL
 
@@ -352,7 +352,7 @@ All API endpoints (except auth endpoints) require authentication via JWT bearer 
 
 **Error Codes**:
 - `INVALID_EXCHANGE`: Invalid exchange name
-- `INVALID_CREDENTIALS`: Invalid API credentials
+- `INVALID_API_CREDENTIALS`: Invalid API credentials
 - `CONNECTION_FAILED`: Failed to connect to exchange
 
 ---
@@ -508,11 +508,11 @@ All API endpoints (except auth endpoints) require authentication via JWT bearer 
 
 ## 5. TRADING ENDPOINTS
 
-### 5.1 List Trading Processes
+### 5.1 List Trading Instances
 
-**Endpoint**: `GET /trading-processes`
+**Endpoint**: `GET /trading-instances`
 
-**Description**: List all trading processes.
+**Description**: List all trading instances.
 
 **Headers**: `Authorization: Bearer {token}`
 
@@ -547,11 +547,11 @@ All API endpoints (except auth endpoints) require authentication via JWT bearer 
 
 ---
 
-### 5.2 Create Trading Process
+### 5.2 Create Trading Instance
 
-**Endpoint**: `POST /trading-processes`
+**Endpoint**: `POST /trading-instances`
 
-**Description**: Create a new trading process.
+**Description**: Create a new trading instance.
 
 **Headers**: `Authorization: Bearer {token}`
 
@@ -562,7 +562,13 @@ All API endpoints (except auth endpoints) require authentication via JWT bearer 
   "strategy_id": "uuid",
   "grid_profile_id": "uuid",
   "symbol": "BTCUSDT",
-  "total_investment": 1000.0
+  "total_investment": 1000.0,
+  "profit_lock_enabled": true,
+  "profit_lock_trigger_percentage": 10.0,
+  "profit_lock_trail_percentage": 2.0,
+  "portfolio_lock_enabled": true,
+  "portfolio_lock_trigger_percentage": 20.0,
+  "portfolio_lock_trail_percentage": 3.0
 }
 ```
 
@@ -591,11 +597,41 @@ All API endpoints (except auth endpoints) require authentication via JWT bearer 
 
 ---
 
-### 5.3 Get Trading Process
+### 5.3 Prepare Trading Instance
 
-**Endpoint**: `GET /trading-processes/{process_id}`
+**Endpoint**: `POST /trading-instances/{instance_id}/prepare`
 
-**Description**: Get details of a specific trading process.
+**Description**: Transition instance from CREATED to READY. Performs API key validation, balance check, grid calculation, order/position sync, market subscription, worker allocation, and ProcessMemory initialization.
+
+**Headers**: `Authorization: Bearer {token}`
+
+**Response** (200 OK):
+```json
+{
+  "data": {
+    "id": "uuid",
+    "status": "ready",
+    "prepared_at": "2026-07-09T10:00:00Z"
+  },
+  "meta": {
+    "timestamp": "2026-07-09T10:00:00Z"
+  }
+}
+```
+
+**Error Codes**:
+- `INVALID_STATUS`: Instance must be in CREATED state
+- `INSUFFICIENT_BALANCE`: Insufficient balance
+- `EXCHANGE_AUTH_FAILED`: API key validation failed
+- `INVALID_GRID_PARAMETERS`: Grid calculation failed
+
+---
+
+### 5.4 Get Trading Instance
+
+**Endpoint**: `GET /trading-instances/{instance_id}`
+
+**Description**: Get details of a specific trading instance.
 
 **Headers**: `Authorization: Bearer {token}`
 
@@ -627,11 +663,11 @@ All API endpoints (except auth endpoints) require authentication via JWT bearer 
 
 ---
 
-### 5.4 Start Trading Process
+### 5.5 Start Trading Instance
 
-**Endpoint**: `POST /trading-processes/{process_id}/start`
+**Endpoint**: `POST /trading-instances/{instance_id}/start`
 
-**Description**: Start a trading process.
+**Description**: Transition instance from READY to RUNNING. The instance must be prepared first via `/prepare`.
 
 **Headers**: `Authorization: Bearer {token}`
 
@@ -650,16 +686,16 @@ All API endpoints (except auth endpoints) require authentication via JWT bearer 
 ```
 
 **Error Codes**:
-- `INVALID_STATUS`: Process cannot be started in current status
+- `INVALID_STATUS`: Instance cannot be started in current status
 - `INSUFFICIENT_BALANCE`: Insufficient balance
 
 ---
 
-### 5.5 Stop Trading Process
+### 5.6 Stop Trading Instance
 
-**Endpoint**: `POST /trading-processes/{process_id}/stop`
+**Endpoint**: `POST /trading-instances/{instance_id}/stop`
 
-**Description**: Stop a trading process.
+**Description**: Stop a trading instance.
 
 **Headers**: `Authorization: Bearer {token}`
 
@@ -678,15 +714,15 @@ All API endpoints (except auth endpoints) require authentication via JWT bearer 
 ```
 
 **Error Codes**:
-- `INVALID_STATUS`: Process cannot be stopped in current status
+- `INVALID_STATUS`: Instance cannot be stopped in current status
 
 ---
 
-### 5.6 Pause Trading Process
+### 5.7 Pause Trading Instance
 
-**Endpoint**: `POST /trading-processes/{process_id}/pause`
+**Endpoint**: `POST /trading-instances/{instance_id}/pause`
 
-**Description**: Pause a trading process.
+**Description**: Pause a trading instance.
 
 **Headers**: `Authorization: Bearer {token}`
 
@@ -704,15 +740,15 @@ All API endpoints (except auth endpoints) require authentication via JWT bearer 
 ```
 
 **Error Codes**:
-- `INVALID_STATUS`: Process cannot be paused in current status
+- `INVALID_STATUS`: Instance cannot be paused in current status
 
 ---
 
-### 5.7 Resume Trading Process
+### 5.8 Resume Trading Instance
 
-**Endpoint**: `POST /trading-processes/{process_id}/resume`
+**Endpoint**: `POST /trading-instances/{instance_id}/resume`
 
-**Description**: Resume a paused trading process.
+**Description**: Resume a paused trading instance.
 
 **Headers**: `Authorization: Bearer {token}`
 
@@ -730,7 +766,7 @@ All API endpoints (except auth endpoints) require authentication via JWT bearer 
 ```
 
 **Error Codes**:
-- `INVALID_STATUS`: Process cannot be resumed in current status
+- `INVALID_STATUS`: Instance cannot be resumed in current status
 
 ---
 
@@ -747,7 +783,7 @@ All API endpoints (except auth endpoints) require authentication via JWT bearer 
 **Query Parameters**:
 - `status` (optional): Filter by status
 - `symbol` (optional): Filter by symbol
-- `trading_process_id` (optional): Filter by trading process
+- `trading_instance_id` (optional): Filter by trading instance
 - `limit` (optional): Number of results (default: 50)
 - `offset` (optional): Offset for pagination (default: 0)
 
@@ -890,7 +926,7 @@ All API endpoints (except auth endpoints) require authentication via JWT bearer 
 
 **Query Parameters**:
 - `symbol` (optional): Filter by symbol
-- `trading_process_id` (optional): Filter by trading process
+- `trading_instance_id` (optional): Filter by trading instance
 
 **Response** (200 OK):
 ```json
@@ -1313,8 +1349,8 @@ All API endpoints (except auth endpoints) require authentication via JWT bearer 
   "data": {
     "total_users": 1000,
     "active_users": 800,
-    "total_trading_processes": 150,
-    "active_trading_processes": 100,
+    "total_trading_instances": 150,
+    "active_trading_instances": 100,
     "total_orders_today": 5000,
     "total_volume_today": 1000000.0
   },
@@ -1339,7 +1375,7 @@ All API endpoints (except auth endpoints) require authentication via JWT bearer 
 | INVALID_STATUS | 409 | Invalid status for operation |
 | INSUFFICIENT_BALANCE | 400 | Insufficient balance |
 | INVALID_EXCHANGE | 400 | Invalid exchange name |
-| INVALID_CREDENTIALS | 400 | Invalid API credentials |
+| INVALID_API_CREDENTIALS | 400 | Invalid API credentials |
 | CONNECTION_FAILED | 503 | Failed to connect to exchange |
 | CANCEL_FAILED | 503 | Failed to cancel order |
 | INTERNAL_ERROR | 500 | Internal server error |
@@ -1379,7 +1415,7 @@ All API endpoints (except auth endpoints) require authentication via JWT bearer 
   "channels": [
     "orders",
     "portfolio",
-    "trading_process:{process_id}"
+    "trading_instance:{instance_id}"
   ]
 }
 ```
@@ -1417,8 +1453,19 @@ All API endpoints (except auth endpoints) require authentication via JWT bearer 
 
 ---
 
-## 15. CHANGE LOG
+## 15. API VERSIONING STRATEGY
+
+- Current version is `/api/v1`.
+- Backward-compatible changes remain in v1.
+- Breaking changes require a new version (e.g., `/api/v2`).
+- Maintain two live versions simultaneously during transition periods.
+- Deprecated endpoints return `Sunset` header with removal date.
+
+---
+
+## 16. CHANGE LOG
 
 | Date | Version | Changes |
 |------|---------|---------|
 | 2026-07-09 | 1.0.0 | Initial API specification |
+| 2026-07-09 | 2.0.0 | Architecture revision: Trading Instance, /prepare endpoint, ProcessMemory, TP/ProfitLock/PortfolioLock separation, API versioning strategy |

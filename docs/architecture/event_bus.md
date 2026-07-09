@@ -1,6 +1,6 @@
 # EVENT BUS SPECIFICATION
 
-**Version:** 1.0.0  
+**Version:** 2.0.0  
 **Last Updated:** 2026-07-09  
 **Status:** DRAFT
 
@@ -8,7 +8,7 @@
 
 ## 1. OVERVIEW
 
-The UTOS system uses an event-driven architecture with Redis as the event bus. Events are immutable messages that are published by producers and consumed by subscribers.
+The UTOS Trading Engine uses an event-driven architecture with Redis as the event bus. Events are immutable messages that are published by producers and consumed by subscribers.
 
 ### 1.1 Event Flow
 
@@ -163,7 +163,7 @@ All events follow this structure:
   "order_id": "uuid",
   "exchange_order_id": "123456789",
   "user_id": "uuid",
-  "trading_process_id": "uuid",
+  "instance_id": "uuid",
   "symbol": "BTCUSDT",
   "side": "buy",
   "order_type": "limit",
@@ -193,7 +193,7 @@ All events follow this structure:
   "order_id": "uuid",
   "exchange_order_id": "123456789",
   "user_id": "uuid",
-  "trading_process_id": "uuid",
+  "instance_id": "uuid",
   "symbol": "BTCUSDT",
   "side": "buy",
   "filled_quantity": 0.1,
@@ -224,7 +224,7 @@ All events follow this structure:
   "order_id": "uuid",
   "exchange_order_id": "123456789",
   "user_id": "uuid",
-  "trading_process_id": "uuid",
+  "instance_id": "uuid",
   "symbol": "BTCUSDT",
   "cancelled_quantity": 0.1,
   "exchange": "binance",
@@ -249,7 +249,7 @@ All events follow this structure:
 {
   "order_id": "uuid",
   "user_id": "uuid",
-  "trading_process_id": "uuid",
+  "instance_id": "uuid",
   "symbol": "BTCUSDT",
   "side": "buy",
   "order_type": "limit",
@@ -279,7 +279,7 @@ All events follow this structure:
   "order_id": "uuid",
   "exchange_order_id": "123456789",
   "user_id": "uuid",
-  "trading_process_id": "uuid",
+  "instance_id": "uuid",
   "symbol": "BTCUSDT",
   "filled_quantity": 0.1,
   "average_fill_price": 50000.0,
@@ -306,7 +306,7 @@ All events follow this structure:
   "order_id": "uuid",
   "exchange_order_id": "123456789",
   "user_id": "uuid",
-  "trading_process_id": "uuid",
+  "instance_id": "uuid",
   "symbol": "BTCUSDT",
   "filled_quantity": 0.1,
   "average_fill_price": 51000.0,
@@ -334,7 +334,7 @@ All events follow this structure:
   "order_id": "uuid",
   "exchange_order_id": "123456789",
   "user_id": "uuid",
-  "trading_process_id": "uuid",
+  "instance_id": "uuid",
   "symbol": "BTCUSDT",
   "filled_quantity": 0.1,
   "average_fill_price": 55000.0,
@@ -361,7 +361,7 @@ All events follow this structure:
   "order_id": "uuid",
   "exchange_order_id": "123456789",
   "user_id": "uuid",
-  "trading_process_id": "uuid",
+  "instance_id": "uuid",
   "symbol": "BTCUSDT",
   "filled_quantity": 0.1,
   "average_fill_price": 45000.0,
@@ -387,7 +387,7 @@ All events follow this structure:
 **Data Schema**:
 ```json
 {
-  "trading_process_id": "uuid",
+  "instance_id": "uuid",
   "user_id": "uuid",
   "symbol": "BTCUSDT",
   "grid_profile_id": "uuid",
@@ -414,7 +414,7 @@ All events follow this structure:
 **Data Schema**:
 ```json
 {
-  "trading_process_id": "uuid",
+  "instance_id": "uuid",
   "user_id": "uuid",
   "symbol": "BTCUSDT",
   "updated_fields": {
@@ -443,7 +443,7 @@ All events follow this structure:
 **Data Schema**:
 ```json
 {
-  "trading_process_id": "uuid",
+  "instance_id": "uuid",
   "user_id": "uuid",
   "symbol": "BTCUSDT",
   "grid_level": 5,
@@ -468,7 +468,7 @@ All events follow this structure:
 **Data Schema**:
 ```json
 {
-  "trading_process_id": "uuid",
+  "instance_id": "uuid",
   "user_id": "uuid",
   "symbol": "BTCUSDT",
   "grid_level": 5,
@@ -494,7 +494,7 @@ All events follow this structure:
 **Data Schema**:
 ```json
 {
-  "trading_process_id": "uuid",
+  "instance_id": "uuid",
   "user_id": "uuid",
   "symbol": "BTCUSDT",
   "total_cycles": 5,
@@ -521,7 +521,7 @@ All events follow this structure:
 **Data Schema**:
 ```json
 {
-  "trading_process_id": "uuid",
+  "instance_id": "uuid",
   "user_id": "uuid",
   "symbol": "BTCUSDT",
   "current_price": 55000.0,
@@ -546,7 +546,7 @@ All events follow this structure:
 **Data Schema**:
 ```json
 {
-  "trading_process_id": "uuid",
+  "instance_id": "uuid",
   "user_id": "uuid",
   "symbol": "BTCUSDT",
   "old_lock_price": 54000.0,
@@ -570,7 +570,7 @@ All events follow this structure:
 **Data Schema**:
 ```json
 {
-  "trading_process_id": "uuid",
+  "instance_id": "uuid",
   "user_id": "uuid",
   "symbol": "BTCUSDT",
   "lock_price": 54000.0,
@@ -586,18 +586,93 @@ All events follow this structure:
 
 ---
 
-## 6. TRADING PROCESS EVENTS
+### 5.4 PORTFOLIO_LOCK_TRIGGERED
 
-### 6.1 TRADING_PROCESS_CREATED
+**Description**: Emitted when portfolio lock is triggered for the entire Trading Instance.
 
-**Description**: Emitted when a trading process is created.
-
-**Event Type**: `TRADING_PROCESS_CREATED`
+**Event Type**: `PORTFOLIO_LOCK_TRIGGERED`
 
 **Data Schema**:
 ```json
 {
-  "trading_process_id": "uuid",
+  "instance_id": "uuid",
+  "user_id": "uuid",
+  "symbol": "BTCUSDT",
+  "current_total_profit": 2000.0,
+  "peak_total_profit": 2200.0,
+  "trigger_profit_percentage": 20.0,
+  "trail_profit_percentage": 3.0,
+  "lock_profit": 1980.0
+}
+```
+
+**Producers**: Portfolio Lock Engine
+
+**Consumers**: Trading Engine, Execution Engine, Notification Engine
+
+---
+
+### 5.5 PORTFOLIO_LOCK_UPDATED
+
+**Description**: Emitted when portfolio lock level is updated (trailing).
+
+**Event Type**: `PORTFOLIO_LOCK_UPDATED`
+
+**Data Schema**:
+```json
+{
+  "instance_id": "uuid",
+  "user_id": "uuid",
+  "symbol": "BTCUSDT",
+  "old_lock_profit": 1980.0,
+  "new_lock_profit": 2100.0,
+  "peak_total_profit": 2300.0,
+  "trail_profit_percentage": 3.0
+}
+```
+
+**Producers**: Portfolio Lock Engine
+
+**Consumers**: Trading Engine, Notification Engine
+
+---
+
+### 5.6 PORTFOLIO_LOCK_EXECUTED
+
+**Description**: Emitted when portfolio lock is executed (close all positions).
+
+**Event Type**: `PORTFOLIO_LOCK_EXECUTED`
+
+**Data Schema**:
+```json
+{
+  "instance_id": "uuid",
+  "user_id": "uuid",
+  "symbol": "BTCUSDT",
+  "closed_orders": 10,
+  "realized_profit": 1950.0,
+  "executed_at": "2026-07-09T10:00:00Z"
+}
+```
+
+**Producers**: Portfolio Lock Engine
+
+**Consumers**: Trading Engine, Portfolio Engine, Notification Engine
+
+---
+
+## 6. TRADING INSTANCE EVENTS
+
+### 6.1 INSTANCE_CREATED
+
+**Description**: Emitted when a Trading Instance is created.
+
+**Event Type**: `INSTANCE_CREATED`
+
+**Data Schema**:
+```json
+{
+  "instance_id": "uuid",
   "user_id": "uuid",
   "symbol": "BTCUSDT",
   "strategy_id": "uuid",
@@ -614,16 +689,41 @@ All events follow this structure:
 
 ---
 
-### 6.2 TRADING_PROCESS_STARTED
+### 6.2 INSTANCE_READY
 
-**Description**: Emitted when a trading process is started.
+**Description**: Emitted when a Trading Instance transitions to READY.
 
-**Event Type**: `TRADING_PROCESS_STARTED`
+**Event Type**: `INSTANCE_READY`
 
 **Data Schema**:
 ```json
 {
-  "trading_process_id": "uuid",
+  "instance_id": "uuid",
+  "user_id": "uuid",
+  "symbol": "BTCUSDT",
+  "previous_state": "CREATED",
+  "new_state": "READY",
+  "prepared_at": "2026-07-09T10:00:00Z",
+  "worker_id": "worker-123"
+}
+```
+
+**Producers**: Trading Engine
+
+**Consumers**: Worker Manager, Notification Engine
+
+---
+
+### 6.3 INSTANCE_RUNNING
+
+**Description**: Emitted when a Trading Instance transitions to RUNNING.
+
+**Event Type**: `INSTANCE_RUNNING`
+
+**Data Schema**:
+```json
+{
+  "instance_id": "uuid",
   "user_id": "uuid",
   "symbol": "BTCUSDT",
   "start_price": 50000.0,
@@ -637,16 +737,16 @@ All events follow this structure:
 
 ---
 
-### 6.3 TRADING_PROCESS_PAUSED
+### 6.4 INSTANCE_PAUSED
 
-**Description**: Emitted when a trading process is paused.
+**Description**: Emitted when a Trading Instance is paused.
 
-**Event Type**: `TRADING_PROCESS_PAUSED`
+**Event Type**: `INSTANCE_PAUSED`
 
 **Data Schema**:
 ```json
 {
-  "trading_process_id": "uuid",
+  "instance_id": "uuid",
   "user_id": "uuid",
   "symbol": "BTCUSDT",
   "paused_at": "2026-07-09T10:00:00Z",
@@ -660,16 +760,16 @@ All events follow this structure:
 
 ---
 
-### 6.4 TRADING_PROCESS_RESUMED
+### 6.5 INSTANCE_RESUMED
 
-**Description**: Emitted when a trading process is resumed.
+**Description**: Emitted when a Trading Instance is resumed.
 
-**Event Type**: `TRADING_PROCESS_RESUMED`
+**Event Type**: `INSTANCE_RESUMED`
 
 **Data Schema**:
 ```json
 {
-  "trading_process_id": "uuid",
+  "instance_id": "uuid",
   "user_id": "uuid",
   "symbol": "BTCUSDT",
   "resumed_at": "2026-07-09T10:00:00Z"
@@ -682,16 +782,16 @@ All events follow this structure:
 
 ---
 
-### 6.5 TRADING_PROCESS_STOPPING
+### 6.6 INSTANCE_STOPPING
 
-**Description**: Emitted when a trading process is stopping.
+**Description**: Emitted when a Trading Instance is stopping.
 
-**Event Type**: `TRADING_PROCESS_STOPPING`
+**Event Type**: `INSTANCE_STOPPING`
 
 **Data Schema**:
 ```json
 {
-  "trading_process_id": "uuid",
+  "instance_id": "uuid",
   "user_id": "uuid",
   "symbol": "BTCUSDT",
   "stopping_at": "2026-07-09T10:00:00Z",
@@ -705,16 +805,16 @@ All events follow this structure:
 
 ---
 
-### 6.6 TRADING_PROCESS_STOPPED
+### 6.7 INSTANCE_STOPPED
 
-**Description**: Emitted when a trading process is stopped.
+**Description**: Emitted when a Trading Instance is stopped.
 
-**Event Type**: `TRADING_PROCESS_STOPPED`
+**Event Type**: `INSTANCE_STOPPED`
 
 **Data Schema**:
 ```json
 {
-  "trading_process_id": "uuid",
+  "instance_id": "uuid",
   "user_id": "uuid",
   "symbol": "BTCUSDT",
   "stopped_at": "2026-07-09T10:00:00Z",
@@ -730,16 +830,16 @@ All events follow this structure:
 
 ---
 
-### 6.7 TRADING_PROCESS_ERROR
+### 6.8 INSTANCE_ERROR
 
-**Description**: Emitted when a trading process encounters an error.
+**Description**: Emitted when a Trading Instance encounters an error.
 
-**Event Type**: `TRADING_PROCESS_ERROR`
+**Event Type**: `INSTANCE_ERROR`
 
 **Data Schema**:
 ```json
 {
-  "trading_process_id": "uuid",
+  "instance_id": "uuid",
   "user_id": "uuid",
   "symbol": "BTCUSDT",
   "error_code": "EXCHANGE_CONNECTION_ERROR",
@@ -754,16 +854,16 @@ All events follow this structure:
 
 ---
 
-### 6.8 TRADING_PROCESS_RECOVERING
+### 6.9 INSTANCE_RECOVERING
 
-**Description**: Emitted when a trading process is recovering from error.
+**Description**: Emitted when a Trading Instance is recovering from error.
 
-**Event Type**: `TRADING_PROCESS_RECOVERING`
+**Event Type**: `INSTANCE_RECOVERING`
 
 **Data Schema**:
 ```json
 {
-  "trading_process_id": "uuid",
+  "instance_id": "uuid",
   "user_id": "uuid",
   "symbol": "BTCUSDT",
   "recovery_started_at": "2026-07-09T10:00:00Z",
@@ -774,6 +874,32 @@ All events follow this structure:
 **Producers**: Recovery Engine
 
 **Consumers**: Analytics Engine, Notification Engine
+
+---
+
+### 6.10 INSTANCE_RECOVERED
+
+**Description**: Emitted when a Trading Instance successfully recovers from error and returns to RUNNING.
+
+**Event Type**: `INSTANCE_RECOVERED`
+
+**Data Schema**:
+```json
+{
+  "instance_id": "uuid",
+  "user_id": "uuid",
+  "symbol": "BTCUSDT",
+  "previous_state": "RECOVERING",
+  "new_state": "RUNNING",
+  "recovered_at": "2026-07-09T10:00:00Z",
+  "synced_orders": 10,
+  "rebuilt_grid_levels": 5
+}
+```
+
+**Producers**: Recovery Engine
+
+**Consumers**: Trading Engine, Analytics Engine, Notification Engine
 
 ---
 
@@ -813,7 +939,7 @@ All events follow this structure:
 ```json
 {
   "position_id": "uuid",
-  "trading_process_id": "uuid",
+  "instance_id": "uuid",
   "user_id": "uuid",
   "symbol": "BTCUSDT",
   "side": "long",
@@ -839,7 +965,7 @@ All events follow this structure:
 ```json
 {
   "position_id": "uuid",
-  "trading_process_id": "uuid",
+  "instance_id": "uuid",
   "user_id": "uuid",
   "symbol": "BTCUSDT",
   "side": "long",
@@ -867,7 +993,7 @@ All events follow this structure:
 ```json
 {
   "position_id": "uuid",
-  "trading_process_id": "uuid",
+  "instance_id": "uuid",
   "user_id": "uuid",
   "symbol": "BTCUSDT",
   "current_price": 51000.0,
@@ -1147,15 +1273,25 @@ All events follow this structure:
 
 Events are published to Redis channels based on their category:
 
-| Category | Channel Pattern | Example |
-|----------|----------------|---------|
-| Market | `market:{symbol}` | `market:BTCUSDT` |
-| Trading | `trading:{user_id}` | `trading:uuid` |
-| Trading Process | `trading_process:{process_id}` | `trading_process:uuid` |
-| Portfolio | `portfolio:{user_id}` | `portfolio:uuid` |
-| User | `user:{user_id}` | `user:uuid` |
-| System | `system:{event_type}` | `system:SYSTEM_ERROR` |
-| Notification | `notification:{user_id}` | `notification:uuid` |
+| Category | Channel Pattern | Example | Scaling Note |
+|----------|----------------|---------|--------------|
+| Market | `market:{symbol}` | `market:BTCUSDT` | One channel per symbol; all instances subscribe to same symbol channel |
+| Trading | `trading:{user_id}` | `trading:uuid` | User-scoped commands and notifications |
+| Trading Instance | `trading_instance:{instance_id}` | `trading_instance:uuid` | Instance-specific lifecycle events |
+| Portfolio | `portfolio:{user_id}` | `portfolio:uuid` | User-scoped portfolio updates |
+| User | `user:{user_id}` | `user:uuid` | User profile and auth events |
+| System | `system:{event_type}` | `system:SYSTEM_ERROR` | System-wide alerts |
+| Notification | `notification:{user_id}` | `notification:uuid` | User notifications |
+
+### 11.1 Scalability for 100,000+ Trading Instances
+
+Redis Pub/Sub alone cannot support 100,000 per-instance subscribers with fan-out. The architecture uses:
+
+- **Symbol-level market channels**: `market:{symbol}` — one price update per symbol, not per instance.
+- **Instance-level lifecycle channels**: `trading_instance:{instance_id}` — only for state changes (low frequency).
+- **User-level channels**: `trading:{user_id}`, `portfolio:{user_id}` — aggregate updates per user.
+- **Redis Streams / Kafka** (Phase 2): For ordered, partitionable event processing at scale.
+- **Worker-local ProcessMemory**: Runtime state is in memory; database is persistence only.
 
 ---
 
@@ -1215,3 +1351,4 @@ For events that require ordering (e.g., order lifecycle), use sequence numbers o
 | Date | Version | Changes |
 |------|---------|---------|
 | 2026-07-09 | 1.0.0 | Initial event specification |
+| 2026-07-09 | 2.0.0 | Architecture revision: Trading Instance events, INSTANCE_READY/INSTANCE_RECOVERED, Portfolio Lock events, symbol-level market channels, scalability notes |

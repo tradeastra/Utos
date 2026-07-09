@@ -38,6 +38,7 @@ Architecture review completed on all documentation in `docs/`.
 | `FOLDER_RESPONSIBILITY.md` | ✅ Exists | |
 | `architecture/sequence_diagrams.md` | ✅ Exists | |
 | `ERROR_HANDLING.md` | ✅ Exists | |
+| `ARCHITECTURE_APPROVED.md` | ✅ Exists | Created after revision |
 | `TESTING_STANDARD.md` | ✅ Exists | |
 | `DEPLOYMENT_SPEC.md` | ✅ Exists | |
 
@@ -597,8 +598,30 @@ After these fixes, run a second architecture review before the **Architecture Ap
 
 ---
 
-## 11. CHANGE LOG
+## 11. RESOLUTION STATUS
+
+All Critical and High issues from this review were addressed in the architecture revision cycle:
+
+- **CR-01** → `READY` state added; `CREATED` → `READY` → `RUNNING` lifecycle documented in all docs.
+- **CR-02** → `TP`, `ProfitLock`, and `PortfolioLock` are now separate concepts with distinct interfaces and events.
+- **CR-03** → Explicit `INSTANCE_*` events defined in `event_bus.md` and `trading_engine.md`.
+- **CR-04** → `IExchangeAdapter` lifecycle split into `initialize()`, `authenticate()`, `connect_market()`, `connect_account()`, `disconnect()`.
+- **HI-01** → `process_id`/`trading_process_id` standardized to `instance_id` everywhere.
+- **HI-02** → Decimal usage aligned in interface and database specs.
+- **HI-03** → `OrderResult` and `IExecutionEngine` interfaces updated.
+- **HI-04** → Position model aligned across DB, interface, and API.
+- **HI-05** → Scalability for 100,000+ Trading Instances added to `DATABASE.md`, `event_bus.md`, and `DEPLOYMENT_SPEC.md`.
+- **ME-01/ME-02** → Exchange adapter split and `StrategyContext` updated with `TradingContext`/`KernelContext`.
+- **ME-03** → Worker architecture clarified with `ProcessMemory` per instance.
+- **LO-01** → `PROJECT_BIBLE.md` updated with new component placeholders.
+
+`docs/ARCHITECTURE_APPROVED.md` was created to confirm consistency. The project is now ready for the **Architecture Approved** gate and Sprint 1.
+
+---
+
+## 12. CHANGE LOG
 
 | Date | Version | Changes |
 |------|---------|---------|
 | 2026-07-09 | 1.0.0 | Initial architecture review |
+| 2026-07-09 | 1.1.0 | Added resolution status and ARCHITECTURE_APPROVED.md inventory entry |

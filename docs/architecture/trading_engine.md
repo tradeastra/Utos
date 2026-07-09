@@ -1,6 +1,6 @@
 # STATE MACHINE SPECIFICATION
 
-**Version:** 1.0.0  
+**Version:** 2.0.0  
 **Last Updated:** 2026-07-09  
 **Status:** DRAFT
 
@@ -8,7 +8,7 @@
 
 ## 1. OVERVIEW
 
-This document defines the state machines for key entities in the UTOS trading system. State machines ensure consistent behavior and prevent invalid state transitions.
+This document defines the state machines for key entities in the UTOS Trading Engine. State machines ensure consistent behavior and prevent invalid state transitions.
 
 ### 1.1 State Machine Principles
 
@@ -20,20 +20,20 @@ This document defines the state machines for key entities in the UTOS trading sy
 
 ---
 
-## 2. TRADING PROCESS STATE MACHINE
+## 2. TRADING INSTANCE STATE MACHINE
 
 ### 2.1 States
 
 | State | Description |
 |-------|-------------|
-| `CREATED` | Trading process has been created but not initialized |
-| `READY` | Trading process is initialized and ready to start |
-| `RUNNING` | Trading process is actively trading |
-| `PAUSED` | Trading process is paused by user |
-| `STOPPING` | Trading process is in the process of stopping |
-| `STOPPED` | Trading process has been stopped |
-| `ERROR` | Trading process encountered an error |
-| `RECOVERING` | Trading process is recovering from error |
+| `CREATED` | Trading Instance has been created but not prepared |
+| `READY` | Trading Instance is prepared and ready to start. API key validated, balance checked, grid calculated, orders/positions synced, market subscribed, worker allocated, ProcessMemory initialized. |
+| `RUNNING` | Trading Instance is actively trading |
+| `PAUSED` | Trading Instance is paused by user |
+| `STOPPING` | Trading Instance is in the process of stopping |
+| `STOPPED` | Trading Instance has been stopped |
+| `ERROR` | Trading Instance encountered an error |
+| `RECOVERING` | Trading Instance is recovering from error |
 
 ### 2.2 State Transitions
 
@@ -41,7 +41,7 @@ This document defines the state machines for key entities in the UTOS trading sy
 ┌─────────┐
 │ CREATED │
 └────┬────┘
-     │ initialize()
+     │ prepare()
      ▼
 ┌─────────┐
 │  READY  │
@@ -88,7 +88,7 @@ This document defines the state machines for key entities in the UTOS trading sy
 
 | From State | To State | Trigger | Conditions |
 |------------|----------|---------|------------|
-| `CREATED` | `READY` | `initialize()` | Grid profile valid, balance sufficient |
+| `CREATED` | `READY` | `prepare()` | API key valid, balance sufficient, grid valid, market subscribed, worker allocated |
 | `READY` | `RUNNING` | `start()` | User authorization, exchange connected |
 | `RUNNING` | `PAUSED` | `pause()` | User request |
 | `PAUSED` | `RUNNING` | `resume()` | User request |
@@ -147,6 +147,41 @@ This document defines the state machines for key entities in the UTOS trading sy
 - State synchronization in progress
 - Orders being reconciled
 - User notified
+
+### 2.5 Event Sourcing for State Transitions
+
+Every state transition emits a dedicated event. These events are the source of truth for instance lifecycle history.
+
+| Event | From State | To State | Trigger | Emitted By |
+|-------|------------|----------|---------|------------|
+| `INSTANCE_CREATED` | — | `CREATED` | `create()` | Trading Engine |
+| `INSTANCE_READY` | `CREATED` | `READY` | `prepare()` | Trading Engine |
+| `INSTANCE_RUNNING` | `READY` | `RUNNING` | `start()` | Trading Engine |
+| `INSTANCE_PAUSED` | `RUNNING` | `PAUSED` | `pause()` | Trading Engine |
+| `INSTANCE_RESUMED` | `PAUSED` | `RUNNING` | `resume()` | Trading Engine |
+| `INSTANCE_STOPPING` | `RUNNING`/`PAUSED` | `STOPPING` | `stop()` | Trading Engine |
+| `INSTANCE_STOPPED` | `STOPPING` | `STOPPED` | `stop_completed()` | Trading Engine |
+| `INSTANCE_ERROR` | Any active state | `ERROR` | `error()` | Trading Engine / Recovery Engine |
+| `INSTANCE_RECOVERING` | `ERROR` | `RECOVERING` | `recover()` | Recovery Engine |
+| `INSTANCE_RECOVERED` | `RECOVERING` | `RUNNING` | `recovery_completed()` | Recovery Engine |
+
+### 2.6 Event Payload
+
+```json
+{
+  "event_type": "INSTANCE_RUNNING",
+  "instance_id": "uuid",
+  "user_id": "uuid",
+  "previous_state": "READY",
+  "new_state": "RUNNING",
+  "trigger": "start",
+  "timestamp": "2026-07-09T10:00:00Z",
+  "metadata": {
+    "worker_id": "worker-123",
+    "reason": "user_requested"
+  }
+}
+```
 
 ---
 
@@ -433,90 +468,133 @@ This document defines the state machines for key entities in the UTOS trading sy
 | State | Description |
 |-------|-------------|
 | `DISCONNECTED` | Not connected to exchange |
-| `CONNECTING` | Connection in progress |
-| `CONNECTED` | Successfully connected |
+| `INITIALIZING` | Loading exchange config |
+| `AUTHENTICATING` | Verifying API credentials |
 | `AUTHENTICATED` | API authentication successful |
-| `ERROR` | Connection error |
+| `CONNECTING_MARKET` | Opening market data stream |
+| `MARKET_CONNECTED` | Market data stream connected |
+| `CONNECTING_ACCOUNT` | Opening trading/account stream |
+| `ACCOUNT_CONNECTED` | Trading/account stream connected |
+| `ERROR` | Connection or auth error |
 | `RECONNECTING` | Attempting to reconnect |
 
 ### 6.2 State Transitions
 
 ```
 ┌─────────────┐
-│ DISCONNECTED│◄─────────────────┐
-└──────┬──────┘                  │
-       │ connect()               │
-       ▼                          │
-┌─────────────┐                  │
-│ CONNECTING  │                  │
-└──────┬──────┘                  │
-       │ connected()             │
-       ▼                          │
-┌─────────────┐                  │
-│  CONNECTED  │                  │
-└──────┬──────┘                  │
-       │ authenticate()          │
-       ▼                          │
-┌──────────────┐                 │
-│ AUTHENTICATED│─────────────────┘
-└──────┬───────┘
-       │ error()
-       ▼
-┌─────────┐
-│  ERROR  │
-└────┬────┘
-     │ reconnect()
-     ▼
-┌──────────────┐
-│ RECONNECTING │
-└──────┬───────┘
-       │ connected()
-       ▼
-┌─────────────┐
-│  CONNECTED  │
-└─────────────┘
+│ DISCONNECTED│◄─────────────────────────────────────┐
+└──────┬──────┘                                     │
+       │ initialize()                               │
+       ▼                                             │
+┌─────────────┐                                     │
+│ INITIALIZING│                                     │
+└──────┬──────┘                                     │
+       │ authenticate()                              │
+       ▼                                             │
+┌──────────────┐                                   │
+│ AUTHENTICATING│                                  │
+└──────┬───────┘                                   │
+       │ auth_success()                             │
+       ▼                                             │
+┌──────────────┐                                   │
+│ AUTHENTICATED│                                   │
+└──────┬───────┘                                   │
+       │                                            │
+       ├──────────────┬──────────────┐            │
+       │              │              │            │
+       ▼              ▼              │            │
+┌─────────────┐ ┌──────────────┐   │            │
+│CONNECTING_   │ │CONNECTING_   │   │            │
+│   MARKET    │ │   ACCOUNT    │   │            │
+└──────┬──────┘ └──────┬───────┘   │            │
+       │              │            │            │
+       ▼              ▼            │            │
+┌─────────────┐ ┌──────────────┐   │            │
+│  MARKET_    │ │  ACCOUNT_    │   │            │
+│ CONNECTED   │ │  CONNECTED    │   │            │
+└──────┬──────┘ └──────┬───────┘   │            │
+       │              │              │            │
+       │              │              │            │
+       │       error()│              │            │
+       ▼              ▼              │            │
+   ┌─────────┐    ┌─────────┐         │            │
+   │  ERROR  │◄───┘         └─────────┘            │
+   └───┬─────┘                                     │
+       │ reconnect()                               │
+       ▼                                             │
+   ┌──────────────┐                                 │
+   │ RECONNECTING │                                 │
+   └──────┬───────┘                                 │
+          │ auth_success()                         │
+          ▼                                         │
+   ┌──────────────┐─────────────────────────────────┘
+   │ AUTHENTICATED│
+   └──────────────┘
 ```
 
 ### 6.3 Transition Rules
 
 | From State | To State | Trigger | Conditions |
 |------------|----------|---------|------------|
-| `DISCONNECTED` | `CONNECTING` | `connect()` | User request or auto-connect |
-| `CONNECTING` | `CONNECTED` | `connected()` | Connection successful |
-| `CONNECTING` | `ERROR` | `error()` | Connection failed |
-| `CONNECTED` | `AUTHENTICATED` | `authenticate()` | API credentials valid |
-| `CONNECTED` | `ERROR` | `error()` | Authentication failed |
-| `AUTHENTICATED` | `ERROR` | `error()` | Connection lost |
+| `DISCONNECTED` | `INITIALIZING` | `initialize()` | Load exchange config |
+| `INITIALIZING` | `AUTHENTICATING` | `authenticate()` | Decrypted credentials available |
+| `AUTHENTICATING` | `AUTHENTICATED` | `auth_success()` | API credentials valid |
+| `AUTHENTICATING` | `ERROR` | `auth_failed()` | Authentication failed |
+| `AUTHENTICATED` | `CONNECTING_MARKET` | `connect_market()` | Open market data stream |
+| `AUTHENTICATED` | `CONNECTING_ACCOUNT` | `connect_account()` | Open trading/account stream |
+| `CONNECTING_MARKET` | `MARKET_CONNECTED` | `market_connected()` | Market stream connected |
+| `CONNECTING_ACCOUNT` | `ACCOUNT_CONNECTED` | `account_connected()` | Account stream connected |
+| `MARKET_CONNECTED` | `ERROR` | `error()` | Market stream lost |
+| `ACCOUNT_CONNECTED` | `ERROR` | `error()` | Account stream lost |
 | `ERROR` | `RECONNECTING` | `reconnect()` | Auto-reconnect triggered |
-| `RECONNECTING` | `CONNECTED` | `connected()` | Reconnection successful |
+| `RECONNECTING` | `AUTHENTICATED` | `auth_success()` | Reconnection + auth successful |
 | `RECONNECTING` | `ERROR` | `error()` | Reconnection failed |
-| `AUTHENTICATED` | `DISCONNECTED` | `disconnect()` | User request |
+| `MARKET_CONNECTED` | `DISCONNECTED` | `disconnect()` | User request |
+| `ACCOUNT_CONNECTED` | `DISCONNECTED` | `disconnect()` | User request |
 | `ERROR` | `DISCONNECTED` | `disconnect()` | User request or give up |
 
 ### 6.4 State-Specific Behaviors
 
 **DISCONNECTED**:
 - No exchange operations
-- Can initiate connection
-- API keys stored
+- Can initiate initialization
+- API keys stored encrypted
 
-**CONNECTING**:
-- Connection attempt in progress
+**INITIALIZING**:
+- Loading exchange metadata and rate limits
 - No operations allowed
-- Timeout monitored
+- No network connection yet
 
-**CONNECTED**:
-- Connection established
-- Waiting for authentication
-- Limited operations
+**AUTHENTICATING**:
+- Verifying decrypted API credentials
+- Lightweight ping/account query
+- No trading operations
 
 **AUTHENTICATED**:
-- Full operations available
-- WebSocket subscriptions active
+- Credentials validated
+- Can open market and account streams
+- No active streams yet
+
+**CONNECTING_MARKET**:
+- Opening market data stream (WebSocket or REST polling)
+- No operations allowed
+
+**MARKET_CONNECTED**:
+- Market data stream active
+- Can receive price/order book/candle updates
+- Trading not yet enabled
+
+**CONNECTING_ACCOUNT**:
+- Opening private trading/account stream
+- No operations allowed
+
+**ACCOUNT_CONNECTED**:
+- Full trading operations available
+- Order placement, cancellation, fill updates active
 - Rate limiting enforced
 
 **ERROR**:
-- Connection failed
+- Connection or auth failed
 - Error logged
 - Reconnection attempted
 
@@ -537,41 +615,64 @@ Use the State pattern for implementing state machines:
 from abc import ABC, abstractmethod
 from enum import Enum
 
-class TradingProcessState(ABC):
-    """Base class for trading process states."""
+class TradingInstanceState(ABC):
+    """Base class for Trading Instance states."""
     
     @abstractmethod
-    def start(self, context: TradingProcessContext) -> TradingProcessState:
+    def prepare(self, context: TradingContext) -> TradingInstanceState:
         pass
     
     @abstractmethod
-    def pause(self, context: TradingProcessContext) -> TradingProcessState:
+    def start(self, context: TradingContext) -> TradingInstanceState:
         pass
     
     @abstractmethod
-    def stop(self, context: TradingProcessContext) -> TradingProcessState:
+    def pause(self, context: TradingContext) -> TradingInstanceState:
+        pass
+    
+    @abstractmethod
+    def stop(self, context: TradingContext) -> TradingInstanceState:
         pass
 
-class CreatedState(TradingProcessState):
-    def start(self, context: TradingProcessContext) -> TradingProcessState:
-        # Validate and initialize
+class CreatedState(TradingInstanceState):
+    def prepare(self, context: TradingContext) -> TradingInstanceState:
+        # Validate API key, check balance, calculate grid, sync state, allocate worker
         return ReadyState()
     
-    def pause(self, context: TradingProcessContext) -> TradingProcessState:
+    def start(self, context: TradingContext) -> TradingInstanceState:
+        raise InvalidStateTransition("Must prepare before start")
+    
+    def pause(self, context: TradingContext) -> TradingInstanceState:
         raise InvalidStateTransition("Cannot pause from CREATED")
     
-    def stop(self, context: TradingProcessContext) -> TradingProcessState:
+    def stop(self, context: TradingContext) -> TradingInstanceState:
         return StoppedState()
 
-class RunningState(TradingProcessState):
-    def start(self, context: TradingProcessContext) -> TradingProcessState:
+class ReadyState(TradingInstanceState):
+    def prepare(self, context: TradingContext) -> TradingInstanceState:
+        raise InvalidStateTransition("Already prepared")
+    
+    def start(self, context: TradingContext) -> TradingInstanceState:
+        return RunningState()
+    
+    def pause(self, context: TradingContext) -> TradingInstanceState:
+        raise InvalidStateTransition("Cannot pause from READY")
+    
+    def stop(self, context: TradingContext) -> TradingInstanceState:
+        return StoppedState()
+
+class RunningState(TradingInstanceState):
+    def prepare(self, context: TradingContext) -> TradingInstanceState:
         raise InvalidStateTransition("Already running")
     
-    def pause(self, context: TradingProcessContext) -> TradingProcessState:
+    def start(self, context: TradingContext) -> TradingInstanceState:
+        raise InvalidStateTransition("Already running")
+    
+    def pause(self, context: TradingContext) -> TradingInstanceState:
         # Pause trading
         return PausedState()
     
-    def stop(self, context: TradingProcessContext) -> TradingProcessState:
+    def stop(self, context: TradingContext) -> TradingInstanceState:
         # Initiate stop
         return StoppingState()
 ```
@@ -581,14 +682,15 @@ class RunningState(TradingProcessState):
 Log all state transitions for audit:
 
 ```python
-def transition_to(self, new_state: TradingProcessState, reason: str):
+def transition_to(self, new_state: TradingInstanceState, reason: str):
     old_state = self.current_state
     self.current_state = new_state
+    event_type = f"INSTANCE_{new_state.name.upper()}"
     
     logger.info(
         "State transition",
         extra={
-            "trading_process_id": self.id,
+            "instance_id": self.id,
             "old_state": old_state.name,
             "new_state": new_state.name,
             "reason": reason,
@@ -596,14 +698,16 @@ def transition_to(self, new_state: TradingProcessState, reason: str):
         }
     )
     
-    # Emit event
+    # Emit event sourcing event
     event_bus.publish(
-        "TRADING_PROCESS_STATE_CHANGED",
+        event_type,
         {
-            "trading_process_id": self.id,
-            "old_state": old_state.name,
+            "instance_id": self.id,
+            "user_id": self.user_id,
+            "previous_state": old_state.name,
             "new_state": new_state.name,
-            "reason": reason
+            "trigger": reason,
+            "timestamp": datetime.utcnow()
         }
     )
 ```
@@ -614,12 +718,14 @@ Persist state to database for recovery:
 
 ```python
 def save_state(self):
-    state_record = TradingProcessStateRecord(
-        trading_process_id=self.id,
-        state=self.current_state.name,
-        transitioned_at=datetime.utcnow()
-    )
-    db.add(state_record)
+    # Persist to ProcessMemory snapshot (async, batched)
+    memory_snapshot = self.process_memory.to_dict()
+    db.query(TradingInstance).filter(TradingInstance.id == self.id).update({
+        "status": self.current_state.name,
+        "memory_snapshot": memory_snapshot,
+        "memory_version": self.process_memory.snapshot_version,
+        "updated_at": datetime.utcnow()
+    })
     db.commit()
 ```
 
@@ -663,3 +769,4 @@ def recover_from_error(self):
 | Date | Version | Changes |
 |------|---------|---------|
 | 2026-07-09 | 1.0.0 | Initial state machine specification |
+| 2026-07-09 | 2.0.0 | Architecture revision: Trading Instance, READY state, event sourcing, separate market/account connections |

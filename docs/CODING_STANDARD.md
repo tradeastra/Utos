@@ -1,6 +1,6 @@
 # CODING STANDARD
 
-**Version:** 1.0.0  
+**Version:** 2.0.0  
 **Last Updated:** 2026-07-09  
 **Status:** DRAFT
 
@@ -985,3 +985,4 @@ Each directory should have a README.md explaining:
 | Date | Version | Changes |
 |------|---------|---------|
 | 2026-07-09 | 1.0.0 | Initial coding standard creation |
+| 2026-07-09 | 2.0.0 | Architecture revision: version bump for consistency |

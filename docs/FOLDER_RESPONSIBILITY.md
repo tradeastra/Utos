@@ -1,6 +1,6 @@
 # FOLDER RESPONSIBILITY
 
-**Version:** 1.0.0  
+**Version:** 2.0.0  
 **Last Updated:** 2026-07-09  
 **Status:** DRAFT
 
@@ -8,7 +8,7 @@
 
 ## 1. OVERVIEW
 
-This document defines strict boundaries for every folder in the UTOS project. Each folder has a single responsibility. Code that does not belong in a folder **must not** be placed there.
+This document defines strict boundaries for every folder in the UTOS Trading Engine project. Each folder has a single responsibility. Code that does not belong in a folder **must not** be placed there.
 
 ### 1.1 Why This Matters
 
@@ -61,6 +61,7 @@ backend/
 ├── events/            # Event bus implementation ONLY
 ├── kernel/            # System bootstrap and DI ONLY
 ├── market/            # Market data aggregation ONLY
+├── memory/            # ProcessMemory implementation ONLY
 ├── models/            # SQLAlchemy ORM models ONLY
 ├── plugins/           # Plugin system ONLY
 ├── repositories/      # Data access layer ONLY
@@ -140,7 +141,7 @@ api/
 │   ├── auth.py            # /auth endpoints
 │   ├── users.py           # /users endpoints
 │   ├── exchange_accounts.py
-│   ├── trading_processes.py
+│   ├── trading_instances.py
 │   ├── orders.py
 │   ├── portfolio.py
 │   ├── strategies.py
@@ -191,6 +192,7 @@ app/
 - Constants and enums
 - Logger implementation
 - Storage implementation
+- Context objects (TradingContext, KernelContext)
 
 **MUST NOT contain**:
 - Business logic
@@ -216,11 +218,12 @@ core/
 │   ├── __init__.py
 │   ├── base.py        # ILogger interface
 │   └── implementation.py
-└── storage/
-    ├── __init__.py
-    ├── base.py        # IStorage interface
-    ├── local.py       # Local storage
-    └── s3.py          # S3 storage
+├── storage/
+│   ├── __init__.py
+│   ├── base.py        # IStorage interface
+│   ├── local.py       # Local storage
+│   └── s3.py          # S3 storage
+└── context.py         # TradingContext, KernelContext
 ```
 
 ---
@@ -264,9 +267,11 @@ database/
 - Execution engine logic
 - Portfolio engine logic
 - Risk engine logic
-- Profit lock engine logic
+- Profit lock engine logic (per-position)
+- Portfolio lock engine logic (per-instance)
 - Recovery engine logic
 - State machine implementations
+- TradingContext and KernelContext consumers (receive context, not 20 dependencies)
 
 **MUST NOT contain**:
 - API route definitions
@@ -303,6 +308,10 @@ engine/
 │   ├── __init__.py
 │   ├── base.py            # IProfitLock interface
 │   └── engine.py          # ProfitLockEngine implementation
+├── portfolio_lock/
+│   ├── __init__.py
+│   ├── base.py            # IPortfolioLock interface
+│   └── engine.py          # PortfolioLockEngine implementation
 └── recovery/
     ├── __init__.py
     ├── base.py            # IRecoveryEngine interface
@@ -346,6 +355,7 @@ events/
 - Service registry
 - Lifecycle management (start/stop/restart)
 - Health check aggregation
+- KernelContext creation and distribution
 
 **MUST NOT contain**:
 - Business logic
@@ -359,6 +369,7 @@ kernel/
 ├── __init__.py
 ├── base.py              # IKernel interface
 ├── kernel.py            # Kernel implementation
+├── kernel_context.py    # KernelContext dataclass
 ├── container.py         # DI container
 ├── registry.py          # Service registry
 └── lifecycle.py         # Lifecycle management
@@ -394,6 +405,34 @@ market/
 
 ---
 
+#### `memory/`
+
+**MAY contain**:
+- ProcessMemory implementation
+- In-memory snapshot management
+- Snapshot serialization/deserialization
+- Memory persistence coordinator
+- Per-instance memory access
+
+**MUST NOT contain**:
+- Business logic
+- Database queries
+- API routes
+- Exchange API calls
+
+**Allowed imports from**: `core/`, `models/` (read-only), `schemas/`
+
+```
+memory/
+├── __init__.py
+├── base.py              # IProcessMemory interface
+├── snapshot.py          # Snapshot dataclass and serialization
+├── store.py             # In-memory store per instance
+└── persistence.py       # Async persistence coordinator
+```
+
+---
+
 #### `models/`
 
 **MAY contain**:
@@ -414,7 +453,7 @@ models/
 ├── __init__.py
 ├── user.py
 ├── exchange_account.py
-├── trading_process.py
+├── trading_instance.py
 ├── order.py
 ├── position.py
 ├── grid_profile.py
@@ -509,7 +548,7 @@ schemas/
 ├── auth.py              # Auth request/response schemas
 ├── user.py              # User schemas
 ├── exchange_account.py
-├── trading_process.py
+├── trading_instance.py
 ├── order.py
 ├── portfolio.py
 ├── strategy.py
@@ -802,3 +841,4 @@ A script `scripts/check_folder_structure.py` runs in CI to validate:
 | Date | Version | Changes |
 |------|---------|---------|
 | 2026-07-09 | 1.0.0 | Initial folder responsibility specification |
+| 2026-07-09 | 2.0.0 | Architecture revision: memory/ folder, KernelContext, TradingContext, portfolio_lock, trading_instance |
