@@ -13,6 +13,7 @@ from exchanges.rate_limiter import RateLimiter
 from exchanges.retry import RetryPolicy
 from exchanges.http_client import HttpClient
 from exchanges.websocket_manager import WebSocketManager
+from exchanges.adapters import BinanceSpotAdapter
 
 __all__ = [
     "IExchangeAdapter",
@@ -23,4 +24,5 @@ __all__ = [
     "RetryPolicy",
     "HttpClient",
     "WebSocketManager",
+    "BinanceSpotAdapter",
 ]

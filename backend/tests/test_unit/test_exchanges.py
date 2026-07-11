@@ -54,9 +54,12 @@ class TestIExchangeAdapter:
             "disconnect",
             "get_exchange_info",
             "get_balance",
+            "get_account",
+            "get_symbol_info",
             "get_positions",
             "place_order",
             "cancel_order",
+            "cancel_all",
             "get_order",
             "get_open_orders",
             "get_ticker",
@@ -96,9 +99,12 @@ class TestExchangeFactory:
             async def disconnect(self): pass
             async def get_exchange_info(self): return None
             async def get_balance(self, asset=None): return []
+            async def get_account(self): return None
+            async def get_symbol_info(self, symbol): return None
             async def get_positions(self, symbol=None): return []
             async def place_order(self, *args, **kwargs): return None
             async def cancel_order(self, symbol, order_id): return None
+            async def cancel_all(self, symbol=None): return []
             async def get_order(self, symbol, order_id): return None
             async def get_open_orders(self, symbol=None): return []
             async def get_ticker(self, symbol): return None
@@ -129,9 +135,12 @@ class TestExchangeFactory:
             async def disconnect(self): pass
             async def get_exchange_info(self): return None
             async def get_balance(self, asset=None): return []
+            async def get_account(self): return None
+            async def get_symbol_info(self, symbol): return None
             async def get_positions(self, symbol=None): return []
             async def place_order(self, *args, **kwargs): return None
             async def cancel_order(self, symbol, order_id): return None
+            async def cancel_all(self, symbol=None): return []
             async def get_order(self, symbol, order_id): return None
             async def get_open_orders(self, symbol=None): return []
             async def get_ticker(self, symbol): return None
@@ -157,9 +166,12 @@ class TestExchangeFactory:
             async def disconnect(self): pass
             async def get_exchange_info(self): return None
             async def get_balance(self, asset=None): return []
+            async def get_account(self): return None
+            async def get_symbol_info(self, symbol): return None
             async def get_positions(self, symbol=None): return []
             async def place_order(self, *args, **kwargs): return None
             async def cancel_order(self, symbol, order_id): return None
+            async def cancel_all(self, symbol=None): return []
             async def get_order(self, symbol, order_id): return None
             async def get_open_orders(self, symbol=None): return []
             async def get_ticker(self, symbol): return None
@@ -187,9 +199,12 @@ class TestExchangeFactory:
             async def disconnect(self): pass
             async def get_exchange_info(self): return None
             async def get_balance(self, asset=None): return []
+            async def get_account(self): return None
+            async def get_symbol_info(self, symbol): return None
             async def get_positions(self, symbol=None): return []
             async def place_order(self, *args, **kwargs): return None
             async def cancel_order(self, symbol, order_id): return None
+            async def cancel_all(self, symbol=None): return []
             async def get_order(self, symbol, order_id): return None
             async def get_open_orders(self, symbol=None): return []
             async def get_ticker(self, symbol): return None
@@ -613,9 +628,12 @@ class TestIntegration:
             async def disconnect(self): pass
             async def get_exchange_info(self): return None
             async def get_balance(self, asset=None): return []
+            async def get_account(self): return None
+            async def get_symbol_info(self, symbol): return None
             async def get_positions(self, symbol=None): return []
             async def place_order(self, *args, **kwargs): return None
             async def cancel_order(self, symbol, order_id): return None
+            async def cancel_all(self, symbol=None): return []
             async def get_order(self, symbol, order_id): return None
             async def get_open_orders(self, symbol=None): return []
             async def get_ticker(self, symbol): return None
@@ -838,9 +856,12 @@ class TestFactoryEdgeCases:
             async def disconnect(self): pass
             async def get_exchange_info(self): return None
             async def get_balance(self, asset=None): return []
+            async def get_account(self): return None
+            async def get_symbol_info(self, symbol): return None
             async def get_positions(self, symbol=None): return []
             async def place_order(self, *args, **kwargs): return None
             async def cancel_order(self, symbol, order_id): return None
+            async def cancel_all(self, symbol=None): return []
             async def get_order(self, symbol, order_id): return None
             async def get_open_orders(self, symbol=None): return []
             async def get_ticker(self, symbol): return None
@@ -866,9 +887,12 @@ class TestFactoryEdgeCases:
             async def disconnect(self): pass
             async def get_exchange_info(self): return None
             async def get_balance(self, asset=None): return []
+            async def get_account(self): return None
+            async def get_symbol_info(self, symbol): return None
             async def get_positions(self, symbol=None): return []
             async def place_order(self, *args, **kwargs): return None
             async def cancel_order(self, symbol, order_id): return None
+            async def cancel_all(self, symbol=None): return []
             async def get_order(self, symbol, order_id): return None
             async def get_open_orders(self, symbol=None): return []
             async def get_ticker(self, symbol): return None
@@ -896,9 +920,12 @@ class TestFactoryEdgeCases:
             async def disconnect(self): pass
             async def get_exchange_info(self): return None
             async def get_balance(self, asset=None): return []
+            async def get_account(self): return None
+            async def get_symbol_info(self, symbol): return None
             async def get_positions(self, symbol=None): return []
             async def place_order(self, *args, **kwargs): return None
             async def cancel_order(self, symbol, order_id): return None
+            async def cancel_all(self, symbol=None): return []
             async def get_order(self, symbol, order_id): return None
             async def get_open_orders(self, symbol=None): return []
             async def get_ticker(self, symbol): return None
@@ -919,9 +946,12 @@ class TestFactoryEdgeCases:
             async def disconnect(self): pass
             async def get_exchange_info(self): return None
             async def get_balance(self, asset=None): return []
+            async def get_account(self): return None
+            async def get_symbol_info(self, symbol): return None
             async def get_positions(self, symbol=None): return []
             async def place_order(self, *args, **kwargs): return None
             async def cancel_order(self, symbol, order_id): return None
+            async def cancel_all(self, symbol=None): return []
             async def get_order(self, symbol, order_id): return None
             async def get_open_orders(self, symbol=None): return []
             async def get_ticker(self, symbol): return None
