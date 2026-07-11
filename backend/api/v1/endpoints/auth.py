@@ -55,7 +55,7 @@ async def register(
             },
         )
     hashed = password_manager.hash_password(body.password)
-    user = await repo.create(body.email, hashed, body.full_name)
+    user = await repo.create(email=body.email, password_hash=hashed, full_name=body.full_name)
     logger.info("User registered", extra={"user_id": str(user.id)})
     return {
         "data": UserResponse.model_validate(user).model_dump(),
@@ -71,7 +71,7 @@ async def login(
     """Authenticate and return JWT tokens."""
     repo = UserRepository(db)
     user = await repo.get_by_email(body.email)
-    if not user or not password_manager.verify_password(body.password, user.hashed_password):
+    if not user or not password_manager.verify_password(body.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={

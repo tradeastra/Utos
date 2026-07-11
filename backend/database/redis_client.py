@@ -5,7 +5,7 @@ Uses redis.asyncio (bundled with redis-py >= 4.2).
 Initialised in app lifespan; health-checked via ping().
 """
 
-from typing import Optional
+from typing import Any, List, Optional
 
 import redis.asyncio as aioredis
 
@@ -286,7 +286,7 @@ class RedisCache:
             logger.error(f"Redis publish error: {e}")
             return 0
     
-    def subscribe(self, channel: str) -> redis.client.PubSub:
+    def subscribe(self, channel: str) -> Any:
         """Subscribe to a channel."""
         try:
             pubsub = self.redis.pubsub()
