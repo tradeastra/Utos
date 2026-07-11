@@ -29,6 +29,7 @@ class OrderStatus(str, Enum):
     FILLED = "filled"
     CANCELLED = "cancelled"
     REJECTED = "rejected"
+    EXPIRED = "expired"
 
 
 class TradingInstanceStatus(str, Enum):
@@ -56,6 +57,29 @@ class StrategyType(str, Enum):
     ADAPTIVE_GRID = "adaptive_grid"
     INFINITY_GRID = "infinity_grid"
     DCA = "dca"
+
+
+class PositionSide(str, Enum):
+    LONG = "long"
+    SHORT = "short"
+
+
+class TransactionType(str, Enum):
+    DEPOSIT = "deposit"
+    WITHDRAWAL = "withdrawal"
+    FEE = "fee"
+    SUBSCRIPTION = "subscription"
+    REFUND = "refund"
+
+
+class NotificationType(str, Enum):
+    ORDER_FILLED = "order_filled"
+    ORDER_FAILED = "order_failed"
+    GRID_COMPLETED = "grid_completed"
+    PROFIT_LOCK = "profit_lock"
+    ERROR = "error"
+    SYSTEM = "system"
+    SUBSCRIPTION = "subscription"
 
 
 class RiskLevel(str, Enum):

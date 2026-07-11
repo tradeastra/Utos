@@ -67,6 +67,8 @@ class Settings(BaseSettings):
     # ── Logging ───────────────────────────────────────────────────────────────
     LOG_LEVEL: str = Field(default="INFO")
     LOG_FORMAT: str = Field(default="console")  # "console" | "json"
+    LOG_FILE: Optional[str] = Field(default=None)
+    LOG_MAX_SIZE: str = Field(default="10MB")
 
     # ── Testing ───────────────────────────────────────────────────────────────
     TESTING: bool = Field(default=False)

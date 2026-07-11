@@ -5,7 +5,11 @@ SQLAlchemy 2.0 async engine + session factory using asyncpg.
 """
 
 from collections.abc import AsyncGenerator
+from typing import Any
 
+import sqlalchemy as sa
+from sqlalchemy import String, TypeDecorator
+from sqlalchemy.dialects.postgresql import JSONB, UUID as PgUUID
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -18,6 +22,70 @@ from core.config import get_database_url
 from core.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+class GUID(TypeDecorator):
+    """Platform-independent UUID type.
+
+    Uses PostgreSQL's UUID column type when connecting to PostgreSQL,
+    otherwise uses CHAR(36) for SQLite and other databases.
+    """
+
+    impl = String(36)
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect: Any) -> Any:
+        if dialect.name == "postgresql":
+            return dialect.type_descriptor(PgUUID(as_uuid=True))
+        return dialect.type_descriptor(String(36))
+
+    def process_bind_param(self, value: Any, dialect: Any) -> Any:
+        if value is None:
+            return None
+        if dialect.name == "postgresql":
+            return value
+        return str(value)
+
+    def process_result_value(self, value: Any, dialect: Any) -> Any:
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            return value
+        import uuid
+        return uuid.UUID(value)
+
+
+class JSONBCompat(TypeDecorator):
+    """Platform-independent JSONB type.
+
+    Uses PostgreSQL's JSONB when available, otherwise falls back to JSON.
+    """
+
+    impl = sa.Text
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect: Any) -> Any:
+        if dialect.name == "postgresql":
+            return dialect.type_descriptor(JSONB())
+        return dialect.type_descriptor(sa.Text())
+
+    def process_bind_param(self, value: Any, dialect: Any) -> Any:
+        if value is None:
+            return None
+        if dialect.name == "postgresql":
+            return value
+        import json
+        return json.dumps(value)
+
+    def process_result_value(self, value: Any, dialect: Any) -> Any:
+        if value is None:
+            return None
+        if dialect.name == "postgresql":
+            return value
+        if isinstance(value, str):
+            import json
+            return json.loads(value)
+        return value
 
 
 class Base(DeclarativeBase):

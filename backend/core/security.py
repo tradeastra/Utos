@@ -8,8 +8,7 @@ other security-related utilities.
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 import jwt
-from passlib.context import CryptContext
-from passlib.hash import bcrypt
+import bcrypt
 import secrets
 
 from core.config import settings
@@ -18,27 +17,27 @@ from core.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 
 class PasswordManager:
     """Password hashing and verification utilities."""
-    
+
     @staticmethod
     def hash_password(password: str) -> str:
         """Hash a password using bcrypt."""
         try:
-            return pwd_context.hash(password)
+            encoded = password.encode("utf-8")
+            return bcrypt.hashpw(encoded, bcrypt.gensalt()).decode("utf-8")
         except Exception as e:
             logger.error(f"Password hashing error: {e}")
             raise AuthenticationError("Failed to hash password")
-    
+
     @staticmethod
     def verify_password(plain_password: str, hashed_password: str) -> bool:
         """Verify a password against its hash."""
         try:
-            return pwd_context.verify(plain_password, hashed_password)
+            encoded = plain_password.encode("utf-8")
+            encoded_hash = hashed_password.encode("utf-8")
+            return bcrypt.checkpw(encoded, encoded_hash)
         except Exception as e:
             logger.error(f"Password verification error: {e}")
             return False
@@ -270,16 +269,19 @@ class APIKeyManager:
     def hash_api_key(api_key: str) -> str:
         """Hash an API key for storage."""
         try:
-            return pwd_context.hash(api_key)
+            encoded = api_key.encode("utf-8")
+            return bcrypt.hashpw(encoded, bcrypt.gensalt()).decode("utf-8")
         except Exception as e:
             logger.error(f"API key hashing error: {e}")
             raise AuthenticationError("Failed to hash API key")
-    
+
     @staticmethod
     def verify_api_key(api_key: str, hashed_key: str) -> bool:
         """Verify an API key against its hash."""
         try:
-            return pwd_context.verify(api_key, hashed_key)
+            encoded = api_key.encode("utf-8")
+            encoded_hash = hashed_key.encode("utf-8")
+            return bcrypt.checkpw(encoded, encoded_hash)
         except Exception as e:
             logger.error(f"API key verification error: {e}")
             return False

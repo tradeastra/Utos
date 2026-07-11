@@ -1,235 +1,98 @@
 """
-Trading instance model for UTOS Trading Engine.
-
-This module defines the TradingInstance model and related database entities.
+Trading instance model — matches DATABASE.md §2.3.
 """
 
-from sqlalchemy import Column, String, Boolean, DateTime, Text, Enum, ForeignKey, Numeric, Integer
-from sqlalchemy.dialects.postgresql import UUID, JSONB
-from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
-import uuid
 import enum
-from decimal import Decimal
+import uuid
 
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, Integer, Numeric, String, Text
+from database.base import GUID, JSONBCompat
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
+
+from core.types import TradingInstanceStatus
 from database.base import Base
 
 
-class TradingInstanceStatus(str, enum.Enum):
-    """Trading instance status enum."""
-    CREATED = "created"
-    READY = "ready"
-    RUNNING = "running"
-    PAUSED = "paused"
-    STOPPING = "stopping"
-    STOPPED = "stopped"
-    ERROR = "error"
-    RECOVERING = "recovering"
-    RECOVERED = "recovered"
-
-
-class StrategyType(str, enum.Enum):
-    """Strategy type enum."""
-    SMART_GRID = "smart_grid"
-    ADAPTIVE_GRID = "adaptive_grid"
-    INFINITY_GRID = "infinity_grid"
-    DCA = "dca"
-
-
 class TradingInstance(Base):
-    """Trading instance model."""
-    
+    """Trading instances table."""
+
     __tablename__ = "trading_instances"
-    
-    # Primary key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    
-    # Foreign keys
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
-    exchange_account_id = Column(UUID(as_uuid=True), ForeignKey("exchange_accounts.id"), nullable=False, index=True)
-    
-    # Basic information
-    symbol = Column(String(20), nullable=False, index=True)
-    strategy_type = Column(Enum(StrategyType), nullable=False)
-    strategy_params = Column(JSONB, nullable=False)
-    
-    # Status
-    status = Column(Enum(TradingInstanceStatus), default=TradingInstanceStatus.CREATED, nullable=False, index=True)
-    
-    # Financial information (stored as strings to avoid precision issues)
-    total_investment = Column(Numeric(20, 8), nullable=False)
-    current_value = Column(Numeric(20, 8), nullable=False)
-    total_pnl = Column(Numeric(20, 8), nullable=False)
-    total_fees = Column(Numeric(20, 8), nullable=False)
-    
-    # Grid configuration
-    grid_upper_price = Column(Numeric(20, 8), nullable=True)
-    grid_lower_price = Column(Numeric(20, 8), nullable=True)
-    grid_count = Column(Integer, nullable=True)
-    investment_per_grid = Column(Numeric(20, 8), nullable=True)
-    
-    # Risk management
-    max_position_size = Column(Numeric(20, 8), nullable=True)
-    stop_loss_percentage = Column(Numeric(5, 2), nullable=True)
-    take_profit_percentage = Column(Numeric(5, 2), nullable=True)
-    
-    # Portfolio lock (premium feature)
-    portfolio_lock_enabled = Column(Boolean, default=False, nullable=False)
-    portfolio_lock_percentage = Column(Numeric(5, 2), nullable=True)
-    
-    # Performance metrics
-    total_cycles = Column(Integer, default=0, nullable=False)
-    total_trades = Column(Integer, default=0, nullable=False)
-    total_wins = Column(Integer, default=0, nullable=False)
-    total_losses = Column(Integer, default=0, nullable=False)
-    win_rate = Column(Numeric(5, 2), default=0, nullable=False)
-    
-    # Error tracking
-    last_error = Column(Text, nullable=True)
-    error_count = Column(Integer, default=0, nullable=False)
-    
-    # Timestamps
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
-    started_at = Column(DateTime(timezone=True), nullable=True)
-    stopped_at = Column(DateTime(timezone=True), nullable=True)
-    
-    # Process memory snapshot (JSON)
-    process_memory = Column(JSONB, nullable=True)
-    
-    # Relationships
-    user = relationship("User", back_populates="trading_instances")
-    exchange_account = relationship("ExchangeAccount", back_populates="trading_instances")
-    orders = relationship("Order", back_populates="trading_instance", cascade="all, delete-orphan")
-    positions = relationship("Position", back_populates="trading_instance", cascade="all, delete-orphan")
-    transactions = relationship("Transaction", back_populates="trading_instance", cascade="all, delete-orphan")
-    
-    def __repr__(self):
-        return f"<TradingInstance(id={self.id}, symbol={self.symbol}, status={self.status})>"
 
+    id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("users.id"), nullable=False
+    )
+    exchange_account_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("exchange_accounts.id"), nullable=False
+    )
+    strategy_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("strategies.id"), nullable=False
+    )
+    grid_profile_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("grid_profiles.id"), nullable=False
+    )
 
-class Order(Base):
-    """Order model."""
-    
-    __tablename__ = "orders"
-    
-    # Primary key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    
-    # Foreign key
-    trading_instance_id = Column(UUID(as_uuid=True), ForeignKey("trading_instances.id"), nullable=False, index=True)
-    
-    # Exchange information
-    exchange_order_id = Column(String(100), nullable=True, index=True)
-    
-    # Order details
-    symbol = Column(String(20), nullable=False, index=True)
-    side = Column(Enum(OrderSide), nullable=False)  # buy/sell
-    order_type = Column(Enum(OrderType), nullable=False)  # limit/market/stop_limit
-    quantity = Column(Numeric(20, 8), nullable=False)
-    price = Column(Numeric(20, 8), nullable=True)
-    stop_price = Column(Numeric(20, 8), nullable=True)
-    
-    # Order status
-    status = Column(Enum(OrderStatus), nullable=False, index=True)
-    
-    # Fill information
-    filled_quantity = Column(Numeric(20, 8), default=0, nullable=False)
-    average_fill_price = Column(Numeric(20, 8), nullable=True)
-    fill_fee = Column(Numeric(20, 8), nullable=True)
-    
-    # Grid information
-    grid_level = Column(Integer, nullable=True)
-    
-    # Metadata
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
-    filled_at = Column(DateTime(timezone=True), nullable=True)
-    cancelled_at = Column(DateTime(timezone=True), nullable=True)
-    
-    # Relationships
-    trading_instance = relationship("TradingInstance", back_populates="orders")
-    
-    def __repr__(self):
-        return f"<Order(id={self.id}, symbol={self.symbol}, status={self.status})>"
+    symbol: Mapped[str] = mapped_column(String(20), nullable=False)
+    status: Mapped[TradingInstanceStatus] = mapped_column(
+        Enum(TradingInstanceStatus, name="trading_instance_status"),
+        default=TradingInstanceStatus.CREATED,
+        nullable=False,
+    )
 
+    start_price: Mapped[float] = mapped_column(Numeric(20, 8), nullable=False)
+    current_price: Mapped[float | None] = mapped_column(Numeric(20, 8), nullable=True)
+    total_investment: Mapped[float] = mapped_column(Numeric(20, 8), nullable=False)
+    base_currency: Mapped[str] = mapped_column(String(10), nullable=False)
+    quote_currency: Mapped[str] = mapped_column(String(10), nullable=False)
 
-class Position(Base):
-    """Position model."""
-    
-    __tablename__ = "positions"
-    
-    # Primary key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    
-    # Foreign key
-    trading_instance_id = Column(UUID(as_uuid=True), ForeignKey("trading_instances.id"), nullable=False, index=True)
-    
-    # Position details
-    symbol = Column(String(20), nullable=False, index=True)
-    side = Column(Enum(PositionSide), nullable=False)
-    quantity = Column(Numeric(20, 8), nullable=False)
-    
-    # Price information
-    entry_price = Column(Numeric(20, 8), nullable=False)
-    current_price = Column(Numeric(20, 8), nullable=False)
-    exit_price = Column(Numeric(20, 8), nullable=True)
-    
-    # P&L information
-    unrealized_pnl = Column(Numeric(20, 8), default=0, nullable=False)
-    realized_pnl = Column(Numeric(20, 8), default=0, nullable=False)
-    
-    # Status
-    is_open = Column(Boolean, default=True, nullable=False)
-    
-    # Metadata
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
-    closed_at = Column(DateTime(timezone=True), nullable=True)
-    
-    # Relationships
-    trading_instance = relationship("TradingInstance", back_populates="positions")
-    
-    def __repr__(self):
-        return f"<Position(id={self.id}, symbol={self.symbol}, is_open={self.is_open})>"
+    profit_lock_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    profit_lock_trigger_percentage: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
+    profit_lock_trail_percentage: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
+    portfolio_lock_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    portfolio_lock_trigger_percentage: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
+    portfolio_lock_trail_percentage: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
 
+    worker_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    memory_snapshot: Mapped[dict | None] = mapped_column(JSONBCompat(), nullable=True)
+    memory_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
-class Transaction(Base):
-    """Transaction model."""
-    
-    __tablename__ = "transactions"
-    
-    # Primary key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    
-    # Foreign key
-    trading_instance_id = Column(UUID(as_uuid=True), ForeignKey("trading_instances.id"), nullable=False, index=True)
-    
-    # Transaction details
-    transaction_type = Column(Enum(TransactionType), nullable=False)
-    symbol = Column(String(20), nullable=False, index=True)
-    side = Column(Enum(OrderSide), nullable=False)
-    quantity = Column(Numeric(20, 8), nullable=False)
-    price = Column(Numeric(20, 8), nullable=False)
-    
-    # Financial information
-    total_amount = Column(Numeric(20, 8), nullable=False)
-    fee = Column(Numeric(20, 8), nullable=False)
-    fee_currency = Column(String(10), nullable=False)
-    
-    # Exchange information
-    exchange_order_id = Column(String(100), nullable=True)
-    exchange_trade_id = Column(String(100), nullable=True)
-    
-    # Metadata
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    
-    # Relationships
-    trading_instance = relationship("TradingInstance", back_populates="transactions")
-    
-    def __repr__(self):
-        return f"<Transaction(id={self.id}, type={self.transaction_type}, symbol={self.symbol})>"
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    started_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    stopped_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deleted_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-# Import enums from core.types
-from core.types import OrderSide, OrderType, OrderStatus, PositionSide, TransactionType
+    created_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    user: Mapped["User"] = relationship(back_populates="trading_instances")
+    exchange_account: Mapped["ExchangeAccount"] = relationship(back_populates="trading_instances")
+    strategy: Mapped["Strategy"] = relationship(back_populates="trading_instances")
+    grid_profile: Mapped["GridProfile"] = relationship(back_populates="trading_instances")
+    orders: Mapped[list["Order"]] = relationship(
+        back_populates="trading_instance", cascade="all, delete-orphan"
+    )
+    positions: Mapped[list["Position"]] = relationship(
+        back_populates="trading_instance", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        Index("idx_trading_instances_user_id", "user_id"),
+        Index("idx_trading_instances_exchange_account_id", "exchange_account_id"),
+        Index("idx_trading_instances_strategy_id", "strategy_id"),
+        Index("idx_trading_instances_status", "status"),
+        Index("idx_trading_instances_symbol", "symbol"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<TradingInstance id={self.id} symbol={self.symbol} status={self.status}>"

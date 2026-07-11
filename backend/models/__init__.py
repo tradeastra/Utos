@@ -1,37 +1,37 @@
 """
 Database models package for UTOS Trading Engine.
 
-This package contains all database models used in the system.
+All 12 models per DATABASE.md §2.
 """
 
-from .user import User, UserSession, SubscriptionTier, UserRole
-from .exchange_account import ExchangeAccount, ExchangeBalance, ExchangeName
-from .trading_instance import (
-    TradingInstance,
-    Order,
-    Position,
-    Transaction,
-    TradingInstanceStatus,
-    StrategyType,
-)
+from .user import User, SubscriptionTier, UserRole
+from .exchange_account import ExchangeAccount, ExchangeName
+from .trading_instance import TradingInstance
+from .position import Position
+from .order import Order
+from .grid_profile import GridProfile
+from .strategy import Strategy
+from .transaction import Transaction
+from .subscription import Subscription
+from .affiliate import Affiliate
+from .notification import Notification, NotificationType
+from .balance import Balance
 
 __all__ = [
-    # User models
     "User",
-    "UserSession",
     "SubscriptionTier",
     "UserRole",
-    
-    # Exchange account models
     "ExchangeAccount",
-    "ExchangeBalance",
     "ExchangeName",
-    
-    # Trading instance models
     "TradingInstance",
-    "Order",
     "Position",
+    "Order",
+    "GridProfile",
+    "Strategy",
     "Transaction",
-    "TradingInstanceStatus",
-    "StrategyType",
+    "Subscription",
+    "Affiliate",
+    "Notification",
+    "NotificationType",
+    "Balance",
 ]

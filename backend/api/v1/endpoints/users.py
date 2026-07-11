@@ -18,15 +18,20 @@ from schemas.auth import UserResponse
 
 router = APIRouter()
 logger = get_logger(__name__)
-_bearer = HTTPBearer()
+_bearer = HTTPBearer(auto_error=False)
 token_manager = TokenManager()
 
 
 async def get_current_user_from_token(
-    credentials: HTTPAuthorizationCredentials = Depends(_bearer),
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
     db: AsyncSession = Depends(get_db),
 ) -> UserResponse:
     """Dependency: validate bearer token and return the DB user."""
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": {"code": "NO_AUTH", "message": "Not authenticated", "details": None}},
+        )
     try:
         payload = token_manager.verify_token(credentials.credentials, token_type="access")
     except AuthenticationError as exc:

@@ -18,7 +18,20 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from core.config import get_database_url
 from database.base import Base
-from models.user import User  # noqa: F401 — ensure model is registered
+from models import (  # noqa: F401 — ensure all models are registered
+    User,
+    ExchangeAccount,
+    TradingInstance,
+    Position,
+    Order,
+    GridProfile,
+    Strategy,
+    Transaction,
+    Subscription,
+    Affiliate,
+    Notification,
+    Balance,
+)
 
 target_metadata = Base.metadata
 

@@ -1,104 +1,82 @@
 """
-Exchange account model for UTOS Trading Engine.
-
-This module defines the ExchangeAccount model and related database entities.
+Exchange account model — matches DATABASE.md §2.2.
 """
 
-from sqlalchemy import Column, String, Boolean, DateTime, Text, Enum, ForeignKey, Index
-from sqlalchemy.dialects.postgresql import UUID, JSONB
-from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
-import uuid
 import enum
+import uuid
+
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, String, Text
+from database.base import GUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
 
 from database.base import Base
 
 
 class ExchangeName(str, enum.Enum):
-    """Exchange name enum."""
     BINANCE = "binance"
     BYBIT = "bybit"
     OKX = "okx"
     KRAKEN = "kraken"
-    HUOBI = "huobi"
     KUCOIN = "kucoin"
 
 
 class ExchangeAccount(Base):
-    """Exchange account model."""
-    
+    """Exchange accounts table."""
+
     __tablename__ = "exchange_accounts"
-    
-    # Primary key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    
-    # Foreign key
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
-    
-    # Exchange information
-    exchange_name = Column(Enum(ExchangeName), nullable=False)
-    is_testnet = Column(Boolean, default=False, nullable=False)
-    
-    # Encrypted credentials
-    encrypted_api_key = Column(Text, nullable=False)
-    encrypted_api_secret = Column(Text, nullable=False)
-    encrypted_passphrase = Column(Text, nullable=True)  # For exchanges that require passphrase
-    
-    # Status
-    is_active = Column(Boolean, default=True, nullable=False)
-    is_connected = Column(Boolean, default=False, nullable=False)
-    last_connected_at = Column(DateTime(timezone=True), nullable=True)
-    
-    # Exchange configuration
-    config = Column(JSONB, nullable=True)  # Exchange-specific configuration
-    
-    # Permissions and limits
-    permissions = Column(JSONB, nullable=True)  # API permissions
-    rate_limits = Column(JSONB, nullable=True)  # Exchange rate limits
-    
-    # Metadata
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
-    
-    # Relationships
-    user = relationship("User", back_populates="exchange_accounts")
-    trading_instances = relationship("TradingInstance", back_populates="exchange_account", cascade="all, delete-orphan")
-    
-    def __repr__(self):
-        return f"<ExchangeAccount(id={self.id}, exchange={self.exchange_name}, user_id={self.user_id})>"
 
-
-class ExchangeBalance(Base):
-    """Exchange balance cache model."""
-    
-    __tablename__ = "exchange_balances"
-    
-    # Primary key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    
-    # Foreign key
-    exchange_account_id = Column(UUID(as_uuid=True), ForeignKey("exchange_accounts.id"), nullable=False, index=True)
-    
-    # Balance information
-    currency = Column(String(10), nullable=False)
-    available = Column(String(30), nullable=False)  # Store as string to avoid precision issues
-    locked = Column(String(30), nullable=False)
-    total = Column(String(30), nullable=False)
-    
-    # Metadata
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
-    
-    # Relationships
-    exchange_account = relationship("ExchangeAccount", back_populates="balances")
-    
-    # Composite index
-    __table_args__ = (
-        Index('idx_exchange_account_currency', 'exchange_account_id', 'currency'),
+    id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), primary_key=True, default=uuid.uuid4
     )
-    
-    def __repr__(self):
-        return f"<ExchangeBalance(account_id={self.exchange_account_id}, currency={self.currency})>"
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("users.id"), nullable=False
+    )
+    exchange_name: Mapped[ExchangeName] = mapped_column(
+        Enum(ExchangeName, name="exchange_name"), nullable=False
+    )
+    account_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    api_key_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
+    api_secret_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
 
+    is_testnet: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
-# Add balances relationship to ExchangeAccount
-ExchangeAccount.balances = relationship("ExchangeBalance", back_populates="exchange_account", cascade="all, delete-orphan")
+    last_synced_at: Mapped[DateTime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    connection_status: Mapped[str] = mapped_column(
+        String(20), default="disconnected", nullable=False
+    )
+    deleted_at: Mapped[DateTime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    created_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    user: Mapped["User"] = relationship(back_populates="exchange_accounts")
+    trading_instances: Mapped[list["TradingInstance"]] = relationship(
+        back_populates="exchange_account"
+    )
+    orders: Mapped[list["Order"]] = relationship(
+        back_populates="exchange_account"
+    )
+    balances: Mapped[list["Balance"]] = relationship(
+        back_populates="exchange_account", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        Index("idx_exchange_accounts_user_id", "user_id"),
+        Index("idx_exchange_accounts_exchange_name", "exchange_name"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<ExchangeAccount id={self.id} exchange={self.exchange_name}>"
