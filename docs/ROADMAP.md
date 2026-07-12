@@ -1,8 +1,8 @@
 # ROADMAP
 
-**Version:** 2.0.0  
-**Last Updated:** 2026-07-09  
-**Status:** DRAFT
+**Version:** 3.0.0  
+**Last Updated:** 2026-07-12  
+**Status:** ACTIVE
 
 ---
 
@@ -10,7 +10,7 @@
 
 This roadmap outlines the development timeline for the UTOS Trading Engine project using a **layer-based sprint** approach. Each sprint builds a complete layer of the system, ensuring stability before moving to the next.
 
-**Total Duration:** ~16 weeks (~4 months)  
+**Total Duration:** ~15 weeks (~3.5 months)  
 **Sprint Length:** 1 week  
 **Approach:** Layer-by-layer (bottom-up)
 
@@ -27,29 +27,27 @@ Sprint 03: Kernel
     ↓
 Sprint 04: Event Bus
     ↓
-Sprint 05: Exchange Adapter
+Sprint 05: Trading Process Manager
     ↓
 Sprint 06: Market Hub
     ↓
-Sprint 07: Trading Instance
+Sprint 07: Execution Engine
     ↓
 Sprint 08: Grid Engine
     ↓
-Sprint 09: Execution Engine
+Sprint 09: Portfolio & Risk
     ↓
-Sprint 10: Portfolio & Risk
+Sprint 10: Profit & Portfolio Lock
     ↓
-Sprint 11: Profit Lock
+Sprint 11: Recovery
     ↓
-Sprint 12: Recovery
+Sprint 12: Strategies
     ↓
-Sprint 13: Strategies
+Sprint 13: Workers & Tasks
     ↓
-Sprint 14: Workers & Tasks
+Sprint 14: Frontend
     ↓
-Sprint 15: Frontend
-    ↓
-Sprint 16: Deployment & Testing
+Sprint 15: Deployment & Testing
 ```
 
 ---
@@ -166,29 +164,30 @@ Sprint 16: Deployment & Testing
 
 ## PHASE 2: EXCHANGE & MARKET (Weeks 5-6)
 
-### Sprint 05: Exchange Adapter
+### Sprint 05: Trading Process Manager
 **Duration:** Week 5  
-**Layer:** Exchange integration  
-**Status:** ⏳ Pending
+**Layer:** Trading process lifecycle  
+**Status:** ✅ Completed (v0.5.0)
 
 **Goals:**
-- [ ] Implement `IExchangeAdapter` base class with `initialize()`, `authenticate()`, `connect_market()`, `connect_account()`, `disconnect()`
-- [ ] Implement Binance adapter (REST + separate market/account WebSocket)
-- [ ] Implement Bybit adapter (REST + separate market/account WebSocket)
-- [ ] Implement exchange data mappers
-- [ ] Implement rate limiting per exchange
-- [ ] Implement circuit breaker for exchange calls
-- [ ] Implement retry logic with exponential backoff
-- [ ] Write unit tests with mock exchange
-- [ ] Write integration tests against exchange testnet
+- [x] Implement `TradingProcess` runtime object
+- [x] Implement `TradingProcessManager` with registry, locking, Redis state
+- [x] Implement `ProcessStateMachine` with all state transitions
+- [x] Implement lifecycle API: create, prepare, start, pause, resume, stop
+- [x] Implement recovery after restart (DB → Redis → Exchange → Recover)
+- [x] Implement REST API endpoints for lifecycle
+- [x] Implement atomic locking via Redis SET NX
+- [x] Write unit tests for state machine, process, and manager
+- [x] Write integration tests for lifecycle and recovery
 
 **Deliverables:**
-- Binance adapter (testnet-ready)
-- Bybit adapter (testnet-ready)
-- Mock exchange for testing
-- Adapter tests passing
+- TradingProcessManager with full lifecycle
+- State machine with all transitions
+- Recovery with exchange health check and symbol validation
+- REST API endpoints (create, prepare, start, pause, resume, stop, status, list)
+- 230 tests passing
 
-**Dependencies:** Sprint 03, Sprint 04
+**Dependencies:** Sprint 02, Sprint 03, Sprint 04
 
 ---
 
@@ -219,28 +218,29 @@ Sprint 16: Deployment & Testing
 
 ## PHASE 3: TRADING ENGINE (Weeks 7-12)
 
-### Sprint 07: Trading Instance
+### Sprint 07: Execution Engine
 **Duration:** Week 7  
-**Layer:** Trading instance lifecycle  
+**Layer:** Order execution  
 **Status:** ⏳ Pending
 
 **Goals:**
-- [ ] Implement `ITradingEngine` and `TradingEngine`
-- [ ] Implement Trading Instance state machine with `CREATED`, `READY`, `RUNNING`, `PAUSED`, `STOPPING`, `STOPPED`, `ERROR`, `RECOVERING`
-- [ ] Implement `create`/`prepare`/`start`/`stop`/`pause`/`resume` operations
-- [ ] Implement event sourcing: `INSTANCE_CREATED`, `INSTANCE_READY`, `INSTANCE_RUNNING`, `INSTANCE_PAUSED`, `INSTANCE_RESUMED`, `INSTANCE_STOPPING`, `INSTANCE_STOPPED`, `INSTANCE_ERROR`, `INSTANCE_RECOVERING`, `INSTANCE_RECOVERED`
-- [ ] Implement `TradingContext` and `ProcessMemory` integration
-- [ ] Implement instance state persistence via `memory_snapshot`
-- [ ] Write unit tests for all state transitions
-- [ ] Write integration tests for instance lifecycle
+- [ ] Implement `IExecutionEngine` and `ExecutionEngine`
+- [ ] Implement order state machine
+- [ ] Implement `execute_order` (via exchange adapter)
+- [ ] Implement `cancel_order` and `cancel_all_orders`
+- [ ] Implement order sync with exchange
+- [ ] Implement order fill monitoring
+- [ ] Emit order events (`ORDER_PLACED`, `ORDER_FILLED`, `ORDER_CANCELLED`, etc.)
+- [ ] Write unit tests with mock exchange
+- [ ] Write integration tests with exchange testnet
 
 **Deliverables:**
-- Trading engine with state machine
-- Instance lifecycle management
-- State transition events
-- Trading engine tests passing
+- Execution engine implementation
+- Order state machine
+- Order events
+- Execution engine tests passing
 
-**Dependencies:** Sprint 02, Sprint 03, Sprint 04
+**Dependencies:** Sprint 05, Sprint 06
 
 ---
 
@@ -267,37 +267,11 @@ Sprint 16: Deployment & Testing
 - Grid events
 - Grid engine tests passing
 
-**Dependencies:** Sprint 04, Sprint 07
+**Dependencies:** Sprint 06, Sprint 07
 
 ---
 
-### Sprint 09: Execution Engine
-**Duration:** Week 9  
-**Layer:** Order execution  
-**Status:** ⏳ Pending
-
-**Goals:**
-- [ ] Implement `IExecutionEngine` and `ExecutionEngine`
-- [ ] Implement order state machine
-- [ ] Implement `execute_order` (via exchange adapter)
-- [ ] Implement `cancel_order` and `cancel_all_orders`
-- [ ] Implement order sync with exchange
-- [ ] Implement order fill monitoring
-- [ ] Emit order events (`ORDER_PLACED`, `ORDER_FILLED`, `ORDER_CANCELLED`, etc.)
-- [ ] Write unit tests with mock exchange
-- [ ] Write integration tests with exchange testnet
-
-**Deliverables:**
-- Execution engine implementation
-- Order state machine
-- Order events
-- Execution engine tests passing
-
-**Dependencies:** Sprint 05, Sprint 07
-
----
-
-### Sprint 10: Portfolio & Risk
+### Sprint 09: Portfolio & Risk
 **Duration:** Week 10  
 **Layer:** Portfolio tracking and risk management  
 **Status:** ⏳ Pending
@@ -321,11 +295,11 @@ Sprint 16: Deployment & Testing
 - P&L calculation
 - Portfolio & risk tests passing
 
-**Dependencies:** Sprint 02, Sprint 07
+**Dependencies:** Sprint 02, Sprint 05
 
 ---
 
-### Sprint 11: Profit & Portfolio Lock
+### Sprint 10: Profit & Portfolio Lock
 **Duration:** Week 11  
 **Layer:** Profit lock mechanisms  
 **Status:** ⏳ Pending
@@ -349,11 +323,11 @@ Sprint 16: Deployment & Testing
 - Profit and portfolio lock events
 - Profit and portfolio lock tests passing
 
-**Dependencies:** Sprint 08, Sprint 09, Sprint 10
+**Dependencies:** Sprint 07, Sprint 08, Sprint 09
 
 ---
 
-### Sprint 12: Recovery
+### Sprint 11: Recovery
 **Duration:** Week 12  
 **Layer:** Error recovery  
 **Status:** ⏳ Pending
@@ -375,13 +349,13 @@ Sprint 16: Deployment & Testing
 - Recovery events
 - Recovery tests passing
 
-**Dependencies:** Sprint 07, Sprint 08, Sprint 09
+**Dependencies:** Sprint 05, Sprint 07, Sprint 08
 
 ---
 
 ## PHASE 4: STRATEGIES & WORKERS (Weeks 13-14)
 
-### Sprint 13: Strategies
+### Sprint 12: Strategies
 **Duration:** Week 13  
 **Layer:** Trading strategy implementations  
 **Status:** ⏳ Pending
@@ -402,11 +376,11 @@ Sprint 16: Deployment & Testing
 - Strategy parameter validation
 - Strategy tests passing
 
-**Dependencies:** Sprint 08, Sprint 11
+**Dependencies:** Sprint 08, Sprint 10
 
 ---
 
-### Sprint 14: Workers & Tasks
+### Sprint 13: Workers & Tasks
 **Duration:** Week 14  
 **Layer:** Background processing  
 **Status:** ⏳ Pending
@@ -428,13 +402,13 @@ Sprint 16: Deployment & Testing
 - Celery task definitions
 - Worker tests passing
 
-**Dependencies:** Sprint 04, Sprint 07, Sprint 09
+**Dependencies:** Sprint 04, Sprint 05, Sprint 07
 
 ---
 
-## PHASE 5: FRONTEND (Week 15)
+## PHASE 5: FRONTEND (Week 14)
 
-### Sprint 15: Frontend
+### Sprint 14: Frontend
 **Duration:** Week 15  
 **Layer:** User interface  
 **Status:** ⏳ Pending
@@ -459,13 +433,13 @@ Sprint 16: Deployment & Testing
 - Real-time updates via WebSocket
 - Frontend tests passing
 
-**Dependencies:** All backend sprints (01-14)
+**Dependencies:** All backend sprints (01-13)
 
 ---
 
-## PHASE 6: DEPLOYMENT & TESTING (Week 16)
+## PHASE 6: DEPLOYMENT & TESTING (Week 15)
 
-### Sprint 16: Deployment & Testing
+### Sprint 15: Deployment & Testing
 **Duration:** Week 16  
 **Layer:** Production readiness  
 **Status:** ⏳ Pending
@@ -501,12 +475,13 @@ Sprint 16: Deployment & Testing
 | Milestone | Sprint | Description |
 |-----------|--------|-------------|
 | M1: Foundation Complete | 04 | Core infrastructure, DB, kernel, event bus |
-| M2: Exchange Ready | 06 | Can connect to exchanges and receive market data |
-| M3: Trading Engine Complete | 12 | Full trading cycle: create, grid, execute, profit lock, recover |
-| M4: Strategies Ready | 13 | All strategies implemented and tested |
-| M5: System Complete | 14 | All backend layers done |
-| M6: Product Ready | 15 | Frontend complete |
-| M7: Production Live | 16 | Deployed and monitored |
+| M2: Exchange Ready | 05 | Can connect to exchanges, manage trading process lifecycle |
+| M3: Market & Execution Ready | 07 | Market data hub + order execution engine |
+| M4: Trading Engine Complete | 11 | Full trading cycle: grid, execute, profit lock, recover |
+| M5: Strategies Ready | 12 | All strategies implemented and tested |
+| M6: System Complete | 13 | All backend layers done |
+| M7: Product Ready | 14 | Frontend complete |
+| M8: Production Live | 15 | Deployed and monitored |
 
 ---
 
@@ -528,3 +503,4 @@ Sprint 16: Deployment & Testing
 |------|---------|---------|
 | 2026-07-09 | 1.0.0 | Initial roadmap with 30 feature-based sprints |
 | 2026-07-09 | 2.0.0 | Restructured to 16 layer-based sprints; added Trading Instance, KernelContext, TradingContext, ProcessMemory, READY state, TP/ProfitLock/PortfolioLock separation, separate market/account connections |
+| 2026-07-12 | 3.0.0 | Sprint 5 = Trading Process Manager (completed). Reordered: Sprint 7 = Execution Engine (was 9), Sprint 8 = Grid Engine. Removed old Sprint 7 (Trading Instance, merged into Sprint 5). Total sprints reduced from 16 to 15. |
