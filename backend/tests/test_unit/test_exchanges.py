@@ -54,9 +54,12 @@ class TestIExchangeAdapter:
             "disconnect",
             "get_exchange_info",
             "get_balance",
+            "get_account",
+            "get_symbol_info",
             "get_positions",
             "place_order",
             "cancel_order",
+            "cancel_all",
             "get_order",
             "get_open_orders",
             "get_ticker",
@@ -96,9 +99,12 @@ class TestExchangeFactory:
             async def disconnect(self): pass
             async def get_exchange_info(self): return None
             async def get_balance(self, asset=None): return []
+            async def get_account(self): return None
+            async def get_symbol_info(self, symbol): return None
             async def get_positions(self, symbol=None): return []
             async def place_order(self, *args, **kwargs): return None
             async def cancel_order(self, symbol, order_id): return None
+            async def cancel_all(self, symbol=None): return []
             async def get_order(self, symbol, order_id): return None
             async def get_open_orders(self, symbol=None): return []
             async def get_ticker(self, symbol): return None
@@ -129,9 +135,12 @@ class TestExchangeFactory:
             async def disconnect(self): pass
             async def get_exchange_info(self): return None
             async def get_balance(self, asset=None): return []
+            async def get_account(self): return None
+            async def get_symbol_info(self, symbol): return None
             async def get_positions(self, symbol=None): return []
             async def place_order(self, *args, **kwargs): return None
             async def cancel_order(self, symbol, order_id): return None
+            async def cancel_all(self, symbol=None): return []
             async def get_order(self, symbol, order_id): return None
             async def get_open_orders(self, symbol=None): return []
             async def get_ticker(self, symbol): return None
@@ -157,9 +166,12 @@ class TestExchangeFactory:
             async def disconnect(self): pass
             async def get_exchange_info(self): return None
             async def get_balance(self, asset=None): return []
+            async def get_account(self): return None
+            async def get_symbol_info(self, symbol): return None
             async def get_positions(self, symbol=None): return []
             async def place_order(self, *args, **kwargs): return None
             async def cancel_order(self, symbol, order_id): return None
+            async def cancel_all(self, symbol=None): return []
             async def get_order(self, symbol, order_id): return None
             async def get_open_orders(self, symbol=None): return []
             async def get_ticker(self, symbol): return None
@@ -187,9 +199,12 @@ class TestExchangeFactory:
             async def disconnect(self): pass
             async def get_exchange_info(self): return None
             async def get_balance(self, asset=None): return []
+            async def get_account(self): return None
+            async def get_symbol_info(self, symbol): return None
             async def get_positions(self, symbol=None): return []
             async def place_order(self, *args, **kwargs): return None
             async def cancel_order(self, symbol, order_id): return None
+            async def cancel_all(self, symbol=None): return []
             async def get_order(self, symbol, order_id): return None
             async def get_open_orders(self, symbol=None): return []
             async def get_ticker(self, symbol): return None
@@ -594,6 +609,58 @@ class TestWebSocketManager:
         with pytest.raises(RuntimeError):
             await manager.receive()
 
+    async def test_subscribe_deduplicates_same_stream(self):
+        mock_ws = AsyncMock(spec=websockets.WebSocketClientProtocol)
+        manager = WebSocketManager()
+        manager._ws = mock_ws
+        message = '{"method":"SUBSCRIBE","params":["btcusdt@ticker"],"id":1}'
+
+        await manager.subscribe(message)
+        await manager.subscribe('{"method":"SUBSCRIBE","params":["btcusdt@ticker"],"id":2}')
+
+        assert mock_ws.send.await_count == 1
+        assert manager._subscribed_messages == [message]
+
+    async def test_subscriptions_are_separated_by_url(self):
+        mock_ws = AsyncMock(spec=websockets.WebSocketClientProtocol)
+        mock_ws.open = True
+        manager = WebSocketManager()
+        manager._ws = mock_ws
+        manager.url = "wss://market.example/ws"
+        market_msg = '{"method":"SUBSCRIBE","params":["btcusdt@ticker"],"id":1}'
+        await manager.subscribe(market_msg)
+
+        manager.url = "wss://account.example/ws/key"
+        account_msg = '{"method":"SUBSCRIBE","params":["@userData"],"id":2}'
+        await manager.subscribe(account_msg)
+
+        assert market_msg in manager._subscriptions["wss://market.example/ws"].values()
+        assert account_msg in manager._subscriptions["wss://account.example/ws/key"].values()
+        assert mock_ws.send.await_count == 2
+
+    async def test_reconnect_resubscribes_only_current_url(self):
+        mock_ws = AsyncMock(spec=websockets.WebSocketClientProtocol)
+        mock_ws.open = True
+
+        with patch("websockets.connect", new=AsyncMock(return_value=mock_ws)):
+            manager = WebSocketManager(retry_policy=RetryPolicy(max_retries=1, base_delay=0.0))
+            manager._ws = mock_ws
+            with patch.object(manager, "_receive_loop", new=AsyncMock()):
+                manager.url = "wss://market.example/ws"
+                market_msg = '{"method":"SUBSCRIBE","params":["btcusdt@ticker"],"id":1}'
+                await manager.subscribe(market_msg)
+
+                manager.url = "wss://account.example/ws/key"
+                account_msg = '{"method":"SUBSCRIBE","params":["@userData"],"id":2}'
+                await manager.subscribe(account_msg)
+                mock_ws.send.reset_mock()
+
+                await manager.connect("wss://market.example/ws")
+
+        sent = [call.args[0] for call in mock_ws.send.await_args_list]
+        assert market_msg in sent
+        assert account_msg not in sent
+
 
 # -----------------------------------------------------------------------------
 # Integration / helper behavior
@@ -613,9 +680,12 @@ class TestIntegration:
             async def disconnect(self): pass
             async def get_exchange_info(self): return None
             async def get_balance(self, asset=None): return []
+            async def get_account(self): return None
+            async def get_symbol_info(self, symbol): return None
             async def get_positions(self, symbol=None): return []
             async def place_order(self, *args, **kwargs): return None
             async def cancel_order(self, symbol, order_id): return None
+            async def cancel_all(self, symbol=None): return []
             async def get_order(self, symbol, order_id): return None
             async def get_open_orders(self, symbol=None): return []
             async def get_ticker(self, symbol): return None
@@ -838,9 +908,12 @@ class TestFactoryEdgeCases:
             async def disconnect(self): pass
             async def get_exchange_info(self): return None
             async def get_balance(self, asset=None): return []
+            async def get_account(self): return None
+            async def get_symbol_info(self, symbol): return None
             async def get_positions(self, symbol=None): return []
             async def place_order(self, *args, **kwargs): return None
             async def cancel_order(self, symbol, order_id): return None
+            async def cancel_all(self, symbol=None): return []
             async def get_order(self, symbol, order_id): return None
             async def get_open_orders(self, symbol=None): return []
             async def get_ticker(self, symbol): return None
@@ -866,9 +939,12 @@ class TestFactoryEdgeCases:
             async def disconnect(self): pass
             async def get_exchange_info(self): return None
             async def get_balance(self, asset=None): return []
+            async def get_account(self): return None
+            async def get_symbol_info(self, symbol): return None
             async def get_positions(self, symbol=None): return []
             async def place_order(self, *args, **kwargs): return None
             async def cancel_order(self, symbol, order_id): return None
+            async def cancel_all(self, symbol=None): return []
             async def get_order(self, symbol, order_id): return None
             async def get_open_orders(self, symbol=None): return []
             async def get_ticker(self, symbol): return None
@@ -896,9 +972,12 @@ class TestFactoryEdgeCases:
             async def disconnect(self): pass
             async def get_exchange_info(self): return None
             async def get_balance(self, asset=None): return []
+            async def get_account(self): return None
+            async def get_symbol_info(self, symbol): return None
             async def get_positions(self, symbol=None): return []
             async def place_order(self, *args, **kwargs): return None
             async def cancel_order(self, symbol, order_id): return None
+            async def cancel_all(self, symbol=None): return []
             async def get_order(self, symbol, order_id): return None
             async def get_open_orders(self, symbol=None): return []
             async def get_ticker(self, symbol): return None
@@ -919,9 +998,12 @@ class TestFactoryEdgeCases:
             async def disconnect(self): pass
             async def get_exchange_info(self): return None
             async def get_balance(self, asset=None): return []
+            async def get_account(self): return None
+            async def get_symbol_info(self, symbol): return None
             async def get_positions(self, symbol=None): return []
             async def place_order(self, *args, **kwargs): return None
             async def cancel_order(self, symbol, order_id): return None
+            async def cancel_all(self, symbol=None): return []
             async def get_order(self, symbol, order_id): return None
             async def get_open_orders(self, symbol=None): return []
             async def get_ticker(self, symbol): return None

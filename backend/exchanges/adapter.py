@@ -38,6 +38,12 @@ class IExchangeAdapter(ABC):
         """Perform a lightweight authentication check (e.g., account ping)."""
         ...
 
+    async def connect(self) -> bool:
+        """Open both market and account connections."""
+        await self.connect_market()
+        await self.connect_account()
+        return True
+
     @abstractmethod
     async def connect_market(self) -> bool:
         """Open market data connection (WebSocket or REST polling)."""
@@ -64,6 +70,16 @@ class IExchangeAdapter(ABC):
         ...
 
     @abstractmethod
+    async def get_account(self) -> Any:
+        """Return full account information including balances and permissions."""
+        ...
+
+    @abstractmethod
+    async def get_symbol_info(self, symbol: str) -> Any:
+        """Return metadata for a single symbol (filters, lot size, tick size, etc.)."""
+        ...
+
+    @abstractmethod
     async def get_positions(self, symbol: Optional[str] = None) -> list[PositionEntry]:
         """Return open positions."""
         ...
@@ -84,6 +100,11 @@ class IExchangeAdapter(ABC):
     @abstractmethod
     async def cancel_order(self, symbol: str, order_id: str) -> OrderResult:
         """Cancel an existing order."""
+        ...
+
+    @abstractmethod
+    async def cancel_all(self, symbol: Optional[str] = None) -> list[OrderResult]:
+        """Cancel all open orders for the given symbol or account."""
         ...
 
     @abstractmethod
@@ -130,12 +151,30 @@ class IExchangeAdapter(ABC):
         """Subscribe to market data stream."""
         ...
 
+    async def subscribe_ticker(
+        self, symbol: str, callback: Callable[[Any], None]
+    ) -> bool:
+        """Convenience wrapper for ticker market subscription."""
+        return await self.subscribe_market([symbol], "ticker", callback)
+
+    async def subscribe_orderbook(
+        self, symbol: str, callback: Callable[[Any], None]
+    ) -> bool:
+        """Convenience wrapper for orderbook market subscription."""
+        return await self.subscribe_market([symbol], "orderbook", callback)
+
     @abstractmethod
     async def subscribe_account(
         self, channel: str, callback: Callable[[Any], None]
     ) -> bool:
         """Subscribe to private account stream."""
         ...
+
+    async def subscribe_user_data(
+        self, callback: Callable[[Any], None]
+    ) -> bool:
+        """Convenience wrapper for user account stream subscription."""
+        return await self.subscribe_account("user", callback)
 
     @abstractmethod
     async def unsubscribe_market(
@@ -144,7 +183,19 @@ class IExchangeAdapter(ABC):
         """Unsubscribe from market data stream."""
         ...
 
+    async def unsubscribe_ticker(self, symbol: str) -> bool:
+        """Convenience wrapper for ticker unsubscription."""
+        return await self.unsubscribe_market([symbol], "ticker")
+
+    async def unsubscribe_orderbook(self, symbol: str) -> bool:
+        """Convenience wrapper for orderbook unsubscription."""
+        return await self.unsubscribe_market([symbol], "orderbook")
+
     @abstractmethod
     async def unsubscribe_account(self, channel: str) -> bool:
         """Unsubscribe from private account stream."""
         ...
+
+    async def unsubscribe_user_data(self) -> bool:
+        """Convenience wrapper for user account stream unsubscription."""
+        return await self.unsubscribe_account("user")
