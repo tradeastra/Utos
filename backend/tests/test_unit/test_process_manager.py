@@ -44,6 +44,9 @@ class FakeAdapter:
     async def disconnect(self) -> bool:
         return True
 
+    async def health_check(self) -> bool:
+        return True
+
 
 class FakeCredentialManager:
     def decrypt(self, ciphertext: str) -> str:
@@ -180,3 +183,30 @@ async def test_invalid_state_transition_is_rejected(manager: TradingProcessManag
     instance = await create_trading_instance(manager.session)
     with pytest.raises(InvalidStateTransition):
         await manager.start(instance.id, instance.user_id)
+
+
+@pytest.mark.asyncio
+async def test_recover_running_process(manager: TradingProcessManager, create_trading_instance) -> None:
+    """Recovery should rebuild a RUNNING process after restart."""
+    instance = await create_trading_instance(manager.session)
+    await manager.prepare(instance.id, instance.user_id)
+    await manager.start(instance.id, instance.user_id)
+    assert instance.status == TradingInstanceStatus.RUNNING
+
+    recovered = await manager.recover()
+    assert len(recovered) == 1
+    assert recovered[0].status == TradingInstanceStatus.RUNNING
+
+
+@pytest.mark.asyncio
+async def test_recover_paused_process(manager: TradingProcessManager, create_trading_instance) -> None:
+    """Recovery should restore a PAUSED process to PAUSED state."""
+    instance = await create_trading_instance(manager.session)
+    await manager.prepare(instance.id, instance.user_id)
+    await manager.start(instance.id, instance.user_id)
+    await manager.pause(instance.id, instance.user_id)
+    assert instance.status == TradingInstanceStatus.PAUSED
+
+    recovered = await manager.recover()
+    assert len(recovered) == 1
+    assert recovered[0].status == TradingInstanceStatus.PAUSED

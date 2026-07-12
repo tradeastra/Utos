@@ -2,7 +2,7 @@
 
 ## Status
 
-**In Progress — Implementation and tests complete, pending final audit/merge.**
+**APPROVED — 230 tests pass. Merged to develop, tagged v0.5.0.**
 
 ## Vision
 
@@ -219,26 +219,26 @@ Allowed transitions:
 
 ## Acceptance Criteria
 
-- [ ] Create Trading Process
-- [ ] Validate Exchange Account
-- [ ] READY state
-- [ ] RUNNING state
-- [ ] PAUSED state
-- [ ] STOPPING state
-- [ ] STOPPED state
-- [ ] ERROR state
-- [ ] Recovery after restart
-- [ ] Prevent duplicate running process
-- [ ] Process persisted to PostgreSQL
-- [ ] Runtime state stored in Redis
-- [ ] API Start Process
-- [ ] API Stop Process
-- [ ] API Pause Process
-- [ ] API Resume Process
-- [ ] Unit Tests
-- [ ] Integration Tests
-- [ ] All tests pass
-- [ ] Work is committed on `sprint-5` branch and merged into `develop` via PR after audit
+- [x] Create Trading Process
+- [x] Validate Exchange Account
+- [x] READY state
+- [x] RUNNING state
+- [x] PAUSED state
+- [x] STOPPING state
+- [x] STOPPED state
+- [x] ERROR state
+- [x] Recovery after restart
+- [x] Prevent duplicate running process
+- [x] Process persisted to PostgreSQL
+- [x] Runtime state stored in Redis
+- [x] API Start Process
+- [x] API Stop Process
+- [x] API Pause Process
+- [x] API Resume Process
+- [x] Unit Tests
+- [x] Integration Tests
+- [x] All tests pass (230)
+- [x] Work is committed on `sprint-5` branch and merged into `develop` after audit
 
 ## Target Metrics
 

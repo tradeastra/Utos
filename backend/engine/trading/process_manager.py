@@ -505,6 +505,25 @@ class TradingProcessManager:
                 return
 
         process = await self._build_process_from_instance(instance)
+
+        if not await process.adapter.health_check():
+            await self._persist_instance(
+                instance,
+                status=TradingInstanceStatus.ERROR,
+                error_message="Exchange health check failed during recovery",
+            )
+            return
+
+        try:
+            await self._validate_symbol(process.adapter, instance.symbol)
+        except SymbolNotSupported:
+            await self._persist_instance(
+                instance,
+                status=TradingInstanceStatus.ERROR,
+                error_message=f"Symbol {instance.symbol} no longer supported on {process.exchange_name}",
+            )
+            return
+
         process.set_status(TradingInstanceStatus.RECOVERING)
         await self._persist_instance(
             instance,
