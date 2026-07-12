@@ -15,19 +15,39 @@ from api.v1 import api_router
 from core.config import settings
 from core.exceptions import AuthenticationError, AuthorizationError, UTOSException
 from core.logging import get_logger, setup_logging
-from database.base import close_engine, init_engine
+from database.base import close_engine, get_engine, init_engine
 from database.redis_client import close_redis, init_redis, redis_ping
+from engine.trading.process_manager import TradingProcessManager
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 setup_logging()
 logger = get_logger(__name__)
 
 
+async def _recover_trading_processes() -> None:
+    """Recover RUNNING/PAUSED trading processes on startup."""
+    try:
+        engine = get_engine()
+        if engine is None:
+            logger.warning("Skipping process recovery: DB engine not initialized")
+            return
+        session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+        async with session_factory() as session:
+            manager = TradingProcessManager(session)
+            recovered = await manager.recover()
+            await session.commit()
+            logger.info(f"Recovered {len(recovered)} trading process(es)")
+    except Exception as exc:  # noqa: BLE001
+        logger.error(f"Process recovery failed: {exc}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup: init DB engine + Redis. Shutdown: close both."""
+    """Startup: init DB engine + Redis, recover trading processes. Shutdown: close both."""
     logger.info("Starting UTOS Trading Engine", extra={"version": settings.VERSION})
     init_engine()
     await init_redis()
+    await _recover_trading_processes()
     yield
     logger.info("Shutting down UTOS Trading Engine")
     await close_engine()

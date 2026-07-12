@@ -1,362 +1,258 @@
+"""Trading instances endpoints for UTOS Trading Engine.
+
+This module provides endpoints for managing trading processes.
+A TradingProcess is the runtime wrapper around a TradingInstance row.
 """
-Trading instances endpoints for UTOS Trading Engine.
 
-This module provides endpoints for managing trading instances.
-"""
+from datetime import datetime, timezone
+from typing import Any
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from typing import List, Optional
-from decimal import Decimal
-from datetime import datetime
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, ConfigDict, Field
 
-from core.logging import get_logger
-from core.types import TradingInstanceStatus, TradingInstance
+from api.v1.endpoints.users import get_current_user_from_token
 from core.exceptions import (
-    TradingInstanceNotFound,
+    AuthenticationError,
+    AuthorizationError,
     InvalidStateTransition,
+    TradingInstanceNotFound,
     ValidationError,
 )
+from core.types import TradingInstanceStatus
+from engine.trading.process_manager import TradingProcessManager, get_process_manager
+from models.user import User
 
 router = APIRouter()
-logger = get_logger(__name__)
 
 
-# Pydantic models for request/response
 class TradingInstanceCreate(BaseModel):
-    """Request model for creating a trading instance."""
+    """Request model for creating a trading process."""
+
     exchange_account_id: str = Field(..., description="Exchange account ID")
+    strategy_id: str = Field(..., description="Strategy ID")
+    grid_profile_id: str = Field(..., description="Grid profile ID")
     symbol: str = Field(..., description="Trading symbol (e.g., BTCUSDT)")
-    strategy_type: str = Field(..., description="Strategy type")
-    strategy_params: dict = Field(..., description="Strategy parameters")
-    total_investment: Decimal = Field(..., gt=0, description="Total investment amount")
-    
-    # Grid-specific fields
-    grid_upper_price: Optional[Decimal] = Field(None, description="Upper grid price")
-    grid_lower_price: Optional[Decimal] = Field(None, description="Lower grid price")
-    grid_count: Optional[int] = Field(None, ge=2, le=100, description="Number of grid levels")
-    
-    # Risk fields
-    max_position_size: Optional[Decimal] = Field(None, gt=0, description="Maximum position size")
-    stop_loss_percentage: Optional[Decimal] = Field(None, ge=0, le=100, description="Stop loss percentage")
-    take_profit_percentage: Optional[Decimal] = Field(None, ge=0, le=100, description="Take profit percentage")
-    
-    # Portfolio lock (premium feature)
-    portfolio_lock_enabled: bool = Field(False, description="Enable portfolio lock")
-    portfolio_lock_percentage: Optional[Decimal] = Field(None, ge=0, le=100, description="Portfolio lock percentage")
+    start_price: float | None = Field(None, description="Starting price")
+    total_investment: float = Field(..., gt=0, description="Total investment amount")
+    base_currency: str = Field("", description="Base currency")
+    quote_currency: str = Field("", description="Quote currency")
 
 
 class TradingInstanceResponse(BaseModel):
     """Response model for trading instance."""
+
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     user_id: str
     exchange_account_id: str
+    strategy_id: str
+    grid_profile_id: str
     symbol: str
-    strategy_type: str
-    strategy_params: dict
     status: TradingInstanceStatus
-    total_investment: Decimal
-    current_value: Decimal
-    total_pnl: Decimal
-    created_at: datetime
-    updated_at: datetime
-    started_at: Optional[datetime] = None
-    stopped_at: Optional[datetime] = None
-    grid_upper_price: Optional[Decimal] = None
-    grid_lower_price: Optional[Decimal] = None
-    grid_count: Optional[int] = None
-    investment_per_grid: Optional[Decimal] = None
-    max_position_size: Optional[Decimal] = None
-    stop_loss_percentage: Optional[Decimal] = None
-    take_profit_percentage: Optional[Decimal] = None
+    start_price: float | None = None
+    current_price: float | None = None
+    total_investment: float = 0.0
+    base_currency: str = ""
+    quote_currency: str = ""
+    profit_lock_enabled: bool = False
     portfolio_lock_enabled: bool = False
-    portfolio_lock_percentage: Optional[Decimal] = None
+    worker_id: str | None = None
+    memory_version: int = 0
+    error_message: str | None = None
+    started_at: str | None = None
+    stopped_at: str | None = None
+    deleted_at: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
 
 
-class TradingInstanceUpdate(BaseModel):
-    """Request model for updating a trading instance."""
-    strategy_params: Optional[dict] = Field(None, description="Strategy parameters")
-    max_position_size: Optional[Decimal] = Field(None, gt=0, description="Maximum position size")
-    stop_loss_percentage: Optional[Decimal] = Field(None, ge=0, le=100, description="Stop loss percentage")
-    take_profit_percentage: Optional[Decimal] = Field(None, ge=0, le=100, description="Take profit percentage")
+class TradingInstanceStatusResponse(BaseModel):
+    """Short status response for lifecycle actions."""
+
+    id: str
+    status: str
 
 
-# Placeholder for dependencies
-async def get_current_user():
-    """Get current authenticated user."""
-    # TODO: Implement authentication
-    return {"id": "user123", "email": "user@example.com"}
+def _to_response(instance: Any) -> dict[str, Any]:
+    """Convert a TradingInstance to a dict for the response model."""
+    return {
+        "id": str(instance.id),
+        "user_id": str(instance.user_id),
+        "exchange_account_id": str(instance.exchange_account_id),
+        "strategy_id": str(instance.strategy_id),
+        "grid_profile_id": str(instance.grid_profile_id),
+        "symbol": instance.symbol,
+        "status": instance.status,
+        "start_price": float(instance.start_price) if instance.start_price is not None else None,
+        "current_price": float(instance.current_price) if instance.current_price is not None else None,
+        "total_investment": float(instance.total_investment) if instance.total_investment is not None else 0.0,
+        "base_currency": instance.base_currency or "",
+        "quote_currency": instance.quote_currency or "",
+        "profit_lock_enabled": bool(instance.profit_lock_enabled),
+        "portfolio_lock_enabled": bool(instance.portfolio_lock_enabled),
+        "worker_id": instance.worker_id,
+        "memory_version": instance.memory_version or 0,
+        "error_message": instance.error_message,
+        "started_at": instance.started_at.isoformat() if instance.started_at else None,
+        "stopped_at": instance.stopped_at.isoformat() if instance.stopped_at else None,
+        "deleted_at": instance.deleted_at.isoformat() if instance.deleted_at else None,
+        "created_at": instance.created_at.isoformat() if instance.created_at else None,
+        "updated_at": instance.updated_at.isoformat() if instance.updated_at else None,
+    }
 
 
-@router.post("/", response_model=TradingInstanceResponse)
+def _handle_manager_exception(exc: Exception) -> None:
+    """Map domain exceptions to FastAPI HTTPException."""
+    if isinstance(exc, TradingInstanceNotFound):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    if isinstance(exc, AuthenticationError):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc))
+    if isinstance(exc, AuthorizationError):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    if isinstance(exc, (InvalidStateTransition, ValidationError)):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+
+
+@router.post("", response_model=TradingInstanceResponse, status_code=status.HTTP_201_CREATED)
 async def create_trading_instance(
-    instance_data: TradingInstanceCreate,
-    current_user: dict = Depends(get_current_user)
-):
-    """Create a new trading instance."""
+    data: TradingInstanceCreate,
+    current_user: User = Depends(get_current_user_from_token),
+    manager: TradingProcessManager = Depends(get_process_manager),
+) -> dict[str, Any]:
+    """Create a new trading process (CREATED)."""
     try:
-        logger.info(f"Creating trading instance for user {current_user['id']}")
-        
-        # TODO: Implement actual creation logic
-        # - Validate user has permission
-        # - Validate exchange account belongs to user
-        # - Validate strategy parameters
-        # - Check investment limits
-        # - Create trading instance in database
-        
-        # Placeholder response
-        instance = TradingInstance(
-            id="instance123",
-            user_id=current_user["id"],
-            exchange_account_id=instance_data.exchange_account_id,
-            symbol=instance_data.symbol,
-            strategy_type=instance_data.strategy_type,
-            strategy_params=instance_data.strategy_params,
-            status=TradingInstanceStatus.CREATED,
-            total_investment=instance_data.total_investment,
-            current_value=instance_data.total_investment,
-            total_pnl=Decimal("0"),
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
-            grid_upper_price=instance_data.grid_upper_price,
-            grid_lower_price=instance_data.grid_lower_price,
-            grid_count=instance_data.grid_count,
-            max_position_size=instance_data.max_position_size,
-            stop_loss_percentage=instance_data.stop_loss_percentage,
-            take_profit_percentage=instance_data.take_profit_percentage,
-            portfolio_lock_enabled=instance_data.portfolio_lock_enabled,
-            portfolio_lock_percentage=instance_data.portfolio_lock_percentage,
+        instance = await manager.create_process(
+            user_id=current_user.id,
+            exchange_account_id=UUID(data.exchange_account_id),
+            strategy_id=UUID(data.strategy_id),
+            grid_profile_id=UUID(data.grid_profile_id),
+            symbol=data.symbol.upper(),
+            start_price=data.start_price,
+            total_investment=data.total_investment,
+            base_currency=data.base_currency,
+            quote_currency=data.quote_currency,
         )
-        
-        logger.info(f"Created trading instance {instance.id}")
-        return instance
-        
-    except ValidationError as e:
-        logger.error(f"Validation error creating trading instance: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error creating trading instance: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        return _to_response(instance)
+    except Exception as exc:
+        _handle_manager_exception(exc)
 
 
-@router.get("/", response_model=List[TradingInstanceResponse])
+@router.get("", response_model=list[TradingInstanceResponse])
 async def list_trading_instances(
-    status: Optional[TradingInstanceStatus] = Query(None, description="Filter by status"),
-    current_user: dict = Depends(get_current_user)
-):
-    """List trading instances for current user."""
+    status_filter: TradingInstanceStatus | None = Query(None, alias="status"),
+    current_user: User = Depends(get_current_user_from_token),
+    manager: TradingProcessManager = Depends(get_process_manager),
+) -> list[dict[str, Any]]:
+    """List trading processes for the current user."""
     try:
-        logger.info(f"Listing trading instances for user {current_user['id']}")
-        
-        # TODO: Implement actual listing logic
-        # - Get instances from database
-        # - Apply filters
-        # - Check permissions
-        
-        # Placeholder response
-        instances = []
-        
-        return instances
-        
-    except Exception as e:
-        logger.error(f"Error listing trading instances: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        instances = await manager.list_by_user(current_user.id)
+        if status_filter:
+            instances = [i for i in instances if i.status == status_filter]
+        return [_to_response(i) for i in instances]
+    except Exception as exc:
+        _handle_manager_exception(exc)
 
 
 @router.get("/{instance_id}", response_model=TradingInstanceResponse)
 async def get_trading_instance(
     instance_id: str,
-    current_user: dict = Depends(get_current_user)
-):
-    """Get a specific trading instance."""
+    current_user: User = Depends(get_current_user_from_token),
+    manager: TradingProcessManager = Depends(get_process_manager),
+) -> dict[str, Any]:
+    """Get a single trading process."""
     try:
-        logger.info(f"Getting trading instance {instance_id}")
-        
-        # TODO: Implement actual retrieval logic
-        # - Get instance from database
-        # - Check user permissions
-        # - Return instance details
-        
-        # Placeholder response
-        raise HTTPException(status_code=404, detail="Trading instance not found")
-        
-    except TradingInstanceNotFound as e:
-        logger.error(f"Trading instance not found: {e}")
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error getting trading instance: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        instance = await manager.get_status(UUID(instance_id), current_user.id)
+        return _to_response(instance)
+    except Exception as exc:
+        _handle_manager_exception(exc)
 
 
-@router.post("/{instance_id}/prepare")
+@router.post("/{instance_id}/prepare", response_model=TradingInstanceResponse)
 async def prepare_trading_instance(
     instance_id: str,
-    current_user: dict = Depends(get_current_user)
-):
-    """Prepare a trading instance (CREATED -> READY)."""
+    current_user: User = Depends(get_current_user_from_token),
+    manager: TradingProcessManager = Depends(get_process_manager),
+) -> dict[str, Any]:
+    """Prepare a trading process (CREATED -> READY)."""
     try:
-        logger.info(f"Preparing trading instance {instance_id}")
-        
-        # TODO: Implement actual preparation logic
-        # - Validate instance exists and belongs to user
-        # - Check instance is in CREATED state
-        # - Validate API keys
-        # - Check balance
-        # - Calculate grid
-        # - Sync orders/positions
-        # - Subscribe to market data
-        # - Allocate worker
-        # - Initialize ProcessMemory
-        
-        return {"message": "Trading instance prepared successfully"}
-        
-    except TradingInstanceNotFound as e:
-        logger.error(f"Trading instance not found: {e}")
-        raise HTTPException(status_code=404, detail=str(e))
-    except InvalidStateTransition as e:
-        logger.error(f"Invalid state transition: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error preparing trading instance: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        instance = await manager.prepare(UUID(instance_id), current_user.id)
+        return _to_response(instance)
+    except Exception as exc:
+        _handle_manager_exception(exc)
 
 
-@router.post("/{instance_id}/start")
+@router.post("/{instance_id}/start", response_model=TradingInstanceResponse)
 async def start_trading_instance(
     instance_id: str,
-    current_user: dict = Depends(get_current_user)
-):
-    """Start a trading instance (READY -> RUNNING)."""
+    current_user: User = Depends(get_current_user_from_token),
+    manager: TradingProcessManager = Depends(get_process_manager),
+) -> dict[str, Any]:
+    """Start a trading process (READY -> RUNNING)."""
     try:
-        logger.info(f"Starting trading instance {instance_id}")
-        
-        # TODO: Implement actual start logic
-        # - Validate instance exists and belongs to user
-        # - Check instance is in READY state
-        # - Activate grid
-        # - Start trading logic
-        
-        return {"message": "Trading instance started successfully"}
-        
-    except TradingInstanceNotFound as e:
-        logger.error(f"Trading instance not found: {e}")
-        raise HTTPException(status_code=404, detail=str(e))
-    except InvalidStateTransition as e:
-        logger.error(f"Invalid state transition: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error starting trading instance: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        instance = await manager.start(UUID(instance_id), current_user.id)
+        return _to_response(instance)
+    except Exception as exc:
+        _handle_manager_exception(exc)
 
 
-@router.post("/{instance_id}/stop")
-async def stop_trading_instance(
-    instance_id: str,
-    current_user: dict = Depends(get_current_user)
-):
-    """Stop a trading instance (RUNNING -> STOPPED)."""
-    try:
-        logger.info(f"Stopping trading instance {instance_id}")
-        
-        # TODO: Implement actual stop logic
-        # - Validate instance exists and belongs to user
-        # - Check instance is in RUNNING state
-        # - Cancel all orders
-        # - Stop trading logic
-        # - Update instance status
-        
-        return {"message": "Trading instance stopped successfully"}
-        
-    except TradingInstanceNotFound as e:
-        logger.error(f"Trading instance not found: {e}")
-        raise HTTPException(status_code=404, detail=str(e))
-    except InvalidStateTransition as e:
-        logger.error(f"Invalid state transition: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error stopping trading instance: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-
-@router.post("/{instance_id}/pause")
+@router.post("/{instance_id}/pause", response_model=TradingInstanceResponse)
 async def pause_trading_instance(
     instance_id: str,
-    current_user: dict = Depends(get_current_user)
-):
-    """Pause a trading instance (RUNNING -> PAUSED)."""
+    current_user: User = Depends(get_current_user_from_token),
+    manager: TradingProcessManager = Depends(get_process_manager),
+) -> dict[str, Any]:
+    """Pause a trading process (RUNNING -> PAUSED)."""
     try:
-        logger.info(f"Pausing trading instance {instance_id}")
-        
-        # TODO: Implement actual pause logic
-        # - Validate instance exists and belongs to user
-        # - Check instance is in RUNNING state
-        # - Pause grid
-        # - Cancel pending orders
-        
-        return {"message": "Trading instance paused successfully"}
-        
-    except TradingInstanceNotFound as e:
-        logger.error(f"Trading instance not found: {e}")
-        raise HTTPException(status_code=404, detail=str(e))
-    except InvalidStateTransition as e:
-        logger.error(f"Invalid state transition: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error pausing trading instance: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        instance = await manager.pause(UUID(instance_id), current_user.id)
+        return _to_response(instance)
+    except Exception as exc:
+        _handle_manager_exception(exc)
 
 
-@router.post("/{instance_id}/resume")
+@router.post("/{instance_id}/resume", response_model=TradingInstanceResponse)
 async def resume_trading_instance(
     instance_id: str,
-    current_user: dict = Depends(get_current_user)
-):
-    """Resume a trading instance (PAUSED -> RUNNING)."""
+    current_user: User = Depends(get_current_user_from_token),
+    manager: TradingProcessManager = Depends(get_process_manager),
+) -> dict[str, Any]:
+    """Resume a trading process (PAUSED -> RUNNING)."""
     try:
-        logger.info(f"Resuming trading instance {instance_id}")
-        
-        # TODO: Implement actual resume logic
-        # - Validate instance exists and belongs to user
-        # - Check instance is in PAUSED state
-        # - Resume grid
-        # - Place orders
-        
-        return {"message": "Trading instance resumed successfully"}
-        
-    except TradingInstanceNotFound as e:
-        logger.error(f"Trading instance not found: {e}")
-        raise HTTPException(status_code=404, detail=str(e))
-    except InvalidStateTransition as e:
-        logger.error(f"Invalid state transition: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error resuming trading instance: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        instance = await manager.resume(UUID(instance_id), current_user.id)
+        return _to_response(instance)
+    except Exception as exc:
+        _handle_manager_exception(exc)
 
 
-@router.delete("/{instance_id}")
+@router.post("/{instance_id}/stop", response_model=TradingInstanceResponse)
+async def stop_trading_instance(
+    instance_id: str,
+    current_user: User = Depends(get_current_user_from_token),
+    manager: TradingProcessManager = Depends(get_process_manager),
+) -> dict[str, Any]:
+    """Stop a trading process (RUNNING -> STOPPED)."""
+    try:
+        instance = await manager.stop(UUID(instance_id), current_user.id)
+        return _to_response(instance)
+    except Exception as exc:
+        _handle_manager_exception(exc)
+
+
+@router.delete("/{instance_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_trading_instance(
     instance_id: str,
-    current_user: dict = Depends(get_current_user)
-):
-    """Delete a trading instance."""
+    current_user: User = Depends(get_current_user_from_token),
+    manager: TradingProcessManager = Depends(get_process_manager),
+) -> None:
+    """Soft-delete a trading process."""
     try:
-        logger.info(f"Deleting trading instance {instance_id}")
-        
-        # TODO: Implement actual deletion logic
-        # - Validate instance exists and belongs to user
-        # - Check instance is in STOPPED state
-        # - Delete from database
-        # - Clean up resources
-        
-        return {"message": "Trading instance deleted successfully"}
-        
-    except TradingInstanceNotFound as e:
-        logger.error(f"Trading instance not found: {e}")
-        raise HTTPException(status_code=404, detail=str(e))
-    except InvalidStateTransition as e:
-        logger.error(f"Invalid state transition: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error deleting trading instance: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        instance = await manager.get_status(UUID(instance_id), current_user.id)
+        if instance.status == TradingInstanceStatus.RUNNING:
+            raise ValidationError("Cannot delete a running process; stop it first")
+        instance.deleted_at = datetime.now(tz=timezone.utc)
+        manager.session.add(instance)
+        await manager.session.flush()
+    except Exception as exc:
+        _handle_manager_exception(exc)
