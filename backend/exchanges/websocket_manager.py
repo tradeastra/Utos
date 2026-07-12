@@ -6,6 +6,7 @@ for exchange WebSocket streams. No exchange-specific protocol logic.
 """
 
 import asyncio
+import json
 from collections.abc import Callable
 from typing import Any, Optional
 
@@ -41,7 +42,32 @@ class WebSocketManager:
         self._callbacks: list[Callable[[Any], None]] = []
         self._running = False
         self._receive_task: Optional[asyncio.Task] = None
-        self._subscribed_messages: list[str] = []
+        # Per-URL active subscriptions: url -> {dedup_key: raw_message}
+        self._subscriptions: dict[str, dict[str, str]] = {}
+
+    @property
+    def _subscribed_messages(self) -> list[str]:
+        """Return active subscription messages for the current URL."""
+        return list(self._subscriptions.get(self.url, {}).values())
+
+    def _subscription_key(self, message: str) -> str:
+        """Return a stable deduplication key for a subscription message.
+
+        For messages containing a ``params`` field (e.g. Binance WS
+        SUBSCRIBE/UNSUBSCRIBE), the key is derived from the sorted params so
+        that two subscribe calls with the same logical stream are treated as
+        duplicates regardless of the JSON ``id`` field.
+        """
+        try:
+            data = json.loads(message)
+        except Exception:
+            return message
+        if isinstance(data, dict) and "params" in data:
+            params = data["params"]
+            if isinstance(params, list):
+                params = sorted(params)
+            return json.dumps({"params": params}, separators=(",", ":"), sort_keys=True)
+        return message
 
     def register_callback(self, callback: Callable[[Any], None]) -> None:
         """Register a callback for incoming messages."""
@@ -84,8 +110,8 @@ class WebSocketManager:
 
                 self._receive_task = asyncio.create_task(self._receive_loop())
 
-                # Resubscribe to previous messages if any
-                for msg in self._subscribed_messages:
+                # Resubscribe to previous messages for this URL only
+                for msg in self._subscriptions.get(target_url, {}).values():
                     await self.send(msg)
 
                 return True
@@ -135,8 +161,6 @@ class WebSocketManager:
 
     async def send_json(self, data: Any) -> None:
         """Send a JSON-serializable message."""
-        import json
-
         await self.send(json.dumps(data))
 
     async def receive(self) -> str:
@@ -147,19 +171,28 @@ class WebSocketManager:
 
     async def subscribe(self, message: str) -> None:
         """Subscribe to a stream and remember the message for reconnects."""
-        self._subscribed_messages.append(message)
+        key = self._subscription_key(message)
+        url_subs = self._subscriptions.setdefault(self.url, {})
+        if key in url_subs:
+            logger.debug(f"Duplicate WebSocket subscription ignored: {message}")
+            return
+        url_subs[key] = message
         await self.send(message)
 
     async def unsubscribe(self, message: str) -> None:
         """Unsubscribe from a stream and remove the message from reconnects."""
-        if message in self._subscribed_messages:
-            self._subscribed_messages.remove(message)
+        key = self._subscription_key(message)
+        url_subs = self._subscriptions.get(self.url, {})
+        if key in url_subs:
+            del url_subs[key]
+            if not url_subs:
+                del self._subscriptions[self.url]
         await self.send(message)
 
     async def disconnect(self) -> None:
         """Disconnect the WebSocket and stop the receive loop."""
         self._running = False
-        self._subscribed_messages.clear()
+        self._subscriptions.pop(self.url, None)
 
         if self._receive_task is not None:
             self._receive_task.cancel()

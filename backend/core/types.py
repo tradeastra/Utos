@@ -107,6 +107,7 @@ class ExchangeAdapterConfig:
     rest_url: Optional[str] = None
     connection_timeout: float = 10.0
     request_timeout: float = 30.0
+    recv_window: int = 5000
 
 
 @dataclass
