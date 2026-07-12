@@ -7,7 +7,9 @@ Set TEST_DATABASE_URL to use PostgreSQL instead.
 
 import os
 from collections.abc import AsyncGenerator, Callable
+from datetime import datetime, timezone
 from decimal import Decimal
+from typing import Any
 
 import pytest
 import pytest_asyncio
@@ -17,8 +19,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 os.environ.setdefault("TESTING", "true")
 
+from api.v1.endpoints.users import get_current_user_from_token
 from database.base import Base, get_db
+from exchanges.factory import ExchangeFactory
 from main import app
+from models.user import User
 
 # Use SQLite for tests by default (no external DB required)
 TEST_DB_URL = os.getenv(
@@ -66,6 +71,50 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
             await transaction.rollback()
 
 
+@pytest.fixture
+def fake_adapter() -> Any:
+    """Returns a fake exchange adapter for process manager tests."""
+
+    class FakeAdapter:
+        name = "binance"
+
+        def __init__(self) -> None:
+            self.config = None
+
+        async def initialize(self, config: Any) -> bool:
+            self.config = config
+            return True
+
+        async def authenticate(self, credentials: Any) -> bool:
+            return True
+
+        async def get_exchange_info(self) -> Any:
+            from core.types import ExchangeInfo
+
+            return ExchangeInfo(
+                name="binance",
+                supported_symbols=["BTCUSDT"],
+                rate_limits={},
+                fee_structure={},
+                server_time=datetime.now(tz=timezone.utc),
+            )
+
+        async def disconnect(self) -> bool:
+            return True
+
+    return FakeAdapter()
+
+
+@pytest_asyncio.fixture
+async def test_user(db_session: AsyncSession) -> User:
+    """Create a test user in the test DB."""
+    user = User(email=f"tu_{os.urandom(4).hex()}@example.com", password_hash="x", is_active=True)
+    db_session.add(user)
+    await db_session.flush()
+    await db_session.refresh(user)
+    return user
+
+
 @pytest_asyncio.fixture
 async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     """AsyncClient with DB dependency overridden to the test session."""
@@ -80,6 +129,30 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     app.dependency_overrides.pop(get_db, None)
 
 
+@pytest_asyncio.fixture
+async def trading_client(db_session: AsyncSession, test_user: User, monkeypatch: pytest.MonkeyPatch, fake_adapter: Any) -> AsyncGenerator[AsyncClient, None]:
+    """AsyncClient with DB, auth and exchange dependencies overridden for trading tests."""
+
+    async def _override_db() -> AsyncGenerator[AsyncSession, None]:
+        yield db_session
+
+    async def _override_current_user() -> User:
+        return test_user
+
+    monkeypatch.setattr(ExchangeFactory, "is_registered", lambda name: True)
+    monkeypatch.setattr(ExchangeFactory, "create", lambda name: fake_adapter)
+
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[get_current_user_from_token] = _override_current_user
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+
+    app.dependency_overrides.pop(get_db, None)
+    app.dependency_overrides.pop(get_current_user_from_token, None)
+
+
 @pytest.fixture
 def sample_user_data() -> dict:
     return {"email": "test@example.com", "password": "TestPassword123!", "full_name": "Test User"}
@@ -88,21 +161,25 @@ def sample_user_data() -> dict:
 @pytest_asyncio.fixture
 async def create_trading_instance() -> Callable:
     """Factory fixture that creates a full trading instance setup (user, exchange account, strategy, grid profile, instance)."""
-    from models import User, ExchangeAccount, Strategy, GridProfile, TradingInstance
+    from models import ExchangeAccount, Strategy, GridProfile, TradingInstance
     from models.exchange_account import ExchangeName
     from core.types import StrategyType, TradingInstanceStatus
+    from exchanges.credential_manager import CredentialManager
 
-    async def _create(db_session: AsyncSession) -> TradingInstance:
-        user = User(email=f"ti_{os.urandom(4).hex()}@example.com", password_hash="x")
-        db_session.add(user)
-        await db_session.flush()
+    async def _create(db_session: AsyncSession, user: User | None = None) -> TradingInstance:
+        if user is None:
+            from models.user import User as UserModel
+            user = UserModel(email=f"ti_{os.urandom(4).hex()}@example.com", password_hash="x")
+            db_session.add(user)
+            await db_session.flush()
 
+        cm = CredentialManager()
         ea = ExchangeAccount(
             user_id=user.id,
             exchange_name=ExchangeName.BINANCE,
             account_name="Binance",
-            api_key_encrypted="k",
-            api_secret_encrypted="s",
+            api_key_encrypted=cm.encrypt("api_key"),
+            api_secret_encrypted=cm.encrypt("api_secret"),
         )
         db_session.add(ea)
         await db_session.flush()
@@ -111,6 +188,7 @@ async def create_trading_instance() -> Callable:
             name=f"Strategy_{os.urandom(4).hex()}",
             type=StrategyType.SMART_GRID,
             min_investment=Decimal("100"),
+            is_active=True,
         )
         db_session.add(strategy)
         await db_session.flush()

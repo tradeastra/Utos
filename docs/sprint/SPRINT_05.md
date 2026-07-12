@@ -2,7 +2,7 @@
 
 ## Status
 
-**Authorized to Start** — CTO approval granted.
+**In Progress — Implementation and tests complete, pending final audit/merge.**
 
 ## Vision
 
@@ -113,10 +113,10 @@ created_at / updated_at
 ### New Redis Keys
 
 ```text
-utos:process:{instance_id}:state    -> hash {status, worker_id, updated_at, memory_version}
-utos:process:{instance_id}:lock     -> "{worker_id} / {timestamp}" (TTL 60s)
-utos:process:active                 -> set of instance_id
-utos:process:registry               -> hash {instance_id -> serialized process metadata}
+process:{instance_id}:state    -> hash {status, worker_id, updated_at, memory_version}
+process:{instance_id}:lock     -> "{worker_id} / {timestamp}" (TTL 60s)
+process:active                 -> set of instance_id
+process:registry               -> hash {instance_id -> serialized process metadata}
 ```
 
 ## State Machine
