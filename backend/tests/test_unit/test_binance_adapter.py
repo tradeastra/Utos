@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
+import websockets
 
 from core.exceptions import (
     AuthenticationError,
@@ -31,6 +32,7 @@ from core.types import (
 )
 from exchanges.adapters.binance import BinanceAuthenticator, BinanceSpotAdapter
 from exchanges.factory import ExchangeFactory
+from exchanges.websocket_manager import WebSocketManager
 
 
 # ---------------------------------------------------------------------------
@@ -79,11 +81,26 @@ def ws_manager():
 
 
 @pytest.fixture
+def ws_account_manager():
+    ws = MagicMock()
+    ws.connect = AsyncMock(return_value=True)
+    ws.disconnect = AsyncMock()
+    ws.subscribe = AsyncMock()
+    ws.unsubscribe = AsyncMock()
+    ws.send_json = AsyncMock()
+    ws.send_text = AsyncMock()
+    ws.register_callback = MagicMock()
+    ws.is_connected = False
+    return ws
+
+
+@pytest.fixture
 def config():
     return ExchangeAdapterConfig(
         exchange_name="binance",
         is_testnet=True,
         request_timeout=5.0,
+        recv_window=5000,
     )
 
 
@@ -97,8 +114,12 @@ def credentials():
 
 
 @pytest.fixture
-def adapter(http_client, ws_manager):
-    return BinanceSpotAdapter(http_client=http_client, ws_manager=ws_manager)
+def adapter(http_client, ws_manager, ws_account_manager):
+    return BinanceSpotAdapter(
+        http_client=http_client,
+        ws_manager=ws_manager,
+        ws_account_manager=ws_account_manager,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -212,12 +233,13 @@ class TestBinanceLifecycle:
         adapter.authenticator.set_credentials(credentials.api_key, credentials.api_secret)
         adapter.http.post = AsyncMock(return_value=response_200({"listenKey": "key123"}))
         assert await adapter.connect_account() is True
-        adapter.ws.connect.assert_awaited_once_with("wss://testnet.binance.vision/ws/key123")
+        adapter.ws_account.connect.assert_awaited_once_with("wss://testnet.binance.vision/ws/key123")
 
     async def test_disconnect(self, adapter, config):
         await adapter.initialize(config)
         await adapter.disconnect()
         adapter.ws.disconnect.assert_awaited_once()
+        adapter.ws_account.disconnect.assert_awaited_once()
         adapter.http.close.assert_awaited_once()
 
     async def test_health_check(self, adapter, config):
@@ -292,6 +314,30 @@ class TestBinanceSignatureAndTimestamp:
         params = call.kwargs["params"]
         assert params["timestamp"] == 1_001_000
 
+    async def test_get_account_includes_default_recv_window(self, adapter, config):
+        await adapter.initialize(config)
+        adapter.authenticator.set_credentials("test_key", "test_secret")
+        adapter.http.get = AsyncMock(return_value=response_200({"balances": []}))
+
+        with patch("time.time", return_value=1000.0):
+            await adapter.get_account()
+
+        params = adapter.http.get.call_args.kwargs["params"]
+        assert params["recvWindow"] == 5000
+
+    async def test_custom_recv_window_from_config(self, adapter):
+        config = ExchangeAdapterConfig(
+            exchange_name="binance", is_testnet=True, recv_window=10000
+        )
+        await adapter.initialize(config)
+        adapter.authenticator.set_credentials("test_key", "test_secret")
+        adapter.http.get = AsyncMock(return_value=response_200({"balances": []}))
+
+        with patch("time.time", return_value=1000.0):
+            await adapter.get_account()
+
+        assert adapter.http.get.call_args.kwargs["params"]["recvWindow"] == 10000
+
     async def test_unauthenticated_call_raises(self, adapter, config):
         await adapter.initialize(config)
         with pytest.raises(AuthenticationError):
@@ -335,6 +381,40 @@ class TestBinanceErrorMapping:
         adapter.http.get = AsyncMock(side_effect=TimeoutError("Request timed out"))
 
         with pytest.raises(TimeoutError):
+            await adapter.get_account()
+
+
+class TestBinanceTimestampResync:
+    async def test_auto_resync_on_timestamp_drift(self, adapter, config):
+        await adapter.initialize(config)
+        adapter.authenticator.set_credentials("test_key", "test_secret")
+        adapter.http.get = AsyncMock(side_effect=[
+            response_error(400, -1021, "Timestamp outside recvWindow"),
+            response_200({"serverTime": 2_000}),
+            response_200({"balances": [{"asset": "BTC", "free": "1", "locked": "0"}]}),
+        ])
+
+        with patch("time.time", return_value=1000.0):
+            result = await adapter.get_account()
+
+        assert result["balances"][0]["asset"] == "BTC"
+        assert adapter.http.get.await_count == 3
+        calls = adapter.http.get.await_args_list
+        assert calls[0][0][0] == "/api/v3/account"
+        assert calls[1][0][0] == "/api/v3/time"
+        assert calls[2][0][0] == "/api/v3/account"
+
+    async def test_timestamp_drift_persists_after_resync(self, adapter, config):
+        await adapter.initialize(config)
+        adapter.authenticator.set_credentials("test_key", "test_secret")
+        # /api/v3/time succeeds, but /api/v3/account keeps returning -1021.
+        adapter.http.get = AsyncMock(side_effect=[
+            response_error(400, -1021, "Timestamp outside recvWindow"),
+            response_200({"serverTime": 2_000}),
+            response_error(400, -1021, "Timestamp outside recvWindow"),
+        ])
+
+        with pytest.raises(ExchangeError):
             await adapter.get_account()
 
 
@@ -632,8 +712,49 @@ class TestBinanceWebSocket:
         callback = MagicMock()
         await adapter.subscribe_user_data(callback)
 
-        adapter.ws.connect.assert_awaited_with("wss://testnet.binance.vision/ws/lk")
+        adapter.ws_account.connect.assert_awaited_with("wss://testnet.binance.vision/ws/lk")
         assert adapter._user_data_callback is callback
+
+    async def test_market_and_user_stream_use_separate_websocket_managers(self, adapter, config, credentials):
+        await adapter.initialize(config)
+        adapter.authenticator.set_credentials(credentials.api_key, credentials.api_secret)
+        adapter.http.post = AsyncMock(return_value=response_200({"listenKey": "lk"}))
+
+        await adapter.connect_market()
+        await adapter.connect_account()
+
+        assert adapter.ws is not adapter.ws_account
+        adapter.ws.connect.assert_awaited_once_with(adapter.ws_url)
+        adapter.ws_account.connect.assert_awaited_once_with(f"{adapter.ws_url}/lk")
+
+    async def test_subscribe_ticker_deduplicates(self, adapter, config):
+        await adapter.initialize(config)
+        real_ws = WebSocketManager()
+        mock_ws = AsyncMock(spec=websockets.WebSocketClientProtocol)
+        mock_ws.open = True
+        real_ws._ws = mock_ws
+        real_ws.url = adapter.ws_url
+        adapter.ws = real_ws
+
+        callback = MagicMock()
+        await adapter.subscribe_ticker("BTCUSDT", callback)
+        await adapter.subscribe_ticker("BTCUSDT", callback)
+
+        assert mock_ws.send.await_count == 1
+
+    async def test_subscribe_orderbook_different_channel_not_duplicate(self, adapter, config):
+        await adapter.initialize(config)
+        real_ws = WebSocketManager()
+        mock_ws = AsyncMock(spec=websockets.WebSocketClientProtocol)
+        mock_ws.open = True
+        real_ws._ws = mock_ws
+        real_ws.url = adapter.ws_url
+        adapter.ws = real_ws
+
+        await adapter.subscribe_ticker("BTCUSDT", MagicMock())
+        await adapter.subscribe_orderbook("BTCUSDT", MagicMock())
+
+        assert mock_ws.send.await_count == 2
 
     async def test_dispatch_ticker_calls_callback(self, adapter, config):
         await adapter.initialize(config)

@@ -97,11 +97,13 @@ class BinanceSpotAdapter(IExchangeAdapter):
         self,
         http_client: Optional[HttpClient] = None,
         ws_manager: Optional[WebSocketManager] = None,
+        ws_account_manager: Optional[WebSocketManager] = None,
         credential_manager: Optional[CredentialManager] = None,
         authenticator: Optional[BinanceAuthenticator] = None,
     ) -> None:
         self.http = http_client
         self.ws = ws_manager
+        self.ws_account = ws_account_manager
         self.credential_manager = credential_manager
         self.authenticator = authenticator or BinanceAuthenticator()
 
@@ -109,6 +111,7 @@ class BinanceSpotAdapter(IExchangeAdapter):
         self.credentials: Optional[ExchangeCredentials] = None
         self.rest_url: str = ""
         self.ws_url: str = ""
+        self.recv_window: int = 5000
         self._exchange_info: Optional[dict[str, Any]] = None
         self._listen_key: Optional[str] = None
         self._keepalive_task: Optional[asyncio.Task] = None
@@ -132,6 +135,7 @@ class BinanceSpotAdapter(IExchangeAdapter):
         self.ws_url = (
             self.WS_TESTNET if config.is_testnet else config.market_stream_url or self.WS_MAINNET
         ).rstrip("/")
+        self.recv_window = getattr(config, "recv_window", 5000)
 
         rate_limiter = RateLimiter()
         rate_limiter.configure("rest", RateLimitConfig(max_tokens=1200.0, refill_rate=20.0))
@@ -160,16 +164,17 @@ class BinanceSpotAdapter(IExchangeAdapter):
             if self.http.rate_limiter is None:
                 self.http.rate_limiter = rate_limiter
 
+        ws_retry_policy = RetryPolicy(max_retries=5, base_delay=1.0)
         if self.ws is None:
-            self.ws = WebSocketManager(
-                retry_policy=RetryPolicy(max_retries=5, base_delay=1.0),
-                rate_limiter=rate_limiter,
-            )
+            self.ws = WebSocketManager(retry_policy=ws_retry_policy, rate_limiter=rate_limiter)
+        if self.ws_account is None:
+            self.ws_account = WebSocketManager(retry_policy=ws_retry_policy, rate_limiter=rate_limiter)
 
         if self.credential_manager is None:
             self.credential_manager = CredentialManager()
 
         self.ws.register_callback(self._dispatch)
+        self.ws_account.register_callback(self._dispatch)
         return True
 
     async def authenticate(self, credentials: ExchangeCredentials) -> bool:
@@ -200,7 +205,7 @@ class BinanceSpotAdapter(IExchangeAdapter):
             self._keepalive_task = asyncio.create_task(self._keepalive_loop())
 
         url = f"{self.ws_url}/{self._listen_key}"
-        return await self.ws.connect(url)
+        return await self.ws_account.connect(url)
 
     async def disconnect(self) -> None:
         self._ticker_callbacks.clear()
@@ -217,6 +222,9 @@ class BinanceSpotAdapter(IExchangeAdapter):
 
         if self.ws is not None:
             await self.ws.disconnect()
+
+        if self.ws_account is not None:
+            await self.ws_account.disconnect()
 
         if self.http is not None:
             await self.http.close()
@@ -447,7 +455,7 @@ class BinanceSpotAdapter(IExchangeAdapter):
         return True
 
     async def subscribe_account(self, channel: str, callback: Callable[[Any], None]) -> bool:
-        if not self.ws.is_connected or not self._listen_key:
+        if not self.ws_account.is_connected or not self._listen_key:
             await self.connect_account()
         self._user_data_callback = callback
         return True
@@ -483,29 +491,52 @@ class BinanceSpotAdapter(IExchangeAdapter):
     def _signed_params(self, params: dict[str, Any]) -> dict[str, Any]:
         self._ensure_authenticated()
         params = dict(params)
+        params["recvWindow"] = params.get("recvWindow", self.recv_window)
         params["timestamp"] = self.authenticator.timestamp()
         to_sign = urllib.parse.urlencode(sorted(params.items()), doseq=True)
         params["signature"] = self.authenticator.sign(to_sign)
         return params
 
+    async def _signed_request(
+        self,
+        method: str,
+        path: str,
+        params: Optional[dict[str, Any]] = None,
+    ) -> httpx.Response:
+        """Execute a signed request and auto-resync once on timestamp drift."""
+        params = params or {}
+        for attempt in range(2):
+            signed = self._signed_params(dict(params))
+            headers = self.authenticator.auth_headers()
+            try:
+                if method == "GET":
+                    response = await self.http.get(path, params=signed, headers=headers)
+                elif method == "POST":
+                    headers["Content-Type"] = "application/x-www-form-urlencoded"
+                    body = urllib.parse.urlencode(sorted(signed.items()), doseq=True)
+                    response = await self.http.post(path, content=body, headers=headers)
+                elif method == "DELETE":
+                    response = await self.http.delete(path, params=signed, headers=headers)
+                else:
+                    raise ValueError(f"Unsupported signed method: {method}")
+                self._raise_for_status(response)
+                return response
+            except ExchangeError as exc:
+                if attempt == 0 and getattr(exc, "error_code", None) == "TIMESTAMP_DRIFT":
+                    logger.warning("Binance timestamp drift detected; resyncing server time")
+                    await self._sync_time()
+                    continue
+                raise
+        raise ExchangeError("Binance timestamp drift persisted after resync", self.name)
+
     async def _signed_get(self, path: str, params: Optional[dict[str, Any]] = None) -> httpx.Response:
-        params = self._signed_params(params or {})
-        return await self.http.get(
-            path, params=params, headers=self.authenticator.auth_headers()
-        )
+        return await self._signed_request("GET", path, params)
 
     async def _signed_post(self, path: str, params: dict[str, Any]) -> httpx.Response:
-        params = self._signed_params(params)
-        body = urllib.parse.urlencode(sorted(params.items()), doseq=True)
-        headers = self.authenticator.auth_headers()
-        headers["Content-Type"] = "application/x-www-form-urlencoded"
-        return await self.http.post(path, content=body, headers=headers)
+        return await self._signed_request("POST", path, params)
 
     async def _signed_delete(self, path: str, params: dict[str, Any]) -> httpx.Response:
-        params = self._signed_params(params)
-        return await self.http.delete(
-            path, params=params, headers=self.authenticator.auth_headers()
-        )
+        return await self._signed_request("DELETE", path, params)
 
     async def _start_listen_key(self) -> httpx.Response:
         self._ensure_authenticated()
@@ -560,7 +591,12 @@ class BinanceSpotAdapter(IExchangeAdapter):
         if status == 418:
             raise ExchangeRateLimitError("Binance IP banned", self.name)
         if code == -1021:
-            raise ExchangeError("Binance timestamp drift detected", self.name)
+            raise ExchangeError(
+                "Binance timestamp drift detected",
+                self.name,
+                error_code="TIMESTAMP_DRIFT",
+                details={"binance_code": code, "msg": msg},
+            )
         if code == -1022 or code == -2014 or code == -2015:
             raise AuthenticationError(f"Binance invalid API key or signature: {msg}")
         if code == -2013:
