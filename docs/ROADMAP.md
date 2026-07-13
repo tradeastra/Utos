@@ -1,7 +1,7 @@
 # ROADMAP
 
-**Version:** 3.0.0  
-**Last Updated:** 2026-07-12  
+**Version:** 4.0.0  
+**Last Updated:** 2026-07-13  
 **Status:** ACTIVE
 
 ---
@@ -10,7 +10,7 @@
 
 This roadmap outlines the development timeline for the UTOS Trading Engine project using a **layer-based sprint** approach. Each sprint builds a complete layer of the system, ensuring stability before moving to the next.
 
-**Total Duration:** ~15 weeks (~3.5 months)  
+**Total Duration:** ~14 weeks (~3.5 months)  
 **Sprint Length:** 1 week  
 **Approach:** Layer-by-layer (bottom-up)
 
@@ -35,19 +35,17 @@ Sprint 07: Execution Engine
     ↓
 Sprint 08: Grid Engine
     ↓
-Sprint 09: Portfolio & Risk
+Sprint 09: Profit Lock Engine
     ↓
-Sprint 10: Profit & Portfolio Lock
+Sprint 10: Strategy Engine
     ↓
 Sprint 11: Recovery
     ↓
-Sprint 12: Strategies
+Sprint 12: Workers & Tasks
     ↓
-Sprint 13: Workers & Tasks
+Sprint 13: Frontend
     ↓
-Sprint 14: Frontend
-    ↓
-Sprint 15: Deployment & Testing
+Sprint 14: Deployment & Testing
 ```
 
 ---
@@ -271,64 +269,57 @@ Sprint 15: Deployment & Testing
 
 ---
 
-### Sprint 09: Portfolio & Risk
-**Duration:** Week 10  
-**Layer:** Portfolio tracking and risk management  
-**Status:** ⏳ Pending
-
-**Goals:**
-- [ ] Implement `IPortfolio` and `PortfolioEngine`
-- [ ] Implement position tracking (open/close/update)
-- [ ] Implement P&L calculation (realized + unrealized)
-- [ ] Implement `IRiskEngine` and `RiskEngine`
-- [ ] Implement risk parameter management
-- [ ] Implement order risk checks
-- [ ] Implement portfolio risk assessment
-- [ ] Implement stop-loss monitoring
-- [ ] Emit portfolio events (`PORTFOLIO_UPDATED`, `POSITION_OPENED`, etc.)
-- [ ] Write unit tests for P&L calculations
-- [ ] Write integration tests for portfolio tracking
-
-**Deliverables:**
-- Portfolio engine
-- Risk engine
-- P&L calculation
-- Portfolio & risk tests passing
-
-**Dependencies:** Sprint 02, Sprint 05
-
----
-
-### Sprint 10: Profit & Portfolio Lock
-**Duration:** Week 11  
+### Sprint 09: Profit Lock Engine
+**Duration:** Week 9  
 **Layer:** Profit lock mechanisms  
 **Status:** ⏳ Pending
 
 **Goals:**
-- [ ] Clarify separation: per-layer `TP` (take profit), per-position `ProfitLock`, per-instance `PortfolioLock`
 - [ ] Implement `IProfitLock` and `ProfitLockEngine` (per-position trailing)
-- [ ] Implement `IPortfolioLock` and `PortfolioLockEngine` (per-instance trailing, premium feature)
 - [ ] Implement price/profit monitoring for triggers
-- [ ] Implement lock execution (place sell order for ProfitLock; close all for PortfolioLock)
+- [ ] Implement lock execution (place sell order for ProfitLock)
 - [ ] Implement lock level updates (trailing)
 - [ ] Emit profit lock events (`PROFIT_LOCK_TRIGGERED`, `PROFIT_LOCK_UPDATED`, `PROFIT_LOCK_EXECUTED`)
-- [ ] Emit portfolio lock events (`PORTFOLIO_LOCK_TRIGGERED`, `PORTFOLIO_LOCK_UPDATED`, `PORTFOLIO_LOCK_EXECUTED`)
 - [ ] Write unit tests for trailing logic
 - [ ] Write integration tests with price simulation
 
 **Deliverables:**
 - Profit lock engine (per-position)
-- Portfolio lock engine (per-instance)
 - Trailing stop mechanisms
-- Profit and portfolio lock events
-- Profit and portfolio lock tests passing
+- Profit lock events
+- Profit lock tests passing
 
-**Dependencies:** Sprint 07, Sprint 08, Sprint 09
+**Dependencies:** Sprint 07, Sprint 08
+
+---
+
+### Sprint 10: Strategy Engine
+**Duration:** Week 10  
+**Layer:** Trading strategy implementations  
+**Status:** ⏳ Pending
+
+**Goals:**
+- [ ] Implement `IStrategy` base class
+- [ ] Implement `SmartGridStrategy`
+- [ ] Implement `AdaptiveGridStrategy`
+- [ ] Implement `InfinityGridStrategy`
+- [ ] Implement `DCAStrategy`
+- [ ] Implement strategy parameter validation
+- [ ] Implement strategy context and state
+- [ ] Write unit tests for each strategy
+- [ ] Write integration tests with grid engine
+
+**Deliverables:**
+- All 4 strategy implementations
+- Strategy parameter validation
+- Strategy tests passing
+
+**Dependencies:** Sprint 08, Sprint 09
 
 ---
 
 ### Sprint 11: Recovery
-**Duration:** Week 12  
+**Duration:** Week 11  
 **Layer:** Error recovery  
 **Status:** ⏳ Pending
 
@@ -353,35 +344,10 @@ Sprint 15: Deployment & Testing
 
 ---
 
-## PHASE 4: STRATEGIES & WORKERS (Weeks 13-14)
+## PHASE 4: STRATEGIES & WORKERS (Weeks 12-13)
 
-### Sprint 12: Strategies
-**Duration:** Week 13  
-**Layer:** Trading strategy implementations  
-**Status:** ⏳ Pending
-
-**Goals:**
-- [ ] Implement `IStrategy` base class
-- [ ] Implement `SmartGridStrategy`
-- [ ] Implement `AdaptiveGridStrategy`
-- [ ] Implement `InfinityGridStrategy`
-- [ ] Implement `DCAStrategy`
-- [ ] Implement strategy parameter validation
-- [ ] Implement strategy context and state
-- [ ] Write unit tests for each strategy
-- [ ] Write integration tests with grid engine
-
-**Deliverables:**
-- All 4 strategy implementations
-- Strategy parameter validation
-- Strategy tests passing
-
-**Dependencies:** Sprint 08, Sprint 10
-
----
-
-### Sprint 13: Workers & Tasks
-**Duration:** Week 14  
+### Sprint 12: Workers & Tasks
+**Duration:** Week 12  
 **Layer:** Background processing  
 **Status:** ⏳ Pending
 
@@ -406,10 +372,10 @@ Sprint 15: Deployment & Testing
 
 ---
 
-## PHASE 5: FRONTEND (Week 14)
+## PHASE 5: FRONTEND (Week 13)
 
-### Sprint 14: Frontend
-**Duration:** Week 15  
+### Sprint 13: Frontend
+**Duration:** Week 13  
 **Layer:** User interface  
 **Status:** ⏳ Pending
 
@@ -433,14 +399,14 @@ Sprint 15: Deployment & Testing
 - Real-time updates via WebSocket
 - Frontend tests passing
 
-**Dependencies:** All backend sprints (01-13)
+**Dependencies:** All backend sprints (01-12)
 
 ---
 
-## PHASE 6: DEPLOYMENT & TESTING (Week 15)
+## PHASE 6: DEPLOYMENT & TESTING (Week 14)
 
-### Sprint 15: Deployment & Testing
-**Duration:** Week 16  
+### Sprint 14: Deployment & Testing
+**Duration:** Week 14  
 **Layer:** Production readiness  
 **Status:** ⏳ Pending
 
@@ -478,10 +444,10 @@ Sprint 15: Deployment & Testing
 | M2: Exchange Ready | 05 | Can connect to exchanges, manage trading process lifecycle |
 | M3: Market & Execution Ready | 07 | Market data hub + order execution engine |
 | M4: Trading Engine Complete | 11 | Full trading cycle: grid, execute, profit lock, recover |
-| M5: Strategies Ready | 12 | All strategies implemented and tested |
-| M6: System Complete | 13 | All backend layers done |
-| M7: Product Ready | 14 | Frontend complete |
-| M8: Production Live | 15 | Deployed and monitored |
+| M5: Strategies Ready | 10 | All strategies implemented and tested |
+| M6: System Complete | 12 | All backend layers done |
+| M7: Product Ready | 13 | Frontend complete |
+| M8: Production Live | 14 | Deployed and monitored |
 
 ---
 
@@ -504,3 +470,4 @@ Sprint 15: Deployment & Testing
 | 2026-07-09 | 1.0.0 | Initial roadmap with 30 feature-based sprints |
 | 2026-07-09 | 2.0.0 | Restructured to 16 layer-based sprints; added Trading Instance, KernelContext, TradingContext, ProcessMemory, READY state, TP/ProfitLock/PortfolioLock separation, separate market/account connections |
 | 2026-07-12 | 3.0.0 | Sprint 5 = Trading Process Manager (completed). Reordered: Sprint 7 = Execution Engine (was 9), Sprint 8 = Grid Engine. Removed old Sprint 7 (Trading Instance, merged into Sprint 5). Total sprints reduced from 16 to 15. |
+| 2026-07-13 | 4.0.0 | Sprint 6 = Market Hub requirements refined (generic multi-exchange, Hyperliquid, memory cache, subscription deduplication, status/metrics, is_alive). Sprint 9 = Profit Lock Engine, Sprint 10 = Strategy Engine. Portfolio & Risk deferred. Total sprints reduced from 15 to 14. |
