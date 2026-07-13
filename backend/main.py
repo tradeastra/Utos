@@ -17,6 +17,7 @@ from core.exceptions import AuthenticationError, AuthorizationError, UTOSExcepti
 from core.logging import get_logger, setup_logging
 from database.base import close_engine, get_engine, init_engine
 from database.redis_client import close_redis, init_redis, redis_ping
+from engine import ExecutionEngine
 from engine.trading.process_manager import TradingProcessManager
 from market.hub.market_hub import MarketHub
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -25,6 +26,7 @@ setup_logging()
 logger = get_logger(__name__)
 
 market_hub: MarketHub | None = None
+execution_engine: ExecutionEngine | None = None
 
 
 async def _recover_trading_processes() -> None:
@@ -46,19 +48,21 @@ async def _recover_trading_processes() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup: init DB engine + Redis, recover trading processes, start Market Hub. Shutdown: close all."""
-    global market_hub
+    """Startup: init DB engine + Redis, recover trading processes, start Market Hub and Execution Engine. Shutdown: close all."""
+    global market_hub, execution_engine
     logger.info("Starting UTOS Trading Engine", extra={"version": settings.VERSION})
     init_engine()
     await init_redis()
     await _recover_trading_processes()
     market_hub = MarketHub()
     await market_hub.start()
+    execution_engine = ExecutionEngine()
     yield
     logger.info("Shutting down UTOS Trading Engine")
     if market_hub is not None:
         await market_hub.stop()
         market_hub = None
+    execution_engine = None
     await close_engine()
     await close_redis()
 
