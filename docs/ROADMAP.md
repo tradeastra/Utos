@@ -456,7 +456,7 @@ Sprint 14: Deployment & Testing
 | Risk | Probability | Impact | Mitigation |
 |------|-------------|--------|------------|
 | Exchange API changes | Medium | High | Adapter pattern isolates changes; comprehensive mocking |
-| Performance bottlenecks | Medium | High | Load testing in Sprint 16; HPA configured |
+| Performance bottlenecks | Medium | High | Load testing in Sprint 14; HPA configured |
 | WebSocket stability | Medium | Medium | Auto-reconnect with backoff; fallback to polling |
 | Data consistency | Low | Critical | Recovery engine; order reconciliation; state sync |
 | Security vulnerabilities | Low | Critical | Security checklist; container scanning; WAF |
