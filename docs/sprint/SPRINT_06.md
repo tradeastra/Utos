@@ -2,84 +2,58 @@
 
 ## Status
 
-**Planning — not yet started.**
+**Planning — requirements finalized, ready to implement.**
 
 ## Vision
 
 Sprint 6 builds the Market Data Hub — the central nervous system for real-time market data. The Market Hub aggregates data from multiple exchange adapters, normalizes it, caches it, and distributes it to consumers (Trading Engine, Grid Engine, Portfolio Engine, Risk Engine).
 
-This is the first sprint that touches the `backend/market/` package, which already has placeholder directories for `hub/`, `cache/`, `connector/`, and `replay/`.
+**Critical constraint: the Market Hub must be generic. It must never become a Binance Hub.**
 
-## Core Architectural Decision
-
-> **The Market Hub is the single source of truth for market data.**
-
-No engine or service should call `adapter.get_ticker()` directly. Instead:
+Trading Engine must not know whether market data comes from Binance, Hyperliquid, or Bybit. All data is normalized into a single format.
 
 ```text
-Exchange Adapter → Market Hub → Consumers
+                Market Hub
+                      │
+      ┌───────────────┼───────────────┐
+      │               │               │
+ Binance        Hyperliquid        Bybit
+      │               │               │
+      └───────────────┼───────────────┘
+              Normalized Market Data
 ```
 
-The Market Hub:
-- Subscribes to exchange WebSocket streams
-- Polls REST endpoints as fallback
-- Normalizes data across exchanges
-- Caches latest data in memory + Redis
-- Distributes updates via callbacks (and later, Event Bus)
+This is the first sprint that touches the `backend/market/` package, which already has placeholder directories for `hub/`, `cache/`, `connector/`, and `replay/`.
 
 ## Scope
 
 ### In Scope
 
-1. `IMarketHub` interface in `backend/market/base.py`.
-2. `MarketHub` implementation in `backend/market/hub/market_hub.py`.
-3. Subscription management:
-   - `subscribe(symbol, exchange, channel, callback) -> subscription_id`
-   - `unsubscribe(subscription_id)`
-   - Channel types: `"ticker"`, `"orderbook"`, `"candle"`, `"trade"`
-4. Data query API:
-   - `get_price(symbol, exchange) -> Decimal`
-   - `get_ticker(symbol, exchange) -> TickerData`
-   - `get_order_book(symbol, exchange, depth) -> OrderBook`
-   - `get_candles(symbol, exchange, interval, limit) -> list[Candle]`
-   - `get_supported_symbols(exchange) -> list[str]`
-5. Market data caching in `backend/market/cache/`:
-   - In-memory cache for latest ticker, order book, price per `(symbol, exchange)`.
-   - Redis cache for persistence across restarts (optional fallback).
-   - Cache TTL and invalidation strategy.
-6. Exchange connector in `backend/market/connector/`:
-   - Wraps `IExchangeAdapter` market data methods.
-   - Manages WebSocket lifecycle (connect, reconnect, heartbeat).
-   - Routes WebSocket callbacks to the Market Hub.
-7. Multi-exchange support:
-   - Register multiple exchange adapters with the Market Hub.
-   - Route queries by `exchange` parameter.
-   - Aggregate same-symbol data from different exchanges.
-8. Market data normalization:
-   - Symbol normalization (uppercase, suffix handling).
-   - Price precision normalization.
-   - Timestamp normalization to UTC.
-9. Lifecycle management:
-   - `start()` — connect to all registered exchange feeds.
-   - `stop()` — disconnect all feeds, clear cache.
-   - Health check — verify all exchange market connections are alive.
-10. API endpoints:
-    - `GET /market/price/{exchange}/{symbol}` — get current price.
-    - `GET /market/ticker/{exchange}/{symbol}` — get ticker data.
-    - `GET /market/orderbook/{exchange}/{symbol}` — get order book.
-    - `GET /market/candles/{exchange}/{symbol}` — get candles (query params: `interval`, `limit`).
-    - `GET /market/symbols/{exchange}` — get supported symbols.
-11. Unit tests for Market Hub, cache, connector, and normalization.
-12. Integration tests with mock exchange adapter.
+1. **Market Hub** — generic `IMarketHub` interface and `MarketHub` implementation.
+2. **Market Cache** — in-memory cache for ticker, order book, price, candles.
+3. **Subscription Manager** — deduplicated subscriptions so 1 WebSocket feeds N consumers.
+4. **Symbol Registry** — per-exchange supported symbol registry with normalization.
+5. **Market Status** — per-symbol quality status: `CONNECTED`, `CONNECTING`, `STALE`, `RECONNECTING`, `DISCONNECTED`.
+6. **Ticker Cache** — latest normalized `TickerData` per `(exchange, symbol)`.
+7. **OrderBook Cache** — latest normalized `OrderBook` per `(exchange, symbol)`.
+8. **Candle Cache** — latest normalized `Candle` list per `(exchange, symbol, interval)`.
+9. **Latency Metrics** — `last_update`, `latency_ms`, `reconnect_count`, `dropped_messages`, `message_rate`.
+10. **Alive Check** — `MarketHub.is_alive(symbol, exchange)` for consumers.
+11. **API endpoints** for querying cached market data and status.
+12. **Unit tests** for all of the above.
 
 ### Out of Scope
 
+- Grid Engine
+- Trading logic
+- Order placement / Execution Engine
+- Take Profit (TP)
+- Profit Lock Engine
+- Strategy Engine
 - Event Bus integration (events like `PRICE_UPDATE`, `TICKER_UPDATE` — deferred to Event Bus sprint)
 - Market data replay (`backend/market/replay/` — deferred)
 - Historical data storage in database (deferred)
 - Frontend WebSocket streaming (deferred)
-- Bybit adapter market data (Binance only for now, Bybit already has adapter)
-- Grid Engine, Execution Engine, or any trading logic
 - Portfolio or risk calculations
 
 ## Data Model
@@ -94,6 +68,7 @@ Sprint 6 does not add new database tables. Market data is ephemeral (in-memory +
 market:{exchange}:{symbol}:ticker    -> hash {bid, ask, last, volume, updated_at}
 market:{exchange}:{symbol}:price     -> string (latest price)
 market:{exchange}:{symbol}:orderbook -> hash {bids, asks, updated_at}
+market:{exchange}:{symbol}:status    -> hash {status, last_update, latency_ms, reconnect_count, dropped_messages, message_rate}
 market:active_subscriptions          -> set of subscription_ids
 ```
 
@@ -110,33 +85,53 @@ market:active_subscriptions          -> set of subscription_ids
 }
 ```
 
+### Market Status
+
+```python
+class MarketStatus(str, Enum):
+    CONNECTED = "connected"
+    CONNECTING = "connecting"
+    STALE = "stale"
+    RECONNECTING = "reconnecting"
+    DISCONNECTED = "disconnected"
+```
+
+### Subscription Manager
+
+```python
+# Logical subscription: (symbol, exchange, channel) -> websocket_subscription_id
+# Consumer map: subscription_id -> (symbol, exchange, channel, callback)
+# Deduplication: if 10 processes subscribe to BTCUSDT ticker on Binance,
+# only ONE WebSocket subscription is opened.
+```
+
 ## Architecture
 
 ```text
-                    ┌─────────────────────────────┐
-                    │        MarketHub             │
-                    │                              │
-                    │  ┌─────────┐  ┌───────────┐  │
-                    │  │  Cache  │  │ Connector  │  │
-                    │  │ Manager │  │  Manager   │  │
-                    │  └────┬────┘  └─────┬─────┘  │
-                    │       │             │        │
-                    │  ┌────┴─────────────┴─────┐  │
-                    │  │   Subscription Manager  │  │
-                    │  └────────────────────────┘  │
-                    └──────────┬──────────────────┘
-                               │
-                    ┌──────────┴──────────┐
-                    │                     │
-              ┌─────┴──────┐       ┌──────┴──────┐
-              │  Binance   │       │   Bybit     │
-              │  Connector │       │  Connector  │
-              └─────┬──────┘       └──────┬──────┘
-                    │                     │
-              ┌─────┴──────┐       ┌──────┴──────┐
-              │  Binance   │       │   Bybit     │
-              │  Adapter   │       │   Adapter   │
-              └────────────┘       └─────────────┘
+                    ┌─────────────────────────────────┐
+                    │          MarketHub               │
+                    │                                  │
+                    │  ┌─────────┐  ┌───────────────┐  │
+                    │  │  Cache  │  │  Subscription │  │
+                    │  │ Manager │  │    Manager    │  │
+                    │  └────┬────┘  └───────┬───────┘  │
+                    │       │                │          │
+                    │  ┌────┴────────────────┴─────┐    │
+                    │  │     Exchange Connectors    │    │
+                    │  └─────────────┬──────────────┘    │
+                    └────────────────┼───────────────────┘
+                                     │
+              ┌──────────────────────┼──────────────────────┐
+              │                      │                      │
+        ┌─────┴──────┐        ┌──────┴──────┐        ┌──────┴──────┐
+        │  Binance   │        │ Hyperliquid  │        │   Bybit      │
+        │  Connector │        │  Connector   │        │  Connector   │
+        └─────┬──────┘        └──────┬──────┘        └──────┬──────┘
+              │                      │                      │
+        ┌─────┴──────┐        ┌──────┴──────┐        ┌──────┴──────┐
+        │  Binance   │        │ Hyperliquid  │        │   Bybit      │
+        │  Adapter   │        │   Adapter    │        │   Adapter    │
+        └────────────┘        └──────────────┘        └──────────────┘
 ```
 
 ## Interface (from INTERFACE_DEFINITIONS.md)
@@ -191,6 +186,18 @@ class IMarketHub(ABC):
     @abstractmethod
     async def stop(self) -> None:
         """Stop the market hub."""
+
+    @abstractmethod
+    async def is_alive(self, symbol: str, exchange: str) -> bool:
+        """Return True if market data for (symbol, exchange) is fresh and connected."""
+
+    @abstractmethod
+    async def get_status(self, symbol: str, exchange: str) -> MarketStatus:
+        """Get current market status for (symbol, exchange)."""
+
+    @abstractmethod
+    async def get_metrics(self, symbol: str, exchange: str) -> dict[str, Any]:
+        """Get latency metrics for (symbol, exchange)."""
 ```
 
 ## Implementation Plan
@@ -214,22 +221,28 @@ class IMarketHub(ABC):
    - Symbol normalization.
    - Price/quantity precision.
    - Timestamp to UTC.
-8. Implement API endpoints in `backend/api/v1/endpoints/market.py`:
+8. Implement `SymbolRegistry` in `backend/market/symbol_registry.py`:
+   - Per-exchange supported symbol list.
+   - Symbol normalization (uppercase, suffix mapping).
+9. Implement API endpoints in `backend/api/v1/endpoints/market.py`:
    - `GET /market/price/{exchange}/{symbol}`
    - `GET /market/ticker/{exchange}/{symbol}`
    - `GET /market/orderbook/{exchange}/{symbol}`
    - `GET /market/candles/{exchange}/{symbol}`
    - `GET /market/symbols/{exchange}`
-9. Wire `MarketHub` as singleton in `backend/main.py` lifespan.
-10. Write unit tests:
-    - `test_market_hub.py` — subscription, query routing, multi-exchange.
+   - `GET /market/status/{exchange}/{symbol}`
+   - `GET /market/metrics/{exchange}/{symbol}`
+10. Wire `MarketHub` as singleton in `backend/main.py` lifespan.
+11. Write unit tests:
+    - `test_market_hub.py` — subscription, query routing, multi-exchange, status, metrics.
     - `test_market_cache.py` — cache hit/miss, TTL, Redis fallback.
+    - `test_subscription_manager.py` — deduplication, refcount, unsubscribe.
     - `test_exchange_connector.py` — WebSocket lifecycle, callback routing.
-11. Write integration tests with mock exchange adapter.
-12. Run full test suite.
-13. Audit against acceptance criteria.
-14. Fix issues.
-15. Commit and merge to `develop`.
+12. Write integration tests with mock exchange adapter.
+13. Run full test suite.
+14. Audit against acceptance criteria.
+15. Fix issues.
+16. Commit and merge to `develop`.
 
 ## API Endpoints
 
@@ -240,29 +253,38 @@ class IMarketHub(ABC):
 | GET | `/market/orderbook/{exchange}/{symbol}` | Get order book (query: `depth`) |
 | GET | `/market/candles/{exchange}/{symbol}` | Get candles (query: `interval`, `limit`) |
 | GET | `/market/symbols/{exchange}` | Get supported symbols |
+| GET | `/market/status/{exchange}/{symbol}` | Get market status |
+| GET | `/market/metrics/{exchange}/{symbol}` | Get latency metrics |
 
 ## Acceptance Criteria
 
-- [ ] IMarketHub interface defined
+- [ ] IMarketHub interface defined (generic, multi-exchange)
 - [ ] MarketHub implementation with subscription management
-- [ ] MarketCache with in-memory + Redis fallback
+- [ ] SubscriptionManager deduplicates WebSocket subscriptions
+- [ ] MarketCache with in-memory storage for ticker, orderbook, price, candles
+- [ ] SymbolRegistry with per-exchange supported symbols
+- [ ] MarketStatus enum and per-symbol status tracking
+- [ ] `is_alive(symbol, exchange)` for consumers
+- [ ] Latency metrics: `last_update`, `latency_ms`, `reconnect_count`, `dropped_messages`, `message_rate`
 - [ ] ExchangeConnector wrapping adapter market data
-- [ ] Multi-exchange support (Binance + Bybit adapters)
+- [ ] Multi-exchange support (Binance + Hyperliquid + Bybit patterns)
 - [ ] Data normalization (symbol, price, timestamp)
 - [ ] Market Hub start/stop lifecycle
-- [ ] API endpoints for price, ticker, orderbook, candles, symbols
-- [ ] Unit tests for hub, cache, connector
+- [ ] API endpoints for price, ticker, orderbook, candles, symbols, status, metrics
+- [ ] Unit tests for hub, cache, subscription manager, connector
 - [ ] Integration tests with mock adapter
 - [ ] All tests pass
 - [ ] Work is committed on `sprint-6` branch and merged into `develop` after audit
 
 ## Target Metrics
 
-- Test count: 260+ (230 existing + 30+ new)
+- Test count: 270+ (230 existing + 40+ new)
 - All tests pass
-- Market data query latency: < 10ms (cache hit), < 100ms (cache miss)
+- Market data query latency: < 1ms (cache hit), < 100ms (cache miss)
+- One WebSocket subscription per `(symbol, exchange, channel)` regardless of consumer count
 - WebSocket reconnection within 5 seconds
-- No duplicate subscriptions for same (symbol, exchange, channel)
+- Status transitions correctly tracked: `CONNECTING` → `CONNECTED` → `STALE` / `RECONNECTING` → `CONNECTED` / `DISCONNECTED`
+- Dropped message counter increments only on actual sequence gaps
 
 ## Workflow
 
@@ -287,4 +309,4 @@ class IMarketHub(ABC):
 
 ## Definition of Done
 
-A user can query the current price, ticker, order book, and candles for any supported symbol on any registered exchange via the Market Hub — all through a single unified API, with data cached for sub-10ms response times.
+A user can query the current price, ticker, order book, candles, status, and metrics for any supported symbol on any registered exchange via the Market Hub — all through a single unified API. Ten trading processes reading BTCUSDT result in exactly one WebSocket subscription, served from in-memory cache with sub-millisecond response times.
