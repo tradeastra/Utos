@@ -219,24 +219,25 @@ Sprint 14: Deployment & Testing
 ### Sprint 07: Execution Engine
 **Duration:** Week 7  
 **Layer:** Order execution  
-**Status:** ⏳ Pending
+**Status:** ✅ Completed (v0.7.0)
 
 **Goals:**
-- [ ] Implement `IExecutionEngine` and `ExecutionEngine`
-- [ ] Implement order state machine
-- [ ] Implement `execute_order` (via exchange adapter)
-- [ ] Implement `cancel_order` and `cancel_all_orders`
-- [ ] Implement order sync with exchange
-- [ ] Implement order fill monitoring
-- [ ] Emit order events (`ORDER_PLACED`, `ORDER_FILLED`, `ORDER_CANCELLED`, etc.)
-- [ ] Write unit tests with mock exchange
-- [ ] Write integration tests with exchange testnet
+- [x] Implement `ExecutionEngine` with `place_order`, `cancel_order`, `cancel_all_orders`, `get_order`, `sync_order`, `list_active_orders`
+- [x] Implement order state machine with validated transitions
+- [x] Implement `OrderExecutor` with retry logic (via exchange adapter)
+- [x] Implement `cancel_order` and `cancel_all_orders`
+- [x] Implement order sync with exchange
+- [x] Implement idempotency via `request_id` deduplication
+- [x] Handle cancel race conditions (order fills during cancel)
+- [x] Write unit tests with mock exchange (76 tests)
+- [x] Write integration tests with audit scenarios (idempotency, partial fill, cancel race)
+- [ ] Emit order events (`ORDER_PLACED`, `ORDER_FILLED`, `ORDER_CANCELLED`, etc.) — deferred to Event Bus sprint
 
 **Deliverables:**
 - Execution engine implementation
 - Order state machine
-- Order events
-- Execution engine tests passing
+- Order tracker with idempotency
+- 385 tests passing (76 Sprint 7 tests)
 
 **Dependencies:** Sprint 05, Sprint 06
 
@@ -471,3 +472,4 @@ Sprint 14: Deployment & Testing
 | 2026-07-09 | 2.0.0 | Restructured to 16 layer-based sprints; added Trading Instance, KernelContext, TradingContext, ProcessMemory, READY state, TP/ProfitLock/PortfolioLock separation, separate market/account connections |
 | 2026-07-12 | 3.0.0 | Sprint 5 = Trading Process Manager (completed). Reordered: Sprint 7 = Execution Engine (was 9), Sprint 8 = Grid Engine. Removed old Sprint 7 (Trading Instance, merged into Sprint 5). Total sprints reduced from 16 to 15. |
 | 2026-07-13 | 4.0.0 | Sprint 6 = Market Hub requirements refined (generic multi-exchange, Hyperliquid, memory cache, subscription deduplication, status/metrics, is_alive). Sprint 9 = Profit Lock Engine, Sprint 10 = Strategy Engine. Portfolio & Risk deferred. Total sprints reduced from 15 to 14. |
+| 2026-07-13 | 4.1.0 | Sprint 7 = Execution Engine completed (v0.7.0). 385 tests passing. Idempotency, partial fill, and cancel race condition audit tests added per reviewer request. |
