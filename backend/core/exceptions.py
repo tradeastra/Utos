@@ -98,6 +98,11 @@ class PortfolioError(UTOSException):
     pass
 
 
+class RiskError(UTOSException):
+    """Raised when risk engine operations fail."""
+    pass
+
+
 class WorkerError(UTOSException):
     """Raised when worker operations fail."""
     pass

@@ -304,28 +304,30 @@ Sprint 14: Deployment & Testing
 
 ---
 
-### Sprint 10: Strategy Engine
+### Sprint 10: Portfolio & Risk Engine
 **Duration:** Week 10  
-**Layer:** Trading strategy implementations  
-**Status:** ⏳ Pending
+**Layer:** Portfolio & risk management  
+**Status:** ✅ Completed (v0.10.0)
 
 **Goals:**
-- [ ] Implement `IStrategy` base class
-- [ ] Implement `SmartGridStrategy`
-- [ ] Implement `AdaptiveGridStrategy`
-- [ ] Implement `InfinityGridStrategy`
-- [ ] Implement `DCAStrategy`
-- [ ] Implement strategy parameter validation
-- [ ] Implement strategy context and state
-- [ ] Write unit tests for each strategy
-- [ ] Write integration tests with grid engine
+- [x] Implement `PortfolioManager` — tracks positions across instances, accounts, exchanges
+- [x] Implement `ExposureManager` — calculates exposure per exchange/account/symbol
+- [x] Implement `RiskManager` — validates orders against risk rules (gatekeeper, not executor)
+- [x] Implement `PositionAggregator` — merges positions for reporting and risk control
+- [x] Implement `PortfolioMetrics` — unrealized/realized PnL, exposure, drawdown, margin usage
+- [x] Risk rules: max_position_size, max_exposure_per_symbol, max_exposure_per_exchange, max_open_positions, max_capital_per_instance
+- [x] Internal metrics tracking (orders checked/allowed/denied, price updates)
+- [x] Verify independence from Grid Engine, Profit Lock Engine, and Execution Engine
+- [x] Write unit tests for all 5 modules (74 tests)
+- [x] Write integration tests for full risk flow
 
 **Deliverables:**
-- All 4 strategy implementations
-- Strategy parameter validation
-- Strategy tests passing
+- PortfolioManager, ExposureManager, RiskManager, PositionAggregator, PortfolioMetrics
+- Risk Manager is a gatekeeper — does NOT call ExecutionEngine
+- Strategy engines call RiskManager.check_order_risk() before submitting to ExecutionEngine
+- 629 tests passing (74 Sprint 10 tests)
 
-**Dependencies:** Sprint 08, Sprint 09
+**Dependencies:** Sprint 05, Sprint 07, Sprint 08, Sprint 09
 
 ---
 
@@ -485,3 +487,4 @@ Sprint 14: Deployment & Testing
 | 2026-07-13 | 4.1.0 | Sprint 7 = Execution Engine completed (v0.7.0). 385 tests passing. Idempotency, partial fill, and cancel race condition audit tests added per reviewer request. |
 | 2026-07-14 | 4.2.0 | Sprint 8 = Grid Engine completed (v0.8.0). 473 tests passing. 5 internal modules: GridCalculator, GridPlanner, GridStateMachine/GridStateStore, GridEngine, GridPersistence. Event-driven price updates, no direct exchange access, no polling. |
 | 2026-07-14 | 4.3.0 | Sprint 9 = Profit Lock Engine completed (v0.9.0). 555 tests passing. 5 internal modules: ProfitCalculator, ProfitLockPolicy, ProfitLockStateMachine/GridStateStore, ProfitLockEngine, ProfitPersistence. Independent from Grid Engine, event-driven, internal metrics for observability. |
+| 2026-07-14 | 4.4.0 | Sprint 10 = Portfolio & Risk Engine completed (v0.10.0). 629 tests passing. 5 internal modules: PortfolioManager, ExposureManager, RiskManager, PositionAggregator, PortfolioMetrics. Risk Manager is gatekeeper (no ExecutionEngine calls). Independent from Grid/ProfitLock/Execution engines. |
