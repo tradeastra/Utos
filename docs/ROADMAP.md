@@ -275,22 +275,30 @@ Sprint 14: Deployment & Testing
 ### Sprint 09: Profit Lock Engine
 **Duration:** Week 9  
 **Layer:** Profit lock mechanisms  
-**Status:** ⏳ Pending
+**Status:** ✅ Completed (v0.9.0)
 
 **Goals:**
-- [ ] Implement `IProfitLock` and `ProfitLockEngine` (per-position trailing)
-- [ ] Implement price/profit monitoring for triggers
-- [ ] Implement lock execution (place sell order for ProfitLock)
-- [ ] Implement lock level updates (trailing)
-- [ ] Emit profit lock events (`PROFIT_LOCK_TRIGGERED`, `PROFIT_LOCK_UPDATED`, `PROFIT_LOCK_EXECUTED`)
-- [ ] Write unit tests for trailing logic
-- [ ] Write integration tests with price simulation
+- [x] Implement `ProfitLockEngine` with 5 internal modules
+- [x] Implement `ProfitCalculator` — floating profit computation (long & short)
+- [x] Implement `ProfitLockPolicy` — trailing lock decisions
+- [x] Implement `ProfitLockStateMachine` + `ProfitLockStore` — per-instance state tracking
+- [x] Implement `ProfitLockEngine` — orchestrates lifecycle, event-driven (no polling)
+- [x] Implement `ProfitPersistence` — serialize/deserialize profit lock state
+- [x] Implement lock execution (place sell order via ExecutionEngine)
+- [x] Implement lock level updates (trailing)
+- [x] Implement internal metrics (decisions, errors, events, locks triggered/executed)
+- [x] Verify independence from Grid Engine (no imports, no calls)
+- [ ] Emit profit lock events (`PROFIT_LOCK_TRIGGERED`, etc.) — deferred to Event Bus sprint
+- [x] Write unit tests for all 5 modules (82 tests)
+- [x] Write integration tests for profit lock lifecycle
 
 **Deliverables:**
-- Profit lock engine (per-position)
-- Trailing stop mechanisms
-- Profit lock events
-- Profit lock tests passing
+- ProfitCalculator, ProfitLockPolicy, ProfitLockStateMachine, ProfitLockStore, ProfitLockEngine, ProfitPersistence
+- Event-driven price updates (no polling)
+- No direct exchange access (ProfitLockEngine → ExecutionEngine → ExchangeAdapter)
+- Independent from Grid Engine (sibling engines, not parent-child)
+- Internal metrics for observability
+- 555 tests passing (82 Sprint 9 tests)
 
 **Dependencies:** Sprint 07, Sprint 08
 
@@ -476,3 +484,4 @@ Sprint 14: Deployment & Testing
 | 2026-07-13 | 4.0.0 | Sprint 6 = Market Hub requirements refined (generic multi-exchange, Hyperliquid, memory cache, subscription deduplication, status/metrics, is_alive). Sprint 9 = Profit Lock Engine, Sprint 10 = Strategy Engine. Portfolio & Risk deferred. Total sprints reduced from 15 to 14. |
 | 2026-07-13 | 4.1.0 | Sprint 7 = Execution Engine completed (v0.7.0). 385 tests passing. Idempotency, partial fill, and cancel race condition audit tests added per reviewer request. |
 | 2026-07-14 | 4.2.0 | Sprint 8 = Grid Engine completed (v0.8.0). 473 tests passing. 5 internal modules: GridCalculator, GridPlanner, GridStateMachine/GridStateStore, GridEngine, GridPersistence. Event-driven price updates, no direct exchange access, no polling. |
+| 2026-07-14 | 4.3.0 | Sprint 9 = Profit Lock Engine completed (v0.9.0). 555 tests passing. 5 internal modules: ProfitCalculator, ProfitLockPolicy, ProfitLockStateMachine/GridStateStore, ProfitLockEngine, ProfitPersistence. Independent from Grid Engine, event-driven, internal metrics for observability. |

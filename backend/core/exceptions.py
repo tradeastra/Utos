@@ -83,6 +83,11 @@ class GridError(UTOSException):
     pass
 
 
+class ProfitLockError(UTOSException):
+    """Raised when profit lock operations fail."""
+    pass
+
+
 class StrategyError(UTOSException):
     """Raised when strategy operations fail."""
     pass
