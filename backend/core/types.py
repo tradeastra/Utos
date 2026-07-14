@@ -45,11 +45,17 @@ class TradingInstanceStatus(str, Enum):
 
 
 class GridLevelStatus(str, Enum):
-    IDLE = "idle"
-    BUY_PENDING = "buy_pending"
-    BUY_FILLED = "buy_filled"
-    SELL_PENDING = "sell_pending"
-    SELL_FILLED = "sell_filled"
+    WAITING = "waiting"
+    OPEN = "open"
+    FILLED = "filled"
+    CANCELLED = "cancelled"
+    TP_HIT = "tp_hit"
+    # Legacy aliases for backward compatibility
+    IDLE = "waiting"
+    BUY_PENDING = "open"
+    BUY_FILLED = "filled"
+    SELL_PENDING = "open"
+    SELL_FILLED = "tp_hit"
 
 
 class StrategyType(str, Enum):
@@ -206,7 +212,7 @@ class GridLevel:
     quantity: Decimal
     buy_order_id: Optional[str] = None
     sell_order_id: Optional[str] = None
-    status: GridLevelStatus = GridLevelStatus.IDLE
+    status: GridLevelStatus = GridLevelStatus.WAITING
 
 
 @dataclass
@@ -221,6 +227,9 @@ class GridState:
     levels: List[GridLevel] = field(default_factory=list)
     total_cycles: int = 0
     total_profit: Decimal = Decimal("0")
+    exchange_account_id: Optional[Any] = None
+    symbol: str = ""
+    current_price: Optional[Decimal] = None
 
 
 # Portfolio Types

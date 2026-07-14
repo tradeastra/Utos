@@ -246,25 +246,27 @@ Sprint 14: Deployment & Testing
 ### Sprint 08: Grid Engine
 **Duration:** Week 8  
 **Layer:** Grid trading logic  
-**Status:** ⏳ Pending
+**Status:** ✅ Completed (v0.8.0)
 
 **Goals:**
-- [ ] Implement `IGridEngine` and `GridEngine`
-- [ ] Implement grid level calculation
-- [ ] Implement grid state machine
-- [ ] Implement `on_buy_filled` → place sell order
-- [ ] Implement `on_sell_filled` → place buy order
-- [ ] Implement grid parameter updates (when paused)
-- [ ] Implement grid rebalancing
-- [ ] Emit grid events (`GRID_CREATED`, `GRID_LEVEL_FILLED`, etc.)
-- [ ] Write unit tests for grid calculations
-- [ ] Write integration tests for grid cycles
+- [x] Implement `GridEngine` with 5 internal modules
+- [x] Implement `GridCalculator` — evenly-spaced grid level generation
+- [x] Implement `GridStateMachine` + `GridStateStore` — per-level status tracking
+- [x] Implement `GridPlanner` — determines which orders to place/cancel based on price
+- [x] Implement `on_buy_filled` → place sell order at sell price
+- [x] Implement `on_sell_filled` → place buy order, increment cycle count
+- [x] Implement `on_price_update` — event-driven from Market Hub (no polling)
+- [x] Implement `GridPersistence` — serialize/deserialize grid state
+- [x] Implement pause/resume/close_all lifecycle
+- [ ] Emit grid events (`GRID_CREATED`, `GRID_LEVEL_FILLED`, etc.) — deferred to Event Bus sprint
+- [x] Write unit tests for all 5 modules (88 tests)
+- [x] Write integration tests for grid cycles
 
 **Deliverables:**
-- Grid engine implementation
-- Grid state management
-- Grid events
-- Grid engine tests passing
+- GridCalculator, GridPlanner, GridStateMachine, GridStateStore, GridEngine, GridPersistence
+- Event-driven price updates (no polling)
+- No direct exchange access (GridEngine → ExecutionEngine → MarketHub → ExchangeAdapter)
+- 473 tests passing (88 Sprint 8 tests)
 
 **Dependencies:** Sprint 06, Sprint 07
 
@@ -473,3 +475,4 @@ Sprint 14: Deployment & Testing
 | 2026-07-12 | 3.0.0 | Sprint 5 = Trading Process Manager (completed). Reordered: Sprint 7 = Execution Engine (was 9), Sprint 8 = Grid Engine. Removed old Sprint 7 (Trading Instance, merged into Sprint 5). Total sprints reduced from 16 to 15. |
 | 2026-07-13 | 4.0.0 | Sprint 6 = Market Hub requirements refined (generic multi-exchange, Hyperliquid, memory cache, subscription deduplication, status/metrics, is_alive). Sprint 9 = Profit Lock Engine, Sprint 10 = Strategy Engine. Portfolio & Risk deferred. Total sprints reduced from 15 to 14. |
 | 2026-07-13 | 4.1.0 | Sprint 7 = Execution Engine completed (v0.7.0). 385 tests passing. Idempotency, partial fill, and cancel race condition audit tests added per reviewer request. |
+| 2026-07-14 | 4.2.0 | Sprint 8 = Grid Engine completed (v0.8.0). 473 tests passing. 5 internal modules: GridCalculator, GridPlanner, GridStateMachine/GridStateStore, GridEngine, GridPersistence. Event-driven price updates, no direct exchange access, no polling. |
