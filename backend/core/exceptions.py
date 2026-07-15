@@ -103,6 +103,21 @@ class RiskError(UTOSException):
     pass
 
 
+class RecoveryError(UTOSException):
+    """Raised when recovery operations fail."""
+    pass
+
+
+class ReconciliationError(UTOSException):
+    """Raised when state reconciliation cannot be auto-resolved."""
+    pass
+
+
+class CheckpointError(UTOSException):
+    """Raised when checkpoint save/load fails."""
+    pass
+
+
 class WorkerError(UTOSException):
     """Raised when worker operations fail."""
     pass

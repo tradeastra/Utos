@@ -1,7 +1,7 @@
 # Sprint 11: Recovery & Resilience
 
 **Version Target:** v0.11.0  
-**Status:** Planned  
+**Status:** In Progress  
 **Dependencies:** Sprint 05, Sprint 07, Sprint 08, Sprint 09, Sprint 10
 
 ---
@@ -24,71 +24,106 @@ after any combination of the following failures:
 
 ---
 
-## Architecture
+## 4-Layer Architecture
 
 ```
-RecoveryManager
-    ├── ProcessRecovery        — restart Trading Process from DB state
-    ├── GridRecovery           — reconcile grid levels with exchange orders
-    ├── ProfitLockRecovery     — rebuild profit lock state from persistence
-    ├── PortfolioRecovery      — rebuild positions from exchange fills
-    ├── RedisRecovery          — reload in-memory state after Redis restart
-    └── ConnectionRecovery     — handle WebSocket reconnect & re-subscribe
+RecoveryCoordinator (orchestrator, NOT a God Object)
+    │
+    ├── Layer 1: ConnectionRecovery
+    │       ├── Redis reconnect + queue replay
+    │       ├── PostgreSQL reconnect + retry
+    │       ├── Exchange disconnect handling
+    │       └── WebSocket reconnect + re-subscribe
+    │
+    ├── Layer 2: StateRecovery
+    │       ├── Trading Process state (from DB)
+    │       ├── Grid State (from persistence + reconcile)
+    │       ├── Profit Lock State (from persistence)
+    │       └── Portfolio (from exchange positions)
+    │
+    ├── Layer 3: RuntimeReconciler
+    │       ├── Grid: local levels vs exchange live orders
+    │       ├── Portfolio: local positions vs exchange positions
+    │       ├── Detect orphan orders (on exchange, not in local state)
+    │       └── Detect missing orders (in local state, not on exchange)
+    │
+    └── Layer 4: Chaos Tests
+            ├── Server restart → 100 instances recovered
+            ├── Redis death → state rebuilt from PostgreSQL
+            ├── WebSocket drop → reconnect + re-subscribe
+            ├── Exchange timeout → queue + replay
+            └── Order filled during restart → detected on reconcile
 ```
 
 **Key constraints:**
-- RecoveryManager does NOT know exchange internals — it uses ExecutionEngine and PortfolioManager
+- RecoveryCoordinator orchestrates but does NOT implement recovery logic itself
+- Each layer is independent — failure in one does NOT block others
 - Recovery is triggered by events (not polling)
-- Each recovery path is independent — failure in one does NOT block others
-- RecoveryManager emits `RECOVERY_STARTED`, `RECOVERY_COMPLETED`, `RECOVERY_FAILED` events
 - All recovery operations are idempotent — safe to run multiple times
+- RecoveryCoordinator does NOT know exchange internals — uses ExecutionEngine and PortfolioManager
+- Events emitted: `RECOVERY_STARTED`, `RECOVERY_COMPLETED`, `RECOVERY_FAILED`, `RECONCILIATION_NEEDED`
 
 ---
 
 ## Module Breakdown
 
-### Module 1: RecoveryManager
-**File:** `backend/engine/recovery/manager.py`
+### Module 1: RecoveryCoordinator
+**File:** `backend/engine/recovery/coordinator.py`
 
-Orchestrates recovery across all sub-systems.
+Orchestrates recovery across all 4 layers. NOT a God Object — delegates to specialized modules.
 
 ```python
-class RecoveryManager:
+class RecoveryCoordinator:
     async def recover_all(self, instance_id: str) -> RecoveryReport
-    async def recover_trading_process(self, instance_id: str) -> bool
-    async def recover_grid(self, instance_id: str) -> bool
-    async def recover_profit_lock(self, instance_id: str) -> bool
-    async def recover_portfolio(self, instance_id: str) -> bool
+    async def recover_instance(self, instance_id: str) -> RecoveryReport
     async def get_recovery_status(self, instance_id: str) -> RecoveryStatus
+    def register_instance(self, instance_id: str, context: InstanceContext) -> None
 ```
 
-### Module 2: StateReconciler
-**File:** `backend/engine/recovery/reconciler.py`
-
-Reconciles local state against exchange live state.
-
-```python
-class StateReconciler:
-    async def reconcile_grid(self, instance_id: str, grid_state: GridState, live_orders: list[OrderResult]) -> ReconciliationResult
-    async def reconcile_portfolio(self, instance_id: str, local_positions: list[Position], exchange_positions: list[PositionEntry]) -> ReconciliationResult
-    async def find_missing_orders(self, grid_state: GridState, live_orders: list[OrderResult]) -> list[GridLevel]
-    async def find_orphan_orders(self, grid_state: GridState, live_orders: list[OrderResult]) -> list[OrderResult]
-```
-
-### Module 3: ConnectionRecovery
+### Module 2: ConnectionRecovery (Layer 1)
 **File:** `backend/engine/recovery/connection.py`
 
-Manages WebSocket reconnection, re-subscription, and price re-sync.
+Handles all connection-level recovery.
 
 ```python
 class ConnectionRecovery:
-    async def on_disconnect(self, exchange: str, account_id: str) -> None
-    async def on_reconnect(self, exchange: str, account_id: str) -> None
-    async def resubscribe_all(self, account_id: str) -> bool
+    async def recover_redis(self) -> bool
+    async def recover_postgres(self) -> bool
+    async def on_exchange_disconnect(self, exchange: str, account_id: str) -> None
+    async def on_exchange_reconnect(self, exchange: str, account_id: str) -> bool
+    async def resubscribe_all(self, account_id: str, symbols: list[str]) -> bool
     async def resync_prices(self, symbols: list[str]) -> dict[str, Decimal]
+    def queue_order(self, order: QueuedOrder) -> None
+    async def replay_queued_orders(self) -> list[OrderResult]
 ```
 
-### Module 4: RecoveryPersistence
+### Module 3: StateRecovery (Layer 2)
+**File:** `backend/engine/recovery/state.py`
+
+Rebuilds in-memory state from persistent storage.
+
+```python
+class StateRecovery:
+    async def recover_trading_process(self, instance_id: str) -> bool
+    async def recover_grid(self, instance_id: str) -> GridState | None
+    async def recover_profit_lock(self, instance_id: str) -> ProfitLockState | None
+    async def recover_portfolio(self, instance_id: str) -> list[Position]
+```
+
+### Module 4: RuntimeReconciler (Layer 3)
+**File:** `backend/engine/recovery/reconciler.py`
+
+Reconciles local state against exchange live state at runtime.
+
+```python
+class RuntimeReconciler:
+    async def reconcile_grid(self, instance_id: str, grid_state: GridState, live_orders: list[OrderResult]) -> ReconciliationResult
+    async def reconcile_portfolio(self, instance_id: str, local_positions: list[Position], exchange_positions: list[PositionEntry]) -> ReconciliationResult
+    def find_missing_orders(self, grid_state: GridState, live_orders: list[OrderResult]) -> list[GridLevel]
+    def find_orphan_orders(self, grid_state: GridState, live_orders: list[OrderResult]) -> list[OrderResult]
+```
+
+### Module 5: RecoveryPersistence
 **File:** `backend/engine/recovery/persistence.py`
 
 Checkpoints recovery state for auditability.
@@ -98,6 +133,7 @@ class RecoveryPersistence:
     def save_checkpoint(self, instance_id: str, checkpoint: RecoveryCheckpoint) -> None
     def load_checkpoint(self, instance_id: str) -> RecoveryCheckpoint | None
     def clear_checkpoint(self, instance_id: str) -> None
+    def list_checkpoints(self) -> list[str]
 ```
 
 ---
@@ -110,10 +146,9 @@ class RecoveryReport:
     instance_id: str
     started_at: datetime
     completed_at: datetime | None
-    trading_process_ok: bool
-    grid_ok: bool
-    profit_lock_ok: bool
-    portfolio_ok: bool
+    connection_ok: bool
+    state_ok: bool
+    reconciliation_ok: bool
     errors: list[str]
     reconciliation_results: list[ReconciliationResult]
 
@@ -128,15 +163,36 @@ class ReconciliationResult:
 class RecoveryStatus:
     instance_id: str
     state: str  # "idle" | "recovering" | "completed" | "failed"
-    last_recovery_at: datetime | None
+    started_at: datetime | None
+    completed_at: datetime | None
     last_error: str | None
 
 @dataclass
 class RecoveryCheckpoint:
     instance_id: str
     created_at: datetime
-    phase: str
+    phase: str  # "connection" | "state" | "reconciliation"
     data: dict
+
+@dataclass
+class QueuedOrder:
+    instance_id: str
+    account_id: str
+    exchange: str
+    symbol: str
+    side: str
+    quantity: Decimal
+    price: Decimal
+    queued_at: datetime
+
+@dataclass
+class InstanceContext:
+    instance_id: str
+    account_id: str
+    exchange: str
+    symbol: str
+    has_grid: bool
+    has_profit_lock: bool
 ```
 
 ---
@@ -217,15 +273,19 @@ Each of the following failure modes will be tested with automated chaos tests:
 
 ## Acceptance Criteria
 
-- [ ] System can recover all active Trading Processes after a server restart
-- [ ] Grid State is correctly reconciled with exchange after any disconnect
-- [ ] Profit Lock State is restored from persistent store
-- [ ] Portfolio positions are rebuilt from exchange fills
-- [ ] WebSocket reconnects automatically with re-subscription
+- [ ] RecoveryCoordinator orchestrates 4 layers without being a God Object
+- [ ] System can recover 100 Trading Processes after server restart
+- [ ] No duplicate orders after recovery
+- [ ] No corrupt state after recovery
+- [ ] No missing positions after recovery
+- [ ] Grid State reconciled with exchange after any disconnect
+- [ ] Profit Lock State restored from persistent store
+- [ ] Portfolio positions rebuilt from exchange
+- [ ] WebSocket reconnects with re-subscription
 - [ ] All recovery operations are idempotent
-- [ ] Chaos tests pass for all 7 failure scenarios
-- [ ] RecoveryManager does NOT know exchange API directly (uses ExecutionEngine)
-- [ ] Each recovery path fails independently without blocking others
+- [ ] Chaos tests pass for all 5 failure scenarios
+- [ ] RecoveryCoordinator does NOT know exchange API directly
+- [ ] Each layer fails independently without blocking others
 - [ ] Events emitted for all recovery lifecycle transitions
-- [ ] Unit tests for each recovery module
+- [ ] Unit tests for each module
 - [ ] Integration tests for full recovery flow
