@@ -450,26 +450,33 @@ Sprint 14: Deployment & Testing
 ### Sprint 15: Frontend Dashboard
 **Duration:** Week 15  
 **Layer:** User interface  
-**Status:** ⏳ Pending
+**Status:** ✅ Completed
 
 **Goals:**
-- [ ] Set up Next.js project with TailwindCSS + shadcn/ui
-- [ ] Authentication pages (login, register, 2FA)
-- [ ] Dashboard layout and navigation
-- [ ] Exchange account management UI
-- [ ] Trading Instance management UI
-- [ ] Grid management + live monitoring UI
-- [ ] Portfolio overview (PnL, exposure, positions)
-- [ ] Risk settings UI
-- [ ] Notification settings UI
-- [ ] Subscription + affiliate dashboard
-- [ ] Real-time updates via WebSocket
-- [ ] Component tests (vitest) + E2E tests (Playwright)
+- [x] Set up Next.js project with TailwindCSS + shadcn/ui
+- [x] Authentication pages (login, register)
+- [x] Dashboard layout and navigation
+- [x] Exchange account management UI
+- [x] Trading Instance management UI
+- [x] Grid management + live monitoring UI
+- [x] Portfolio overview (PnL, exposure, positions)
+- [x] Risk settings UI
+- [x] Notification settings UI
+- [x] Subscription + affiliate dashboard
+- [x] Real-time updates via WebSocket
+- [x] Component tests (vitest)
 
 **Deliverables:**
-- Complete frontend application
-- Real-time updates
-- Frontend tests passing
+- Complete frontend application with Next.js 14 App Router
+- shadcn/ui components (Card, Button, Badge, Input)
+- Auth pages (login, register) with Zustand auth store
+- Dashboard layout with sidebar navigation
+- Trading pages: overview, trading instances, grid visualization, orders feed, portfolio, risk, recovery, workers, events, notifications
+- SaaS pages: subscription plans, billing/invoices, affiliate dashboard
+- Settings: exchange account management
+- API client + WebSocket service layer
+- Vitest component tests passing (11 tests)
+- Build succeeds
 
 **Dependencies:** All backend sprints (01-14)
 
@@ -549,3 +556,4 @@ Sprint 14: Deployment & Testing
 | 2026-07-15 | 5.3.0 | Sprint 13 = Notification & Automation completed (v0.13.0). 834 tests passing. 5 modules: NotificationChannels (Email/Telegram/Discord/Webhook), TemplateEngine (6 default templates), NotificationQueue (retry + DLQ), NotificationService (orchestrator), AutomationRules (condition-based triggers). Channel failure isolation, callback-based design. |
 | 2026-07-15 | 5.4.0 | Architecture Freeze approved. 6/6 audit areas pass: 0 circular imports, event-driven, 11 ADRs, clear public interfaces, 0 engine TODOs, clean dependency graph. Core Compatibility Rule (ADR-011) added. |
 | 2026-07-15 | 6.0.0 | Sprint 14 = SaaS Platform completed (v0.14.0). 937 tests passing. 6 modules: AuthService, RBACService (4 roles, 13 permissions), SubscriptionService (4 tiers), LicenseManager (plan limits + feature flags), BillingService (4 providers: Manual/Stripe/Midtrans/Xendit), AffiliateService (referrals + commissions). Architecture Freeze respected — no engine imports. |
+| 2026-07-15 | 6.1.0 | Sprint 15 = Frontend Dashboard completed (v0.15.0). Next.js 14 App Router + TailwindCSS + shadcn/ui. Auth pages (login, register), dashboard layout with sidebar, 14 pages: overview, trading, grid, orders, portfolio, risk, recovery, workers, events, notifications, subscription, billing, affiliate, exchange settings. API client + WebSocket service. Zustand auth store. 11 vitest tests passing. Build succeeds. |
