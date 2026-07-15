@@ -488,25 +488,62 @@ Sprint 14: Deployment & Testing
 **Status:** ⏳ Pending
 
 **Goals:**
-- [ ] Docker images for backend + frontend
-- [ ] Kubernetes manifests + Helm charts
-- [ ] CI/CD pipeline (GitHub Actions)
-- [ ] Nginx ingress + TLS
-- [ ] Prometheus + Grafana monitoring
-- [ ] Sentry error tracking
-- [ ] Load testing (k6)
-- [ ] Security audit (OWASP)
-- [ ] Deploy to staging → E2E tests
-- [ ] Deploy to production (blue-green)
-- [ ] Backup automation
+
+**Infrastructure:**
+- [ ] Docker production images (backend + frontend, multi-stage builds)
+- [ ] Docker Compose production configuration
+- [ ] Nginx reverse proxy + HTTPS/TLS
+- [ ] Health check endpoints (liveness + readiness)
+
+**Observability:**
+- [ ] Prometheus metrics (per-engine, per-worker, per-endpoint)
+- [ ] Grafana dashboards (system overview, trading, risk, SaaS)
+- [ ] Structured logging (JSON format, correlation IDs)
+- [ ] OpenTelemetry distributed tracing
+
+**Security:**
+- [ ] Secrets management (env injection, no hardcoded secrets)
+- [ ] API rate limiting
+- [ ] Security headers + CSP
+- [ ] Dependency audit (npm audit + pip audit)
+- [ ] Container vulnerability scan (Trivy)
+- [ ] OWASP Top 10 review
+
+**Database:**
+- [ ] Automated backup schedule
+- [ ] Restore test procedure
+- [ ] Migration validation in CI
+
+**CI/CD:**
+- [ ] GitHub Actions pipeline (test → build → docker image → release → deploy)
+- [ ] Staging deployment from develop branch
+- [ ] Production deployment from main branch (blue-green)
+
+**Performance Benchmarks:**
+- [ ] Load testing with k6 (targets below)
+- [ ] Trading Instances: 10,000+
+- [ ] WebSocket Connections: 5,000+
+- [ ] Orders/sec: 1,000+
+- [ ] Recovery Time: <30 seconds
+- [ ] Dashboard Latency: <200ms
+
+**Disaster Recovery:**
+- [ ] Runbook (incident response procedures)
+- [ ] Failover procedure documentation
+- [ ] Recovery verification test
 
 **Deliverables:**
-- Kubernetes deployment
-- CI/CD pipeline
-- Monitoring and alerting
+- Production Docker images + Docker Compose
+- CI/CD pipeline (GitHub Actions)
+- Monitoring stack (Prometheus + Grafana)
+- Security audit report
+- Load test results with benchmark targets met
+- Disaster recovery runbook
 - Production deployment verified
 
-**Dependencies:** All previous sprints
+**Dependencies:** All previous sprints (01-15)
+
+**Post-Sprint 16:** Release Candidate phase (RC1 → RC2 → Beta → v1.0.0). Focus shifts to bug fixing, load testing, usability, security, and stability — no new features.
 
 ---
 
@@ -520,9 +557,9 @@ Sprint 14: Deployment & Testing
 | ✅ M4: Core Platform Complete | 10 | Full trading cycle + risk management layer |
 | ✅ M5: Resilience Ready | 11 | System can recover from all failure scenarios |
 | ✅ M6: Operational Services Ready | 12 | Worker scheduler, event bus, heartbeat monitoring |
-| M7: SaaS Platform Ready | 14 | Subscription, billing, MLM/affiliate |
-| M8: Product Ready | 15 | Frontend complete with real-time dashboard |
-| M9: Production Live | 16 | Deployed, monitored, and load-tested |
+| ✅ M7: SaaS Platform Ready | 14 | Subscription, billing, MLM/affiliate |
+| ✅ M8: Product Ready | 15 | Frontend complete with real-time dashboard |
+| M9: Production Live | 16 | Deployed, monitored, load-tested, disaster recovery ready |
 
 ---
 
@@ -557,3 +594,4 @@ Sprint 14: Deployment & Testing
 | 2026-07-15 | 5.4.0 | Architecture Freeze approved. 6/6 audit areas pass: 0 circular imports, event-driven, 11 ADRs, clear public interfaces, 0 engine TODOs, clean dependency graph. Core Compatibility Rule (ADR-011) added. |
 | 2026-07-15 | 6.0.0 | Sprint 14 = SaaS Platform completed (v0.14.0). 937 tests passing. 6 modules: AuthService, RBACService (4 roles, 13 permissions), SubscriptionService (4 tiers), LicenseManager (plan limits + feature flags), BillingService (4 providers: Manual/Stripe/Midtrans/Xendit), AffiliateService (referrals + commissions). Architecture Freeze respected — no engine imports. |
 | 2026-07-15 | 6.1.0 | Sprint 15 = Frontend Dashboard completed (v0.15.0). Next.js 14 App Router + TailwindCSS + shadcn/ui. Auth pages (login, register), dashboard layout with sidebar, 14 pages: overview, trading, grid, orders, portfolio, risk, recovery, workers, events, notifications, subscription, billing, affiliate, exchange settings. API client + WebSocket service. Zustand auth store. 11 vitest tests passing. Build succeeds. |
+| 2026-07-15 | 6.2.0 | Sprint 16 scope expanded per user review: Infrastructure (Docker, Nginx, health checks), Observability (Prometheus, Grafana, structured logging, OpenTelemetry), Security (secrets, rate limiting, CSP, dependency audit, Trivy, OWASP Top 10), Database (backup, restore, migration validation), CI/CD (GitHub Actions, blue-green), Performance benchmarks (10k instances, 5k WS, 1k orders/sec, <30s recovery, <200ms dashboard), Disaster recovery (runbook, failover, verification). Post-Sprint 16: RC phase (RC1 → RC2 → Beta → v1.0.0). Milestones M7, M8 marked complete. |
