@@ -418,27 +418,28 @@ Sprint 14: Deployment & Testing
 
 ## PHASE 5: SAAS PLATFORM (Week 14)
 
-### Sprint 14: Authentication & Subscription (SaaS/MLM)
+### Sprint 14: SaaS Platform — Auth, RBAC, Subscription, License, Billing, Affiliate
 **Duration:** Week 14  
-**Layer:** SaaS billing, subscription, affiliate  
-**Status:** ⏳ Pending
+**Layer:** SaaS platform  
+**Status:** ✅ Completed (v0.14.0)
 
 **Goals:**
-- [ ] Subscription plans (Free / Basic / Pro) with limits
-- [ ] Trading Process and Exchange Account limits per plan
-- [ ] License expiry enforcement
-- [ ] Payment integration hooks
-- [ ] Referral/affiliate link generation
-- [ ] MLM commission structure and calculation
-- [ ] Payout management
-- [ ] Commission reports
-- [ ] Write unit and integration tests
+- [x] AuthService — register, login, refresh, password reset, MFA stub
+- [x] RBACService — 4 default roles (user, trader, admin, super_admin) with fine-grained permissions
+- [x] SubscriptionService — Free/Starter/Pro/Enterprise plans, upgrade/downgrade/cancel/renew
+- [x] LicenseManager — plan limits (instances, exchange accounts, symbols, workers) + feature flags
+- [x] BillingService — 4 providers (Manual, Stripe, Midtrans, Xendit), invoice management
+- [x] AffiliateService — referral links, commission tracking, downline, stats
+- [x] Architecture Freeze respected — no engine imports
+- [x] 103 new tests (unit + integration), 937 total passing
 
 **Deliverables:**
-- SubscriptionManager
-- AffiliateEngine
-- CommissionCalculator
-- Subscription + affiliate tests passing
+- 6 SaaS service modules under services/saas/
+- 4 billing providers (Manual, Stripe, Midtrans, Xendit)
+- 4 subscription tiers with plan limits and feature flags
+- RBAC with 4 default roles and 13 permissions
+- Affiliate/MLM system with commission calculation
+- 103 tests (unit + integration), 937 total passing
 
 **Dependencies:** Sprint 02, Sprint 05
 
@@ -546,3 +547,5 @@ Sprint 14: Deployment & Testing
 | 2026-07-15 | 5.1.0 | Sprint 11 = Recovery & Resilience completed (v0.11.0). 704 tests passing. 4-layer architecture: RecoveryCoordinator + ConnectionRecovery + StateRecovery + RuntimeReconciler + RecoveryPersistence. 5 chaos test scenarios (server restart 100 instances, Redis death, WebSocket drop, exchange timeout, order filled during restart). Idempotent recovery, independent layer failure. |
 | 2026-07-15 | 5.2.0 | Sprint 12 = Worker Scheduler & Event Bus completed (v0.12.0). 779 tests passing. 6 modules: EventBus, WorkerManager, JobScheduler, RetryWorker, DeadLetterQueue, HeartbeatMonitor. Event-driven pub/sub, exponential backoff retry, DLQ for failed events, component health monitoring. ADR document created. |
 | 2026-07-15 | 5.3.0 | Sprint 13 = Notification & Automation completed (v0.13.0). 834 tests passing. 5 modules: NotificationChannels (Email/Telegram/Discord/Webhook), TemplateEngine (6 default templates), NotificationQueue (retry + DLQ), NotificationService (orchestrator), AutomationRules (condition-based triggers). Channel failure isolation, callback-based design. |
+| 2026-07-15 | 5.4.0 | Architecture Freeze approved. 6/6 audit areas pass: 0 circular imports, event-driven, 11 ADRs, clear public interfaces, 0 engine TODOs, clean dependency graph. Core Compatibility Rule (ADR-011) added. |
+| 2026-07-15 | 6.0.0 | Sprint 14 = SaaS Platform completed (v0.14.0). 937 tests passing. 6 modules: AuthService, RBACService (4 roles, 13 permissions), SubscriptionService (4 tiers), LicenseManager (plan limits + feature flags), BillingService (4 providers: Manual/Stripe/Midtrans/Xendit), AffiliateService (referrals + commissions). Architecture Freeze respected — no engine imports. |

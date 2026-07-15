@@ -232,3 +232,36 @@ All data types (OrderStatus, GridLevelStatus, Position, etc.) are defined as Pyt
 - Less ambiguity (e.g., `OrderStatus.FILLED` vs `"filled"`)
 - Slightly more code (but less debugging)
 
+---
+
+## ADR-011: Core Compatibility Rule
+
+**Date:** 2026-07-15  
+**Status:** Accepted
+
+### Context
+
+After Architecture Freeze, the trading core (Sprint 1–13) must remain stable. Breaking changes to public interfaces would destabilize all downstream consumers (SaaS, Dashboard, Production). Many projects fail because they break their own foundation while building features on top.
+
+### Decision
+
+Any breaking change to a core engine public interface MUST follow this process:
+
+1. **New ADR** — Document the change, rationale, and impact
+2. **Deprecation** — Mark old interface as deprecated (not removed)
+3. **Migration Guide** — Provide step-by-step migration instructions
+4. **Minimum 1 Release Compatibility** — Old and new interfaces must coexist for at least 1 release cycle
+
+**Never** perform a breaking change directly without this process.
+
+**Scope:** All modules in `engine/` (grid, profit_lock, execution, risk, portfolio, recovery, scheduler, notification, trading).
+
+**Not in scope:** `api/`, `frontend/`, `config/` — these may change freely during Sprint 14–16.
+
+### Consequences
+
+- Core stability is guaranteed for downstream consumers
+- Migration is always possible (no surprise breakages)
+- Deprecation warnings give developers time to adapt
+- Slightly more maintenance (supporting old + new during transition)
+
