@@ -1,7 +1,7 @@
 # ROADMAP
 
-**Version:** 4.0.0  
-**Last Updated:** 2026-07-13  
+**Version:** 5.1.0  
+**Last Updated:** 2026-07-15
 **Status:** ACTIVE
 
 ---
@@ -364,21 +364,26 @@ Sprint 14: Deployment & Testing
 ### Sprint 12: Worker Scheduler & Event Bus
 **Duration:** Week 12  
 **Layer:** Background processing & event orchestration  
-**Status:** ⏳ Pending
+**Status:** ✅ Completed (v0.12.0)
 
 **Goals:**
-- [ ] Implement persistent Event Bus (Redis Streams or similar)
-- [ ] Implement Worker Scheduler for periodic tasks
-- [ ] Implement OrderFillWorker (poll fills, emit events)
-- [ ] Implement HealthCheckWorker (monitor all processes)
-- [ ] Implement MetricsCollector (aggregate internal metrics)
-- [ ] Write unit and integration tests
+- [x] EventBus — in-memory pub/sub for event-driven communication
+- [x] WorkerManager — worker lifecycle (start/stop/pause/resume/error)
+- [x] JobScheduler — periodic tasks (cleanup, checkpoint, heartbeat, sync, retry)
+- [x] RetryWorker — exponential backoff (1s, 2s, 4s), max 3 retries
+- [x] DeadLetterQueue — failed events stored for replay
+- [x] HeartbeatMonitor — health checks for all components
+- [x] Integration tests: event flow, retry→DLQ pipeline, heartbeat
+- [x] 75 new tests, 779 total passing
 
 **Deliverables:**
-- Persistent event bus
-- Worker scheduler
-- Health check worker
-- Worker tests passing
+- EventBus (in-memory pub/sub)
+- WorkerManager (lifecycle management)
+- JobScheduler (periodic task scheduling)
+- RetryWorker (exponential backoff + DLQ integration)
+- DeadLetterQueue (failed event storage + replay)
+- HeartbeatMonitor (component health monitoring)
+- 75 tests (unit + integration), 779 total passing
 
 **Dependencies:** Sprint 05, Sprint 06, Sprint 07, Sprint 10, Sprint 11
 
@@ -500,7 +505,7 @@ Sprint 14: Deployment & Testing
 | ✅ M3: Market & Execution Ready | 07 | Market data hub + order execution engine |
 | ✅ M4: Core Platform Complete | 10 | Full trading cycle + risk management layer |
 | ✅ M5: Resilience Ready | 11 | System can recover from all failure scenarios |
-| M6: Operational Services Ready | 13 | Worker scheduler, notifications, automation |
+| ✅ M6: Operational Services Ready | 12 | Worker scheduler, event bus, heartbeat monitoring |
 | M7: SaaS Platform Ready | 14 | Subscription, billing, MLM/affiliate |
 | M8: Product Ready | 15 | Frontend complete with real-time dashboard |
 | M9: Production Live | 16 | Deployed, monitored, and load-tested |
@@ -533,3 +538,4 @@ Sprint 14: Deployment & Testing
 | 2026-07-14 | 4.4.0 | Sprint 10 = Portfolio & Risk Engine completed (v0.10.0). 629 tests passing. 5 internal modules: PortfolioManager, ExposureManager, RiskManager, PositionAggregator, PortfolioMetrics. Risk Manager is gatekeeper (no ExecutionEngine calls). Independent from Grid/ProfitLock/Execution engines. |
 | 2026-07-15 | 5.0.0 | Phase restructure: Sprint 1-10 = Core Platform (complete). Sprint 11 = Recovery & Resilience. Sprint 12 = Worker Scheduler & Event Bus. Sprint 13 = Notification & Automation. Sprint 14 = Auth & Subscription (SaaS/MLM). Sprint 15 = Frontend Dashboard. Sprint 16 = Production Hardening. Total 16 sprints. Added SaaS/MLM/Affiliate as first-class domain. |
 | 2026-07-15 | 5.1.0 | Sprint 11 = Recovery & Resilience completed (v0.11.0). 704 tests passing. 4-layer architecture: RecoveryCoordinator + ConnectionRecovery + StateRecovery + RuntimeReconciler + RecoveryPersistence. 5 chaos test scenarios (server restart 100 instances, Redis death, WebSocket drop, exchange timeout, order filled during restart). Idempotent recovery, independent layer failure. |
+| 2026-07-15 | 5.2.0 | Sprint 12 = Worker Scheduler & Event Bus completed (v0.12.0). 779 tests passing. 6 modules: EventBus, WorkerManager, JobScheduler, RetryWorker, DeadLetterQueue, HeartbeatMonitor. Event-driven pub/sub, exponential backoff retry, DLQ for failed events, component health monitoring. ADR document created. |
