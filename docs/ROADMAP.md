@@ -331,119 +331,161 @@ Sprint 14: Deployment & Testing
 
 ---
 
-### Sprint 11: Recovery
+### Sprint 11: Recovery & Resilience
 **Duration:** Week 11  
-**Layer:** Error recovery  
+**Layer:** Fault tolerance & state recovery  
 **Status:** ⏳ Pending
 
 **Goals:**
-- [ ] Implement `IRecoveryEngine` and `RecoveryEngine`
-- [ ] Implement state synchronization with exchange
-- [ ] Implement order reconciliation
-- [ ] Implement grid state rebuild
-- [ ] Implement automatic recovery on error
-- [ ] Implement manual recovery trigger
-- [ ] Emit recovery events (`INSTANCE_RECOVERING, INSTANCE_RECOVERED`, etc.)
-- [ ] Write unit tests for reconciliation logic
-- [ ] Write integration tests for recovery scenarios
+- [ ] Recovery of Trading Process state after server restart
+- [ ] Recovery of Grid State (reconcile levels with live exchange orders)
+- [ ] Recovery of Profit Lock State (rebuild from persistent store)
+- [ ] Recovery of Portfolio (rebuild open positions from exchange)
+- [ ] Recovery after Redis restart (reload in-memory state)
+- [ ] Recovery after PostgreSQL restart (reconnect + retry)
+- [ ] Recovery after exchange disconnect (queue orders, replay on reconnect)
+- [ ] Recovery after WebSocket reconnect (re-subscribe, re-sync)
+- [ ] Chaos tests: simulate all failure scenarios
+- [ ] Write unit tests for each recovery path
+- [ ] Write integration tests for full recovery flow
 
 **Deliverables:**
-- Recovery engine
-- Reconciliation logic
-- Recovery events
+- RecoveryManager module
+- StateReconciler (exchange ↔ local state)
+- ChaosTestSuite
 - Recovery tests passing
 
-**Dependencies:** Sprint 05, Sprint 07, Sprint 08
+**Dependencies:** Sprint 05, Sprint 07, Sprint 08, Sprint 09, Sprint 10
 
 ---
 
-## PHASE 4: STRATEGIES & WORKERS (Weeks 12-13)
+## PHASE 4: OPERATIONAL SERVICES (Weeks 12-13)
 
-### Sprint 12: Workers & Tasks
+### Sprint 12: Worker Scheduler & Event Bus
 **Duration:** Week 12  
-**Layer:** Background processing  
+**Layer:** Background processing & event orchestration  
 **Status:** ⏳ Pending
 
 **Goals:**
-- [ ] Implement `IWorker` base class
-- [ ] Implement `OrderWorker` (order fill monitoring)
-- [ ] Implement `PriceWorker` (price update dispatching)
-- [ ] Implement `GridWorker` (grid management)
-- [ ] Implement `NotificationWorker`
-- [ ] Implement `HealthWorker`
-- [ ] Set up Celery for task scheduling
-- [ ] Implement task definitions
-- [ ] Write unit tests for all workers
-- [ ] Write integration tests for task processing
+- [ ] Implement persistent Event Bus (Redis Streams or similar)
+- [ ] Implement Worker Scheduler for periodic tasks
+- [ ] Implement OrderFillWorker (poll fills, emit events)
+- [ ] Implement HealthCheckWorker (monitor all processes)
+- [ ] Implement MetricsCollector (aggregate internal metrics)
+- [ ] Write unit and integration tests
 
 **Deliverables:**
-- All worker implementations
-- Celery task definitions
+- Persistent event bus
+- Worker scheduler
+- Health check worker
 - Worker tests passing
 
-**Dependencies:** Sprint 04, Sprint 05, Sprint 07
+**Dependencies:** Sprint 05, Sprint 06, Sprint 07, Sprint 10, Sprint 11
 
 ---
 
-## PHASE 5: FRONTEND (Week 13)
-
-### Sprint 13: Frontend
+### Sprint 13: Notification & Automation
 **Duration:** Week 13  
+**Layer:** Notification & automated triggers  
+**Status:** ⏳ Pending
+
+**Goals:**
+- [ ] Implement NotificationEngine (Telegram, Email, Webhook)
+- [ ] Implement AlertRule engine (price alerts, PnL alerts, risk alerts)
+- [ ] Implement AutomationEngine (event → action rules)
+- [ ] Write unit and integration tests
+
+**Deliverables:**
+- Notification channels
+- Alert rules
+- Automation engine
+- Notification tests passing
+
+**Dependencies:** Sprint 11, Sprint 12
+
+---
+
+## PHASE 5: SAAS PLATFORM (Week 14)
+
+### Sprint 14: Authentication & Subscription (SaaS/MLM)
+**Duration:** Week 14  
+**Layer:** SaaS billing, subscription, affiliate  
+**Status:** ⏳ Pending
+
+**Goals:**
+- [ ] Subscription plans (Free / Basic / Pro) with limits
+- [ ] Trading Process and Exchange Account limits per plan
+- [ ] License expiry enforcement
+- [ ] Payment integration hooks
+- [ ] Referral/affiliate link generation
+- [ ] MLM commission structure and calculation
+- [ ] Payout management
+- [ ] Commission reports
+- [ ] Write unit and integration tests
+
+**Deliverables:**
+- SubscriptionManager
+- AffiliateEngine
+- CommissionCalculator
+- Subscription + affiliate tests passing
+
+**Dependencies:** Sprint 02, Sprint 05
+
+---
+
+## PHASE 6: FRONTEND & PRODUCTION (Weeks 15-16)
+
+### Sprint 15: Frontend Dashboard
+**Duration:** Week 15  
 **Layer:** User interface  
 **Status:** ⏳ Pending
 
 **Goals:**
-- [ ] Set up Next.js project with TailwindCSS
-- [ ] Implement authentication pages (login, register)
-- [ ] Implement dashboard layout
-- [ ] Implement exchange account management UI
-- [ ] Implement grid profile management UI
-- [ ] Implement Trading Instance management UI
-- [ ] Implement order list and details UI
-- [ ] Implement portfolio overview UI
-- [ ] Implement notification system
-- [ ] Implement WebSocket integration for real-time updates
-- [ ] Implement Zustand stores
-- [ ] Write component tests (vitest)
-- [ ] Write E2E tests (Playwright)
+- [ ] Set up Next.js project with TailwindCSS + shadcn/ui
+- [ ] Authentication pages (login, register, 2FA)
+- [ ] Dashboard layout and navigation
+- [ ] Exchange account management UI
+- [ ] Trading Instance management UI
+- [ ] Grid management + live monitoring UI
+- [ ] Portfolio overview (PnL, exposure, positions)
+- [ ] Risk settings UI
+- [ ] Notification settings UI
+- [ ] Subscription + affiliate dashboard
+- [ ] Real-time updates via WebSocket
+- [ ] Component tests (vitest) + E2E tests (Playwright)
 
 **Deliverables:**
 - Complete frontend application
-- Real-time updates via WebSocket
+- Real-time updates
 - Frontend tests passing
 
-**Dependencies:** All backend sprints (01-12)
+**Dependencies:** All backend sprints (01-14)
 
 ---
 
-## PHASE 6: DEPLOYMENT & TESTING (Week 14)
-
-### Sprint 14: Deployment & Testing
-**Duration:** Week 14  
+### Sprint 16: Production Hardening & Deployment
+**Duration:** Week 16  
 **Layer:** Production readiness  
 **Status:** ⏳ Pending
 
 **Goals:**
-- [ ] Set up Kubernetes manifests
-- [ ] Configure CI/CD pipeline (GitHub Actions)
-- [ ] Set up Docker images for backend and frontend
-- [ ] Configure Nginx ingress
-- [ ] Set up Prometheus and Grafana monitoring
-- [ ] Configure Sentry for error tracking
-- [ ] Set up backup automation
-- [ ] Perform load testing
-- [ ] Perform security audit
-- [ ] Deploy to staging
-- [ ] Run full E2E test suite on staging
+- [ ] Docker images for backend + frontend
+- [ ] Kubernetes manifests + Helm charts
+- [ ] CI/CD pipeline (GitHub Actions)
+- [ ] Nginx ingress + TLS
+- [ ] Prometheus + Grafana monitoring
+- [ ] Sentry error tracking
+- [ ] Load testing (k6)
+- [ ] Security audit (OWASP)
+- [ ] Deploy to staging → E2E tests
 - [ ] Deploy to production (blue-green)
-- [ ] Verify production health
+- [ ] Backup automation
 
 **Deliverables:**
 - Kubernetes deployment
 - CI/CD pipeline
 - Monitoring and alerting
-- Production deployment
-- All tests passing
+- Production deployment verified
 
 **Dependencies:** All previous sprints
 
@@ -453,14 +495,15 @@ Sprint 14: Deployment & Testing
 
 | Milestone | Sprint | Description |
 |-----------|--------|-------------|
-| M1: Foundation Complete | 04 | Core infrastructure, DB, kernel, event bus |
-| M2: Exchange Ready | 05 | Can connect to exchanges, manage trading process lifecycle |
-| M3: Market & Execution Ready | 07 | Market data hub + order execution engine |
-| M4: Trading Engine Complete | 11 | Full trading cycle: grid, execute, profit lock, recover |
-| M5: Strategies Ready | 10 | All strategies implemented and tested |
-| M6: System Complete | 12 | All backend layers done |
-| M7: Product Ready | 13 | Frontend complete |
-| M8: Production Live | 14 | Deployed and monitored |
+| ✅ M1: Foundation Complete | 04 | Core infrastructure, DB, kernel, event bus |
+| ✅ M2: Exchange Ready | 05 | Can connect to exchanges, manage trading process lifecycle |
+| ✅ M3: Market & Execution Ready | 07 | Market data hub + order execution engine |
+| ✅ M4: Core Platform Complete | 10 | Full trading cycle + risk management layer |
+| 🚀 M5: Resilience Ready | 11 | System can recover from all failure scenarios |
+| M6: Operational Services Ready | 13 | Worker scheduler, notifications, automation |
+| M7: SaaS Platform Ready | 14 | Subscription, billing, MLM/affiliate |
+| M8: Product Ready | 15 | Frontend complete with real-time dashboard |
+| M9: Production Live | 16 | Deployed, monitored, and load-tested |
 
 ---
 
@@ -488,3 +531,4 @@ Sprint 14: Deployment & Testing
 | 2026-07-14 | 4.2.0 | Sprint 8 = Grid Engine completed (v0.8.0). 473 tests passing. 5 internal modules: GridCalculator, GridPlanner, GridStateMachine/GridStateStore, GridEngine, GridPersistence. Event-driven price updates, no direct exchange access, no polling. |
 | 2026-07-14 | 4.3.0 | Sprint 9 = Profit Lock Engine completed (v0.9.0). 555 tests passing. 5 internal modules: ProfitCalculator, ProfitLockPolicy, ProfitLockStateMachine/GridStateStore, ProfitLockEngine, ProfitPersistence. Independent from Grid Engine, event-driven, internal metrics for observability. |
 | 2026-07-14 | 4.4.0 | Sprint 10 = Portfolio & Risk Engine completed (v0.10.0). 629 tests passing. 5 internal modules: PortfolioManager, ExposureManager, RiskManager, PositionAggregator, PortfolioMetrics. Risk Manager is gatekeeper (no ExecutionEngine calls). Independent from Grid/ProfitLock/Execution engines. |
+| 2026-07-15 | 5.0.0 | Phase restructure: Sprint 1-10 = Core Platform (complete). Sprint 11 = Recovery & Resilience. Sprint 12 = Worker Scheduler & Event Bus. Sprint 13 = Notification & Automation. Sprint 14 = Auth & Subscription (SaaS/MLM). Sprint 15 = Frontend Dashboard. Sprint 16 = Production Hardening. Total 16 sprints. Added SaaS/MLM/Affiliate as first-class domain. |
