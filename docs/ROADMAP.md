@@ -334,26 +334,26 @@ Sprint 14: Deployment & Testing
 ### Sprint 11: Recovery & Resilience
 **Duration:** Week 11  
 **Layer:** Fault tolerance & state recovery  
-**Status:** ⏳ Pending
+**Status:** ✅ Completed (v0.11.0)
 
 **Goals:**
-- [ ] Recovery of Trading Process state after server restart
-- [ ] Recovery of Grid State (reconcile levels with live exchange orders)
-- [ ] Recovery of Profit Lock State (rebuild from persistent store)
-- [ ] Recovery of Portfolio (rebuild open positions from exchange)
-- [ ] Recovery after Redis restart (reload in-memory state)
-- [ ] Recovery after PostgreSQL restart (reconnect + retry)
-- [ ] Recovery after exchange disconnect (queue orders, replay on reconnect)
-- [ ] Recovery after WebSocket reconnect (re-subscribe, re-sync)
-- [ ] Chaos tests: simulate all failure scenarios
-- [ ] Write unit tests for each recovery path
-- [ ] Write integration tests for full recovery flow
+- [x] RecoveryCoordinator orchestrates 4 layers (NOT a God Object)
+- [x] Layer 1: ConnectionRecovery — Redis, PostgreSQL, Exchange, WebSocket
+- [x] Layer 2: StateRecovery — Trading Process, Grid, Profit Lock, Portfolio
+- [x] Layer 3: RuntimeReconciler — exchange vs local state sync
+- [x] RecoveryPersistence — checkpoint save/load for resumability
+- [x] Chaos tests: server restart (100 instances), Redis death, WebSocket drop, exchange timeout, order filled during restart
+- [x] All recovery operations are idempotent
+- [x] Each layer fails independently without blocking others
+- [x] 75 new tests (unit + chaos), 704 total passing
 
 **Deliverables:**
-- RecoveryManager module
-- StateReconciler (exchange ↔ local state)
-- ChaosTestSuite
-- Recovery tests passing
+- RecoveryCoordinator (orchestrator)
+- ConnectionRecovery (Layer 1)
+- StateRecovery (Layer 2)
+- RuntimeReconciler (Layer 3)
+- RecoveryPersistence (checkpoints)
+- 75 tests (unit + chaos), 704 total passing
 
 **Dependencies:** Sprint 05, Sprint 07, Sprint 08, Sprint 09, Sprint 10
 
@@ -499,7 +499,7 @@ Sprint 14: Deployment & Testing
 | ✅ M2: Exchange Ready | 05 | Can connect to exchanges, manage trading process lifecycle |
 | ✅ M3: Market & Execution Ready | 07 | Market data hub + order execution engine |
 | ✅ M4: Core Platform Complete | 10 | Full trading cycle + risk management layer |
-| 🚀 M5: Resilience Ready | 11 | System can recover from all failure scenarios |
+| ✅ M5: Resilience Ready | 11 | System can recover from all failure scenarios |
 | M6: Operational Services Ready | 13 | Worker scheduler, notifications, automation |
 | M7: SaaS Platform Ready | 14 | Subscription, billing, MLM/affiliate |
 | M8: Product Ready | 15 | Frontend complete with real-time dashboard |
@@ -532,3 +532,4 @@ Sprint 14: Deployment & Testing
 | 2026-07-14 | 4.3.0 | Sprint 9 = Profit Lock Engine completed (v0.9.0). 555 tests passing. 5 internal modules: ProfitCalculator, ProfitLockPolicy, ProfitLockStateMachine/GridStateStore, ProfitLockEngine, ProfitPersistence. Independent from Grid Engine, event-driven, internal metrics for observability. |
 | 2026-07-14 | 4.4.0 | Sprint 10 = Portfolio & Risk Engine completed (v0.10.0). 629 tests passing. 5 internal modules: PortfolioManager, ExposureManager, RiskManager, PositionAggregator, PortfolioMetrics. Risk Manager is gatekeeper (no ExecutionEngine calls). Independent from Grid/ProfitLock/Execution engines. |
 | 2026-07-15 | 5.0.0 | Phase restructure: Sprint 1-10 = Core Platform (complete). Sprint 11 = Recovery & Resilience. Sprint 12 = Worker Scheduler & Event Bus. Sprint 13 = Notification & Automation. Sprint 14 = Auth & Subscription (SaaS/MLM). Sprint 15 = Frontend Dashboard. Sprint 16 = Production Hardening. Total 16 sprints. Added SaaS/MLM/Affiliate as first-class domain. |
+| 2026-07-15 | 5.1.0 | Sprint 11 = Recovery & Resilience completed (v0.11.0). 704 tests passing. 4-layer architecture: RecoveryCoordinator + ConnectionRecovery + StateRecovery + RuntimeReconciler + RecoveryPersistence. 5 chaos test scenarios (server restart 100 instances, Redis death, WebSocket drop, exchange timeout, order filled during restart). Idempotent recovery, independent layer failure. |
