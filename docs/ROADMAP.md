@@ -392,19 +392,25 @@ Sprint 14: Deployment & Testing
 ### Sprint 13: Notification & Automation
 **Duration:** Week 13  
 **Layer:** Notification & automated triggers  
-**Status:** ⏳ Pending
+**Status:** ✅ Completed (v0.13.0)
 
 **Goals:**
-- [ ] Implement NotificationEngine (Telegram, Email, Webhook)
-- [ ] Implement AlertRule engine (price alerts, PnL alerts, risk alerts)
-- [ ] Implement AutomationEngine (event → action rules)
-- [ ] Write unit and integration tests
+- [x] NotificationChannels — Email, Telegram, Discord, Webhook (callback-based)
+- [x] TemplateEngine — 6 default templates with {variable} substitution + channel-specific formatting
+- [x] NotificationQueue — async queue with retry (max 3) → DLQ
+- [x] NotificationService — orchestrates channels + templates + queue
+- [x] AutomationRules — condition-based notification triggers
+- [x] Channel failure does NOT block other channels
+- [x] Notification failure does NOT block trading
+- [x] 55 new tests (unit + integration), 834 total passing
 
 **Deliverables:**
-- Notification channels
-- Alert rules
-- Automation engine
-- Notification tests passing
+- 4 notification channels (Email, Telegram, Discord, Webhook)
+- TemplateEngine with 6 default templates
+- NotificationQueue with retry + DLQ support
+- NotificationService orchestrator
+- AutomationRules engine
+- 55 tests (unit + integration), 834 total passing
 
 **Dependencies:** Sprint 11, Sprint 12
 
@@ -539,3 +545,4 @@ Sprint 14: Deployment & Testing
 | 2026-07-15 | 5.0.0 | Phase restructure: Sprint 1-10 = Core Platform (complete). Sprint 11 = Recovery & Resilience. Sprint 12 = Worker Scheduler & Event Bus. Sprint 13 = Notification & Automation. Sprint 14 = Auth & Subscription (SaaS/MLM). Sprint 15 = Frontend Dashboard. Sprint 16 = Production Hardening. Total 16 sprints. Added SaaS/MLM/Affiliate as first-class domain. |
 | 2026-07-15 | 5.1.0 | Sprint 11 = Recovery & Resilience completed (v0.11.0). 704 tests passing. 4-layer architecture: RecoveryCoordinator + ConnectionRecovery + StateRecovery + RuntimeReconciler + RecoveryPersistence. 5 chaos test scenarios (server restart 100 instances, Redis death, WebSocket drop, exchange timeout, order filled during restart). Idempotent recovery, independent layer failure. |
 | 2026-07-15 | 5.2.0 | Sprint 12 = Worker Scheduler & Event Bus completed (v0.12.0). 779 tests passing. 6 modules: EventBus, WorkerManager, JobScheduler, RetryWorker, DeadLetterQueue, HeartbeatMonitor. Event-driven pub/sub, exponential backoff retry, DLQ for failed events, component health monitoring. ADR document created. |
+| 2026-07-15 | 5.3.0 | Sprint 13 = Notification & Automation completed (v0.13.0). 834 tests passing. 5 modules: NotificationChannels (Email/Telegram/Discord/Webhook), TemplateEngine (6 default templates), NotificationQueue (retry + DLQ), NotificationService (orchestrator), AutomationRules (condition-based triggers). Channel failure isolation, callback-based design. |
