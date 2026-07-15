@@ -107,7 +107,7 @@ class ProfitLockEngine:
         # Cancel lock order if executing
         if state.status == ProfitLockStatus.EXECUTING and state.lock_order_id:
             try:
-                await self._exec.cancel_order(state.exchange_account_id, state.lock_order_id)
+                await self._exec.cancel_order(state.exchange_account_id, state.lock_order_id)  # type: ignore[arg-type]
             except Exception as exc:
                 logger.warning(f"Failed to cancel lock order: {exc}")
                 self._store.get_metrics(instance_id).record_error()

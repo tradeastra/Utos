@@ -7,6 +7,7 @@ Computes net position (long - short).
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from decimal import Decimal
 
@@ -30,7 +31,7 @@ class PositionAggregator:
 
     @staticmethod
     def _aggregate(
-        positions: list[Position], key_func: callable
+        positions: list[Position], key_func: Callable[[Position], str]
     ) -> dict[str, AggregatedPosition]:
         groups: dict[str, list[Position]] = {}
         for pos in positions:
