@@ -1,0 +1,18 @@
+{
+  "name": "utos-load-tests",
+  "version": "1.0.0",
+  "description": "k6 load and stress tests for UTOS Trading Engine",
+  "scripts": {
+    "api:500": "k6 run --vus 500 --duration 5m tests/load/api-load.js",
+    "api:1000": "k6 run --vus 1000 --duration 5m tests/load/api-load.js",
+    "api:2500": "k6 run --vus 2500 --duration 5m tests/load/api-load.js",
+    "api:5000": "k6 run --vus 5000 --duration 10m tests/load/api-load.js",
+    "api:10000": "k6 run --vus 10000 --duration 10m tests/load/api-load.js",
+    "ws:1000": "k6 run --vus 1000 --duration 5m tests/load/ws-stress.js",
+    "ws:2500": "k6 run --vus 2500 --duration 5m tests/load/ws-stress.js",
+    "ws:5000": "k6 run --vus 5000 --duration 10m tests/load/ws-stress.js",
+    "soak:24h": "k6 run --vus 100 --duration 24h tests/load/soak.js",
+    "soak:48h": "k6 run --vus 200 --duration 48h tests/load/soak.js",
+    "soak:72h": "k6 run --vus 500 --duration 72h tests/load/soak.js"
+  }
+}
