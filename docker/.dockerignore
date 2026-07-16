@@ -1,0 +1,54 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Docker
+docker/
+docker-compose*.yml
+
+# Documentation
+docs/
+*.md
+LICENSE
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Node
+node_modules/
+.next/
+.npm/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Tests (not needed in production image)
+backend/tests/
+frontend/lib/*.test.*
+
+# CI
+.github/
+.pre-commit-config.yaml
+
+# Misc
+Makefile
+scripts/
+tools/
+infrastructure/

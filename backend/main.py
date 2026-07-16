@@ -140,6 +140,48 @@ async def health() -> dict:
     return JSONResponse(content=payload, status_code=http_status)
 
 
+@app.get("/live", tags=["health"])
+async def liveness() -> dict:
+    """Liveness probe — process is alive and can handle requests."""
+    return JSONResponse(
+        content={
+            "status": "alive",
+            "version": settings.VERSION,
+            "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+        },
+        status_code=200,
+    )
+
+
+@app.get("/ready", tags=["health"])
+async def readiness() -> dict:
+    """Readiness probe — all dependencies are connected and ready to serve."""
+    from database.base import get_engine
+    from sqlalchemy import text
+
+    db_ok = False
+    try:
+        engine = get_engine()
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        db_ok = True
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("DB readiness check failed", extra={"error": str(exc)})
+
+    redis_ok = await redis_ping()
+
+    ready = db_ok and redis_ok
+    http_status = 200 if ready else 503
+
+    payload = {
+        "status": "ready" if ready else "not_ready",
+        "version": settings.VERSION,
+        "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+        "services": {"database": db_ok, "redis": redis_ok},
+    }
+    return JSONResponse(content=payload, status_code=http_status)
+
+
 @app.get("/", tags=["root"])
 async def root() -> dict:
     return {"message": "UTOS Trading Engine API", "version": settings.VERSION, "docs": "/docs"}

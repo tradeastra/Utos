@@ -1,0 +1,28 @@
+# ─────────────────────────────────────────────
+# Sprint 16A-4: Generate self-signed TLS certs
+# For staging only — use Let's Encrypt in production
+# ─────────────────────────────────────────────
+
+[req]
+default_bits = 2048
+prompt = no
+default_md = sha256
+distinguished_name = dn
+req_extensions = req_ext
+
+[dn]
+C = ID
+ST = Jakarta
+L = Jakarta
+O = UTOS
+OU = Engineering
+CN = localhost
+
+[req_ext]
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = localhost
+DNS.2 = *.localhost
+DNS.3 = utos.local
+IP.1 = 127.0.0.1

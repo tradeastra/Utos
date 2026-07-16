@@ -31,6 +31,23 @@ class TestHealth:
         assert "database" in body["services"]
         assert "redis" in body["services"]
 
+    async def test_live_endpoint(self, client: AsyncClient):
+        r = await client.get("/live")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["status"] == "alive"
+        assert "version" in body
+        assert "timestamp" in body
+
+    async def test_ready_endpoint(self, client: AsyncClient):
+        r = await client.get("/ready")
+        assert r.status_code in (200, 503)
+        body = r.json()
+        assert body["status"] in ("ready", "not_ready")
+        assert "services" in body
+        assert "database" in body["services"]
+        assert "redis" in body["services"]
+
 
 @pytest.mark.asyncio
 class TestAuthRegister:
