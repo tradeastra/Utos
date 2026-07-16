@@ -1,0 +1,53 @@
+{
+  "annotations": { "list": [] },
+  "title": "UTOS Market",
+  "uid": "utos-market",
+  "schemaVersion": 39,
+  "version": 1,
+  "tags": ["utos", "market"],
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "title": "WebSocket Connections",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [{ "expr": "utos_ws_connections", "legendFormat": "connections" }],
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 0 }
+    },
+    {
+      "title": "Reconnect Count",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [{ "expr": "utos_ws_reconnect_total", "legendFormat": "reconnects" }],
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 0 }
+    },
+    {
+      "title": "Market Latency P95 (ms)",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [{ "expr": "histogram_quantile(0.95, sum(rate(utos_market_latency_ms_bucket[5m])) by (le))", "legendFormat": "p95" }],
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 0 }
+    },
+    {
+      "title": "WebSocket Connections Over Time",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [{ "expr": "utos_ws_connections", "legendFormat": "connections" }],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 }
+    },
+    {
+      "title": "Reconnects Over Time",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [{ "expr": "rate(utos_ws_reconnect_total[5m])", "legendFormat": "reconnects/s" }],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 }
+    },
+    {
+      "title": "Market Latency by Symbol",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [{ "expr": "histogram_quantile(0.95, sum(rate(utos_market_latency_ms_bucket[5m])) by (le, symbol))", "legendFormat": "{{symbol}} p95" }],
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 }
+    }
+  ]
+}

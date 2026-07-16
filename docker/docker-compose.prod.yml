@@ -47,6 +47,8 @@ services:
       DEBUG: "false"
       LOG_FORMAT: json
       CORS_ORIGINS: ${CORS_ORIGINS:-https://localhost}
+      OTEL_ENABLED: ${OTEL_ENABLED:-false}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4317
     depends_on:
       postgres:
         condition: service_healthy
@@ -107,11 +109,94 @@ services:
       retries: 5
       start_period: 10s
 
+  # ── Observability: Prometheus ──────────────
+  prometheus:
+    image: prom/prometheus:latest
+    restart: always
+    volumes:
+      - ../monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - backend-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9090/-/healthy || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ── Observability: Grafana ─────────────────
+  grafana:
+    image: grafana/grafana:latest
+    restart: always
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ../monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "${GRAFANA_PORT:-3001}:3000"
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    networks:
+      - backend-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ── Observability: Tempo (tracing) ─────────
+  tempo:
+    image: grafana/tempo:latest
+    restart: always
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ../monitoring/tempo.yaml:/etc/tempo.yaml:ro
+      - tempo_data:/var/tempo
+    networks:
+      - backend-net
+
+  # ── Exporters ──────────────────────────────
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    restart: always
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER:-utos}:${POSTGRES_PASSWORD:-utos_prod_password}@postgres:5432/${POSTGRES_DB:-utos}?sslmode=disable"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend-net
+
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    restart: always
+    environment:
+      REDIS_ADDR: "redis://redis:6379"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - backend-net
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    restart: always
+    networks:
+      - backend-net
+
 volumes:
   postgres_data:
   redis_data:
   nginx_certs:
   nginx_logs:
+  prometheus_data:
+  grafana_data:
+  tempo_data:
 
 networks:
   frontend-net:

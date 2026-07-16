@@ -15,6 +15,9 @@ from api.v1 import api_router
 from core.config import settings
 from core.exceptions import AuthenticationError, AuthorizationError, UTOSException
 from core.logging import get_logger, setup_logging
+from core.metrics import init_metrics, get_metrics, METRICS_CONTENT_TYPE
+from core.middleware import CorrelationIdMiddleware, MetricsMiddleware
+from core.tracing import init_telemetry, shutdown_telemetry
 from database.base import close_engine, get_engine, init_engine
 from database.redis_client import close_redis, init_redis, redis_ping
 from engine import ExecutionEngine
@@ -51,14 +54,19 @@ async def lifespan(app: FastAPI):
     """Startup: init DB engine + Redis, recover trading processes, start Market Hub and Execution Engine. Shutdown: close all."""
     global market_hub, execution_engine
     logger.info("Starting UTOS Trading Engine", extra={"version": settings.VERSION})
+    init_metrics()
     init_engine()
     await init_redis()
     await _recover_trading_processes()
     market_hub = MarketHub()
     await market_hub.start()
     execution_engine = ExecutionEngine()
+    if settings.OTEL_ENABLED:
+        init_telemetry(app)
     yield
     logger.info("Shutting down UTOS Trading Engine")
+    if settings.OTEL_ENABLED:
+        shutdown_telemetry()
     if market_hub is not None:
         await market_hub.stop()
         market_hub = None
@@ -83,6 +91,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(CorrelationIdMiddleware)
+app.add_middleware(MetricsMiddleware)
 
 
 def _error_response(status_code: int, code: str, message: str, details: Any = None) -> JSONResponse:
@@ -109,6 +119,13 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
 
 
 app.include_router(api_router, prefix="/api/v1")
+
+
+@app.get("/metrics", tags=["monitoring"])
+async def metrics():
+    """Prometheus metrics endpoint."""
+    from fastapi import Response
+    return Response(content=get_metrics(), media_type=METRICS_CONTENT_TYPE)
 
 
 @app.get("/health", tags=["health"])

@@ -1,0 +1,53 @@
+{
+  "annotations": { "list": [] },
+  "title": "UTOS Trading",
+  "uid": "utos-trading",
+  "schemaVersion": 39,
+  "version": 1,
+  "tags": ["utos", "trading"],
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "title": "Active Trading Instances",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [{ "expr": "utos_trading_instances_active", "legendFormat": "{{status}}" }],
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 0 }
+    },
+    {
+      "title": "Orders/sec",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [{ "expr": "sum(rate(utos_orders_total[1m]))", "legendFormat": "orders/s" }],
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 0 }
+    },
+    {
+      "title": "Failed Orders",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [{ "expr": "sum(utos_orders_failed_total)", "legendFormat": "failed" }],
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 0 }
+    },
+    {
+      "title": "Orders Over Time",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [{ "expr": "sum(rate(utos_orders_total[1m])) by (status)", "legendFormat": "{{status}}" }],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 }
+    },
+    {
+      "title": "Order Duration (ms)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [{ "expr": "histogram_quantile(0.95, sum(rate(utos_order_duration_ms_bucket[5m])) by (le))", "legendFormat": "p95" }],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 }
+    },
+    {
+      "title": "Filled vs Failed Orders",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [{ "expr": "sum(utos_orders_total{status=\"filled\"})", "legendFormat": "filled" }, { "expr": "sum(utos_orders_failed_total)", "legendFormat": "failed" }],
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 }
+    }
+  ]
+}

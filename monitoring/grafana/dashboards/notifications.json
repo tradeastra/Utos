@@ -1,0 +1,53 @@
+{
+  "annotations": { "list": [] },
+  "title": "UTOS Notifications",
+  "uid": "utos-notifications",
+  "schemaVersion": 39,
+  "version": 1,
+  "tags": ["utos", "notification"],
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "title": "Queue Length",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [{ "expr": "utos_notification_queue_length", "legendFormat": "queue" }],
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 0 }
+    },
+    {
+      "title": "Success Rate",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [{ "expr": "sum(rate(utos_notification_total{result=\"success\"}[5m])) / sum(rate(utos_notification_total[5m]))", "legendFormat": "success rate" }],
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 0 }
+    },
+    {
+      "title": "Failed Notifications",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [{ "expr": "sum(utos_notification_total{result=\"failed\"})", "legendFormat": "failed" }],
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 0 }
+    },
+    {
+      "title": "Notifications by Channel",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [{ "expr": "sum(rate(utos_notification_total[5m])) by (channel)", "legendFormat": "{{channel}}" }],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 }
+    },
+    {
+      "title": "Success vs Failed",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [{ "expr": "sum(rate(utos_notification_total{result=\"success\"}[5m]))", "legendFormat": "success" }, { "expr": "sum(rate(utos_notification_total{result=\"failed\"}[5m]))", "legendFormat": "failed" }],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 }
+    },
+    {
+      "title": "Queue Length Over Time",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [{ "expr": "utos_notification_queue_length", "legendFormat": "queue" }],
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 }
+    }
+  ]
+}

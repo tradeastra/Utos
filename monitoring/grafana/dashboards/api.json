@@ -1,0 +1,57 @@
+{
+  "annotations": { "list": [] },
+  "title": "UTOS API",
+  "uid": "utos-api",
+  "schemaVersion": 39,
+  "version": 1,
+  "tags": ["utos", "api"],
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "title": "Requests/sec",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [{ "expr": "sum(rate(utos_http_requests_total[1m]))", "legendFormat": "req/s" }],
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 0 }
+    },
+    {
+      "title": "P95 Latency (ms)",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [{ "expr": "histogram_quantile(0.95, sum(rate(utos_http_request_duration_ms_bucket[5m])) by (le))", "legendFormat": "p95" }],
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 0 }
+    },
+    {
+      "title": "Error Rate %",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [{ "expr": "sum(rate(utos_http_requests_total{status=~\"5..\"}[5m])) / sum(rate(utos_http_requests_total[5m])) * 100", "legendFormat": "error %" }],
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 0 }
+    },
+    {
+      "title": "Requests by Endpoint",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [{ "expr": "sum(rate(utos_http_requests_total[1m])) by (endpoint)", "legendFormat": "{{endpoint}}" }],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 }
+    },
+    {
+      "title": "Latency Distribution",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(utos_http_request_duration_ms_bucket[5m])) by (le))", "legendFormat": "p50" },
+        { "expr": "histogram_quantile(0.95, sum(rate(utos_http_request_duration_ms_bucket[5m])) by (le))", "legendFormat": "p95" },
+        { "expr": "histogram_quantile(0.99, sum(rate(utos_http_request_duration_ms_bucket[5m])) by (le))", "legendFormat": "p99" }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 }
+    },
+    {
+      "title": "Status Code Distribution",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [{ "expr": "sum(rate(utos_http_requests_total[1m])) by (status)", "legendFormat": "{{status}}" }],
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 }
+    }
+  ]
+}
