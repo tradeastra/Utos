@@ -485,52 +485,62 @@ Sprint 14: Deployment & Testing
 ### Sprint 16: Production Hardening & Deployment
 **Duration:** Week 16  
 **Layer:** Production readiness  
-**Status:** ⏳ Pending
+**Status:** ⏳ Pending  
+**Sub-Phases:** 16A–16G (incremental implementation, each must pass acceptance before next)
 
-**Goals:**
+**Sub-Phase Structure:**
+```
+16A: Infrastructure     → docker compose up → system healthy
+16B: Observability      → Grafana shows all dashboards
+16C: Security           → 0 critical vulnerabilities
+16D: Database           → backup → restore → all data back
+16E: CI/CD              → one push → automatic deployment
+16F: Performance        → load test meets all targets
+16G: Disaster Recovery  → chaos tests pass (Redis, PG, Exchange kill)
+```
 
-**Infrastructure:**
-- [ ] Docker production images (backend + frontend, multi-stage builds)
-- [ ] Docker Compose production configuration
-- [ ] Nginx reverse proxy + HTTPS/TLS
+**16A — Infrastructure:**
+- [ ] Docker multi-stage builds (backend + frontend, non-root, minimal base images)
+- [ ] docker-compose.prod.yml (backend, frontend, postgres, redis, nginx, prometheus, grafana)
+- [ ] Nginx reverse proxy + TLS + WebSocket proxy + gzip
 - [ ] Health check endpoints (liveness + readiness)
 
-**Observability:**
-- [ ] Prometheus metrics (per-engine, per-worker, per-endpoint)
-- [ ] Grafana dashboards (system overview, trading, risk, SaaS)
-- [ ] Structured logging (JSON format, correlation IDs)
+**16B — Observability:**
+- [ ] Prometheus metrics (engine, worker, SaaS, system)
+- [ ] Grafana dashboards (system, trading, risk, SaaS, workers)
+- [ ] Structured logging (JSON, correlation IDs)
 - [ ] OpenTelemetry distributed tracing
 
-**Security:**
-- [ ] Secrets management (env injection, no hardcoded secrets)
-- [ ] API rate limiting
-- [ ] Security headers + CSP
-- [ ] Dependency audit (npm audit + pip audit)
-- [ ] Container vulnerability scan (Trivy)
+**16C — Security:**
+- [ ] Secrets management (env vars, .env.example, no hardcoded secrets)
+- [ ] API rate limiting (Redis sliding window, 429 + Retry-After)
+- [ ] Security headers + CSP (HSTS, X-Content-Type-Options, X-Frame-Options)
+- [ ] Dependency audit (pip audit + npm audit, 0 high/critical)
+- [ ] Container scan (Trivy, 0 CRITICAL)
 - [ ] OWASP Top 10 review
 
-**Database:**
-- [ ] Automated backup schedule
-- [ ] Restore test procedure
-- [ ] Migration validation in CI
+**16D — Database:**
+- [ ] Automated backup (pg_dump cron + WAL, 30-day retention, encrypted)
+- [ ] Restore test procedure (RTO <30min, RPO <1hr)
+- [ ] Migration validation in CI (upgrade/downgrade/upgrade idempotency)
 
-**CI/CD:**
-- [ ] GitHub Actions pipeline (test → build → docker image → release → deploy)
-- [ ] Staging deployment from develop branch
-- [ ] Production deployment from main branch (blue-green)
+**16E — CI/CD:**
+- [ ] GitHub Actions pipeline (lint → test → build → scan → push → deploy)
+- [ ] Staging auto-deploy from develop
+- [ ] Production blue-green deploy from main (manual approval)
 
-**Performance Benchmarks:**
-- [ ] Load testing with k6 (targets below)
-- [ ] Trading Instances: 10,000+
-- [ ] WebSocket Connections: 5,000+
-- [ ] Orders/sec: 1,000+
-- [ ] Recovery Time: <30 seconds
-- [ ] Dashboard Latency: <200ms
+**16F — Performance:**
+- [ ] k6 load tests (scripts in tests/load/, report in docs/releases/)
+- [ ] Trading Instances: >= 10,000
+- [ ] WebSocket Connections: >= 5,000
+- [ ] Orders/sec: >= 1,000
+- [ ] Dashboard API latency: < 200ms
+- [ ] Recovery time: < 30 sec
 
-**Disaster Recovery:**
-- [ ] Runbook (incident response procedures)
-- [ ] Failover procedure documentation
-- [ ] Recovery verification test
+**16G — Disaster Recovery:**
+- [ ] Runbook (SEV1-SEV4, on-call, escalation, post-mortem template)
+- [ ] Failover procedures (DB, Redis, worker, exchange)
+- [ ] Chaos tests: Kill Redis → PASS, Kill PostgreSQL → PASS, Kill Exchange → PASS, Kill All Workers → PASS
 
 **Deliverables:**
 - Production Docker images + Docker Compose
@@ -538,12 +548,29 @@ Sprint 14: Deployment & Testing
 - Monitoring stack (Prometheus + Grafana)
 - Security audit report
 - Load test results with benchmark targets met
-- Disaster recovery runbook
+- Disaster recovery runbook + chaos test proof
 - Production deployment verified
 
 **Dependencies:** All previous sprints (01-15)
 
-**Post-Sprint 16:** Release Candidate phase (RC1 → RC2 → Beta → v1.0.0). Focus shifts to bug fixing, load testing, usability, security, and stability — no new features.
+**Pre-RC Checklist (all must pass before RC phase):**
+- [ ] All tests pass
+- [ ] Coverage >= 90%
+- [ ] mypy clean
+- [ ] ruff clean (including old warnings resolved)
+- [ ] No circular dependencies
+- [ ] No critical TODO/FIXME
+- [ ] Trivy: 0 unmitigated Critical/High
+- [ ] OWASP Top 10 reviewed
+- [ ] Load test meets all targets
+- [ ] Disaster recovery verified
+- [ ] Deployment documentation complete
+
+**Post-Sprint 16:** Release Candidate phase:
+```
+v0.16.0 → RC1 (internal test) → RC2 (closed beta) → beta (open beta) → v1.0.0 (GA)
+```
+Focus: bug fixing, load testing, usability, security, stability — no new features.
 
 ---
 
@@ -595,3 +622,4 @@ Sprint 14: Deployment & Testing
 | 2026-07-15 | 6.0.0 | Sprint 14 = SaaS Platform completed (v0.14.0). 937 tests passing. 6 modules: AuthService, RBACService (4 roles, 13 permissions), SubscriptionService (4 tiers), LicenseManager (plan limits + feature flags), BillingService (4 providers: Manual/Stripe/Midtrans/Xendit), AffiliateService (referrals + commissions). Architecture Freeze respected — no engine imports. |
 | 2026-07-15 | 6.1.0 | Sprint 15 = Frontend Dashboard completed (v0.15.0). Next.js 14 App Router + TailwindCSS + shadcn/ui. Auth pages (login, register), dashboard layout with sidebar, 14 pages: overview, trading, grid, orders, portfolio, risk, recovery, workers, events, notifications, subscription, billing, affiliate, exchange settings. API client + WebSocket service. Zustand auth store. 11 vitest tests passing. Build succeeds. |
 | 2026-07-15 | 6.2.0 | Sprint 16 scope expanded per user review: Infrastructure (Docker, Nginx, health checks), Observability (Prometheus, Grafana, structured logging, OpenTelemetry), Security (secrets, rate limiting, CSP, dependency audit, Trivy, OWASP Top 10), Database (backup, restore, migration validation), CI/CD (GitHub Actions, blue-green), Performance benchmarks (10k instances, 5k WS, 1k orders/sec, <30s recovery, <200ms dashboard), Disaster recovery (runbook, failover, verification). Post-Sprint 16: RC phase (RC1 → RC2 → Beta → v1.0.0). Milestones M7, M8 marked complete. |
+| 2026-07-16 | 6.3.0 | Sprint 16 restructured into 7 sub-phases (16A-16G) per user review: 16A Infrastructure, 16B Observability, 16C Security, 16D Database, 16E CI/CD, 16F Performance, 16G Disaster Recovery. Each sub-phase has independent acceptance criteria. Pre-RC checklist added (11 items: tests, coverage >=90%, mypy, ruff, no circular deps, no critical TODO, Trivy clean, OWASP, load test, DR verified, docs). RC phase expanded: v0.16.0 → RC1 → RC2 → Beta → v1.0.0. |
