@@ -148,3 +148,42 @@ groups:
         annotations:
           summary: "Notification failure rate above 20%"
           description: "Notification failure rate is {{ $value | humanizePercentage }}"
+
+  # ── Database Backup Alerts ─────────────────
+  - name: database_backup
+    rules:
+      - alert: NoRecentBackup
+        expr: utos_db_backup_age_hours > 24 or utos_db_backup_age_hours < 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No recent database backup"
+          description: "Last backup is {{ $value }} hours old (threshold: 24h)"
+
+      - alert: HighReplicationLag
+        expr: utos_db_replication_lag_seconds > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Database replication lag above 5s"
+          description: "Replication lag is {{ $value }}s"
+
+      - alert: SlowQueriesDetected
+        expr: utos_db_slow_query_count > 10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High number of slow queries"
+          description: "{{ $value }} slow queries detected (threshold: 10)"
+
+      - alert: ConnectionPoolExhausted
+        expr: utos_db_pool_checked_out / utos_db_pool_size > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Connection pool near exhaustion"
+          description: "Pool utilization is {{ $value | humanizePercentage }}"

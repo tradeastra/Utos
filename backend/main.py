@@ -23,6 +23,7 @@ from core.middleware import (
     RateLimitMiddleware,
 )
 from core.tracing import init_telemetry, shutdown_telemetry
+from core.db_health import db_health_service
 from database.base import close_engine, get_engine, init_engine
 from database.redis_client import close_redis, init_redis, redis_ping
 from engine import ExecutionEngine
@@ -209,6 +210,23 @@ async def readiness() -> dict:
 @app.get("/", tags=["root"])
 async def root() -> dict:
     return {"message": "UTOS Trading Engine API", "version": settings.VERSION, "docs": "/docs"}
+
+
+@app.get("/db/health", tags=["monitoring"])
+async def db_health() -> dict:
+    """Database health — pool stats, slow queries, replication lag, migration version, backup age."""
+    health = await db_health_service.collect_all()
+    status = "healthy"
+    if health["backup_age_hours"] is not None and health["backup_age_hours"] > 24:
+        status = "degraded"
+    if health["replication_lag_seconds"] > 5:
+        status = "degraded"
+    http_status = 200 if status == "healthy" else 200  # Always 200 — this is informational
+
+    return JSONResponse(
+        content={"status": status, **health},
+        status_code=http_status,
+    )
 
 
 if __name__ == "__main__":

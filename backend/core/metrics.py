@@ -168,6 +168,48 @@ utos_trading_process_stopped_total = Counter(
     "Total trading processes stopped",
 )
 
+# ── Database Reliability Metrics ──────────────
+utos_db_backup_age_hours = Gauge(
+    "utos_db_backup_age_hours",
+    "Age of latest database backup in hours",
+)
+
+utos_db_backup_total = Counter(
+    "utos_db_backup_total",
+    "Total database backups created",
+    ["status"],
+)
+
+utos_db_backup_size_bytes = Gauge(
+    "utos_db_backup_size_bytes",
+    "Size of latest database backup in bytes",
+)
+
+utos_db_replication_lag_seconds = Gauge(
+    "utos_db_replication_lag_seconds",
+    "Database replication lag in seconds",
+)
+
+utos_db_slow_query_count = Gauge(
+    "utos_db_slow_query_count",
+    "Number of slow queries detected",
+)
+
+utos_db_migration_version = Gauge(
+    "utos_db_migration_version",
+    "Current Alembic migration version (numeric hash)",
+)
+
+utos_db_pool_size = Gauge(
+    "utos_db_pool_size",
+    "Current database connection pool size",
+)
+
+utos_db_pool_checked_out = Gauge(
+    "utos_db_pool_checked_out",
+    "Checked out database connections",
+)
+
 
 def init_metrics() -> None:
     """Initialize metrics with default values."""
@@ -186,6 +228,13 @@ def init_metrics() -> None:
     utos_notification_queue_length.set(0)
     utos_db_connections_active.set(0)
     utos_redis_connections_active.set(0)
+    utos_db_backup_age_hours.set(-1)
+    utos_db_backup_size_bytes.set(0)
+    utos_db_replication_lag_seconds.set(0)
+    utos_db_slow_query_count.set(0)
+    utos_db_migration_version.set(0)
+    utos_db_pool_size.set(0)
+    utos_db_pool_checked_out.set(0)
 
 
 def get_metrics() -> bytes:

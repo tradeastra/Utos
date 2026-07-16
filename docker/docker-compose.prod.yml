@@ -19,6 +19,18 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
   redis:
     image: redis:7-alpine
@@ -33,6 +45,62 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  # ── Database Backup ────────────────────────
+  db-backup:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-utos_prod_password}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
+      BACKUP_RETENTION_COUNT: ${BACKUP_RETENTION_COUNT:-10}
+    volumes:
+      - backup_data:/backups
+    entrypoint: |
+      /bin/sh -c "
+        while true; do
+          echo \"[$$(date -u +%Y-%m-%dT%H:%M:%SZ)] Starting backup...\";
+          FILE=/backups/utos_$$(date +%Y%m%d_%H%M%S).sql.gz;
+          pg_dump -h postgres -U ${POSTGRES_USER:-utos} -d ${POSTGRES_DB:-utos} --no-owner --no-privileges --format=plain | gzip > $$FILE;
+          SHA=$$(sha256sum $$FILE | awk '{print $$1}');
+          echo \"{\\\"backup_id\\\":\\\"$$(date +%Y%m%d_%H%M%S)\\\",\\\"checksum\\\":\\\"$$SHA\\\",\\\"timestamp\\\":\\\"$$(date -u +%Y-%m-%dT%H:%M:%SZ)\\\",\\\"file\\\":\\\"$$FILE\\\",\\\"size\\\":$$(stat -c%s $$FILE)}\" > /backups/utos_$$(date +%Y%m%d_%H%M%S).meta.json;
+          echo \"[$$(date -u +%Y-%m-%dT%H:%M:%SZ)] Backup completed: $$FILE\";
+          # Retention: delete backups older than retention_days
+          find /backups -name 'utos_*.sql.gz' -mtime +${BACKUP_RETENTION_DAYS:-7} -delete;
+          find /backups -name 'utos_*.meta.json' -mtime +${BACKUP_RETENTION_DAYS:-7} -delete;
+          echo \"[$$(date -u +%Y-%m-%dT%H:%M:%SZ)] Retention applied\";
+          sleep 86400;
+        done
+      "
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend-net
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
   backend:
     build:
@@ -250,6 +318,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  backup_data:
   nginx_certs:
   nginx_logs:
   nginx_cache:
