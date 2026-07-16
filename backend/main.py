@@ -16,7 +16,12 @@ from core.config import settings
 from core.exceptions import AuthenticationError, AuthorizationError, UTOSException
 from core.logging import get_logger, setup_logging
 from core.metrics import init_metrics, get_metrics, METRICS_CONTENT_TYPE
-from core.middleware import CorrelationIdMiddleware, MetricsMiddleware
+from core.middleware import (
+    CorrelationIdMiddleware,
+    MetricsMiddleware,
+    SecurityHeadersMiddleware,
+    RateLimitMiddleware,
+)
 from core.tracing import init_telemetry, shutdown_telemetry
 from database.base import close_engine, get_engine, init_engine
 from database.redis_client import close_redis, init_redis, redis_ping
@@ -93,6 +98,8 @@ app.add_middleware(
 )
 app.add_middleware(CorrelationIdMiddleware)
 app.add_middleware(MetricsMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RateLimitMiddleware)
 
 
 def _error_response(status_code: int, code: str, message: str, details: Any = None) -> JSONResponse:

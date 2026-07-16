@@ -1,0 +1,150 @@
+# ─────────────────────────────────────────────
+# Sprint 16B: Prometheus Alert Rules
+# ─────────────────────────────────────────────
+
+groups:
+  # ── API Alerts ─────────────────────────────
+  - name: api
+    rules:
+      - alert: HighP95Latency
+        expr: histogram_quantile(0.95, sum(rate(utos_http_request_duration_ms_bucket[5m])) by (le)) > 500
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "P95 latency above 500ms"
+          description: "P95 HTTP request latency is {{ $value }}ms (threshold: 500ms)"
+
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(utos_http_requests_total{status=~"5.."}[5m]))
+          / sum(rate(utos_http_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Error rate above 5%"
+          description: "HTTP 5xx error rate is {{ $value | humanizePercentage }}"
+
+  # ── Infrastructure Alerts ──────────────────
+  - name: infrastructure
+    rules:
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis is down"
+          description: "Redis instance is not responding to ping"
+
+      - alert: PostgresDown
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL is down"
+          description: "PostgreSQL instance is not responding"
+
+      - alert: HighCPU
+        expr: 100 - avg(rate(node_cpu_seconds_total{mode="idle"}[1m])) * 100 > 80
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU usage above 80%"
+          description: "CPU usage is {{ $value }}%"
+
+      - alert: HighMemory
+        expr: |
+          (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes)
+          / node_memory_MemTotal_bytes * 100 > 85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Memory usage above 85%"
+          description: "Memory usage is {{ $value }}%"
+
+  # ── Trading Alerts ─────────────────────────
+  - name: trading
+    rules:
+      - alert: HighOrderFailureRate
+        expr: |
+          sum(rate(utos_orders_failed_total[5m]))
+          / sum(rate(utos_orders_total[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Order failure rate above 10%"
+          description: "Order failure rate is {{ $value | humanizePercentage }}"
+
+  # ── Recovery Alerts ────────────────────────
+  - name: recovery
+    rules:
+      - alert: RecoveryFailed
+        expr: increase(utos_recovery_total{result="failed"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Recovery operation failed"
+          description: "{{ $value }} recovery operations failed in the last 5 minutes"
+
+  # ── Scheduler Alerts ───────────────────────
+  - name: scheduler
+    rules:
+      - alert: DLQNotEmpty
+        expr: utos_dlq_size > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Dead letter queue is not empty"
+          description: "DLQ has {{ $value }} items"
+
+      - alert: RetryQueueGrowing
+        expr: rate(utos_retry_queue_size[5m]) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Retry queue is growing"
+          description: "Retry queue has been growing for 10 minutes"
+
+  # ── Market Alerts ──────────────────────────
+  - name: market
+    rules:
+      - alert: HighMarketLatency
+        expr: histogram_quantile(0.95, sum(rate(utos_market_latency_ms_bucket[5m])) by (le)) > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Market latency above 1000ms"
+          description: "P95 market data latency is {{ $value }}ms"
+
+      - alert: WebSocketReconnectStorm
+        expr: increase(utos_ws_reconnect_total[5m]) > 10
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "WebSocket reconnect storm"
+          description: "{{ $value }} reconnections in 5 minutes"
+
+  # ── Notification Alerts ────────────────────
+  - name: notification
+    rules:
+      - alert: NotificationFailureSpike
+        expr: |
+          sum(rate(utos_notification_total{result="failed"}[5m]))
+          / sum(rate(utos_notification_total[5m])) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Notification failure rate above 20%"
+          description: "Notification failure rate is {{ $value | humanizePercentage }}"

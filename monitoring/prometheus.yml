@@ -8,6 +8,14 @@ global:
   external_labels:
     monitor: "utos-monitor"
 
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
 scrape_configs:
   # ── Backend (FastAPI) ──────────────────────
   - job_name: "utos-backend"

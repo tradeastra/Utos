@@ -1,0 +1,37 @@
+# ─────────────────────────────────────────────
+# Sprint 16C-4: Trivy container scan configuration
+# ─────────────────────────────────────────────
+
+scan:
+  scanners:
+    - vuln
+    - misconfig
+    - secret
+    - license
+
+  # Fail on Critical and High
+  severity:
+    - CRITICAL
+    - HIGH
+
+  # Ignore unfixed vulnerabilities
+  ignore-unfixed: true
+
+  # Exit code on finding
+  exit-code: 1
+
+# ── Ignore list (mitigated vulnerabilities) ──
+# Add CVE IDs here with justification
+ignore-list:
+  # Example:
+  # - id: CVE-2024-XXXX
+  #   reason: "Mitigated by network policy — service not exposed to untrusted networks"
+
+# ── Cache ────────────────────────────────────
+cache:
+  dir: /tmp/trivy-cache
+
+# ── Output ───────────────────────────────────
+output:
+  format: json
+  file: trivy-report.json

@@ -132,6 +132,42 @@ utos_redis_connections_active = Gauge(
     "Active Redis connections",
 )
 
+# ── Business Metrics ──────────────────────────
+utos_profit_total = Gauge(
+    "utos_profit_total",
+    "Total realized profit in USD",
+)
+
+utos_realized_profit = Gauge(
+    "utos_realized_profit",
+    "Realized profit in USD",
+)
+
+utos_unrealized_profit = Gauge(
+    "utos_unrealized_profit",
+    "Unrealized profit in USD",
+)
+
+utos_grid_cycles_total = Counter(
+    "utos_grid_cycles_total",
+    "Total grid cycles completed",
+)
+
+utos_profit_lock_triggered_total = Counter(
+    "utos_profit_lock_triggered_total",
+    "Total profit lock triggers",
+)
+
+utos_trading_process_started_total = Counter(
+    "utos_trading_process_started_total",
+    "Total trading processes started",
+)
+
+utos_trading_process_stopped_total = Counter(
+    "utos_trading_process_stopped_total",
+    "Total trading processes stopped",
+)
+
 
 def init_metrics() -> None:
     """Initialize metrics with default values."""

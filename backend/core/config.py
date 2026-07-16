@@ -5,9 +5,10 @@ Loads all settings from environment variables / .env file using
 pydantic-settings v2. Never has hardcoded production secrets.
 """
 
+import secrets as _secrets
 from typing import List, Optional
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -30,13 +31,13 @@ class Settings(BaseSettings):
     PORT: int = Field(default=8000)
 
     # ── Security ─────────────────────────────────────────────────────────────
-    # No production default — must be set via environment.
     SECRET_KEY: str = Field(
         default="change-me-to-a-long-random-string-at-least-32-chars"
     )
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30)
     REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7)
+    ENCRYPTION_KEY: str = Field(default="")
 
     # ── CORS ─────────────────────────────────────────────────────────────────
     CORS_ORIGINS: List[str] = Field(default=["http://localhost:3000"])
@@ -47,6 +48,21 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             return [origin.strip() for origin in v.split(",")]
         return v  # type: ignore[return-value]
+
+    @model_validator(mode="after")
+    def validate_production_secrets(self) -> "Settings":
+        """In production, SECRET_KEY must not be the default."""
+        if self.APP_ENV == "production":
+            if self.SECRET_KEY == "change-me-to-a-long-random-string-at-least-32-chars":
+                raise ValueError(
+                    "SECRET_KEY must be set to a secure value in production. "
+                    "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+                )
+            if len(self.SECRET_KEY) < 32:
+                raise ValueError("SECRET_KEY must be at least 32 characters in production.")
+            if self.DEBUG:
+                raise ValueError("DEBUG must be False in production.")
+        return self
 
     # ── Database ─────────────────────────────────────────────────────────────
     DATABASE_URL: str = Field(
