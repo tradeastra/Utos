@@ -1,0 +1,195 @@
+# ─────────────────────────────────────────────
+# Sprint 16E-6: Release Automation — tag, GHCR, GitHub Release, CHANGELOG
+# Triggers on push to main (merge) or manual dispatch
+# ─────────────────────────────────────────────
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version (e.g. v0.16.0)"
+        required: true
+        type: string
+      prerelease:
+        description: "Pre-release?"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  # ── Determine version ───────────────────────
+  prepare:
+    name: Prepare Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      changelog: ${{ steps.changelog.outputs.changelog }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            # Auto-increment patch version from latest tag
+            LATEST=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+            VERSION=$(echo $LATEST | awk -F. -v OFS=. '{$NF++; print}')
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Release version: $VERSION"
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$PREV_TAG" ]; then
+            COMMITS=$(git log --pretty=format:"- %s (%h)" HEAD~50..HEAD)
+          else
+            COMMITS=$(git log --pretty=format:"- %s (%h)" $PREV_TAG..HEAD)
+          fi
+
+          # Categorize commits
+          FEATURES=$(echo "$COMMITS" | grep -iE "feat|add|implement" || true)
+          FIXES=$(echo "$COMMITS" | grep -iE "fix|bug|patch" || true)
+          SECURITY=$(echo "$COMMITS" | grep -iE "security|cve|vuln" || true)
+          REFACTOR=$(echo "$COMMITS" | grep -iE "refactor|clean|remove" || true)
+          DOCS=$(echo "$COMMITS" | grep -iE "doc|readme|changelog" || true)
+          OTHER=$(echo "$COMMITS" | grep -ivE "feat|add|implement|fix|bug|patch|security|cve|vuln|refactor|clean|remove|doc|readme|changelog" || true)
+
+          CHANGELOG="## What's Changed\n\n"
+          if [ -n "$FEATURES" ]; then
+            CHANGELOG="$CHANGELOG### Features\n$FEATURES\n\n"
+          fi
+          if [ -n "$FIXES" ]; then
+            CHANGELOG="$CHANGELOG### Bug Fixes\n$FIXES\n\n"
+          fi
+          if [ -n "$SECURITY" ]; then
+            CHANGELOG="$CHANGELOG### Security\n$SECURITY\n\n"
+          fi
+          if [ -n "$REFACTOR" ]; then
+            CHANGELOG="$CHANGELOG### Refactoring\n$REFACTOR\n\n"
+          fi
+          if [ -n "$DOCS" ]; then
+            CHANGELOG="$CHANGELOG### Documentation\n$DOCS\n\n"
+          fi
+          if [ -n "$OTHER" ]; then
+            CHANGELOG="$CHANGELOG### Other\n$OTHER\n\n"
+          fi
+
+          echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
+
+      - name: Create git tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag ${{ steps.version.outputs.version }}
+          git push origin ${{ steps.version.outputs.version }}
+
+  # ── Build and push Docker images ────────────
+  build-and-push:
+    name: Build & Push Images
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      matrix:
+        target: [backend, frontend]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push ${{ matrix.target }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/${{ matrix.target }}.Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/utos-${{ matrix.target }}:${{ needs.prepare.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/utos-${{ matrix.target }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── Create GitHub Release ───────────────────
+  github-release:
+    name: Create GitHub Release
+    needs: [prepare, build-and-push]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.version }}
+          name: Release ${{ needs.prepare.outputs.version }}
+          body: ${{ needs.prepare.outputs.changelog }}
+          prerelease: ${{ inputs.prerelease || false }}
+          generate_release_notes: true
+
+  # ── Update CHANGELOG.md ─────────────────────
+  update-changelog:
+    name: Update CHANGELOG
+    needs: [prepare, github-release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update CHANGELOG.md
+        run: |
+          if [ ! -f CHANGELOG.md ]; then
+            echo "# Changelog" > CHANGELOG.md
+            echo "" >> CHANGELOG.md
+          fi
+
+          # Insert new version at top
+          TEMP=$(mktemp)
+          echo "# Changelog" > $TEMP
+          echo "" >> $TEMP
+          echo "## ${{ needs.prepare.outputs.version }} ($(date -u +%Y-%m-%d))" >> $TEMP
+          echo "" >> $TEMP
+          echo -e "${{ needs.prepare.outputs.changelog }}" >> $TEMP
+          echo "" >> $TEMP
+
+          # Append existing content (skip first line if it's "# Changelog")
+          if head -1 CHANGELOG.md | grep -q "# Changelog"; then
+            tail -n +2 CHANGELOG.md >> $TEMP
+          else
+            cat CHANGELOG.md >> $TEMP
+          fi
+
+          mv $TEMP CHANGELOG.md
+
+      - name: Commit CHANGELOG
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git commit -m "docs: update CHANGELOG for ${{ needs.prepare.outputs.version }}" || true
+          git push

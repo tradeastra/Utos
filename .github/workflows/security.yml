@@ -1,0 +1,158 @@
+# ─────────────────────────────────────────────
+# Sprint 16E-1: Security Pipeline — pip-audit, npm audit, Trivy
+# ─────────────────────────────────────────────
+name: Security
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    - cron: "0 6 * * 1"  # Weekly Monday 06:00 UTC
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-audit:
+    name: Python Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Run pip-audit
+        run: |
+          pip-audit -r backend/requirements.txt \
+            --strict \
+            --desc \
+            --format json \
+            --output pip-audit-report.json || true
+
+      - name: Check for critical vulnerabilities
+        run: |
+          CRITICAL_COUNT=$(python -c "
+          import json
+          with open('pip-audit-report.json') as f:
+            data = json.load(f)
+          critical = [d for d in data.get('dependencies', []) if any(
+            v.get('severity','').lower() == 'critical' for v in d.get('vulns', [])
+          )]
+          print(len(critical))
+          ")
+          echo "Critical vulnerabilities: $CRITICAL_COUNT"
+          if [ "$CRITICAL_COUNT" -gt 0 ]; then
+            echo "::error::Found $CRITICAL_COUNT critical vulnerabilities"
+            exit 1
+          fi
+
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pip-audit-report
+          path: pip-audit-report.json
+
+  npm-audit:
+    name: NPM Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run npm audit
+        working-directory: frontend
+        run: |
+          npm audit --audit-level=high --json > npm-audit-report.json || true
+
+      - name: Check for high/critical vulnerabilities
+        working-directory: frontend
+        run: |
+          HIGH_COUNT=$(python -c "
+          import json
+          with open('npm-audit-report.json') as f:
+            data = json.load(f)
+          metadata = data.get('metadata', {}).get('vulnerabilities', {})
+          print(metadata.get('high', 0) + metadata.get('critical', 0))
+          ")
+          echo "High/Critical vulnerabilities: $HIGH_COUNT"
+          if [ "$HIGH_COUNT" -gt 0 ]; then
+            echo "::error::Found $HIGH_COUNT high/critical vulnerabilities"
+            exit 1
+          fi
+
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: npm-audit-report
+          path: frontend/npm-audit-report.json
+
+  trivy-scan:
+    name: Container Image Scan (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner on filesystem
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          format: "json"
+          output: "trivy-report.json"
+          severity: "CRITICAL,HIGH"
+          exit-code: "1"
+          ignore-unfixed: true
+
+      - name: Upload Trivy report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-report
+          path: trivy-report.json
+
+  secret-scan:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Trivy secret scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          scanners: "secret"
+          format: "json"
+          output: "secret-scan-report.json"
+          exit-code: "1"
+
+      - name: Upload secret scan report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: secret-scan-report
+          path: secret-scan-report.json

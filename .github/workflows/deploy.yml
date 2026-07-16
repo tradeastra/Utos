@@ -1,0 +1,123 @@
+# ─────────────────────────────────────────────
+# Sprint 16E-7: Deploy Workflow — Blue-Green with smoke test + auto rollback
+# ─────────────────────────────────────────────
+name: Deploy
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options: [staging, production]
+      image_tag:
+        description: "Image tag to deploy (e.g. v0.16.0 or sha-abc123)"
+        required: true
+        default: "latest"
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/utos
+
+jobs:
+  deploy:
+    name: Deploy (${{ inputs.environment || 'staging' }})
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'staging' }}
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine deploy tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "image_tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+            echo "environment=staging" >> $GITHUB_OUTPUT
+          else
+            echo "image_tag=${{ inputs.image_tag }}" >> $GITHUB_OUTPUT
+            echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd /opt/utos
+            export IMAGE_TAG=${{ steps.tag.outputs.image_tag }}
+            export ENVIRONMENT=${{ steps.tag.outputs.environment }}
+            export REGISTRY=ghcr.io
+            export IMAGE_PREFIX=${{ github.repository_owner }}/utos
+
+            # Pull latest images
+            docker pull $REGISTRY/$IMAGE_PREFIX-backend:$IMAGE_TAG
+            docker pull $REGISTRY/$IMAGE_PREFIX-frontend:$IMAGE_TAG
+
+            # Determine current active slot (blue or green)
+            CURRENT=$(cat /opt/utos/active-slot 2>/dev/null || echo "blue")
+            if [ "$CURRENT" = "blue" ]; then
+              NEXT="green"
+            else
+              NEXT="blue"
+            fi
+
+            echo "Current slot: $CURRENT → Deploying to: $NEXT"
+
+            # Deploy to inactive slot
+            IMAGE_TAG=$IMAGE_TAG docker compose -f docker/docker-compose.$ENVIRONMENT.yml \
+              --profile $NEXT up -d backend-$NEXT frontend-$NEXT
+
+            # Wait for health
+            sleep 10
+
+            # Run smoke tests against new slot
+            bash scripts/smoke-test.sh $NEXT $ENVIRONMENT
+            SMOKE_EXIT=$?
+
+            if [ $SMOKE_EXIT -eq 0 ]; then
+              echo "Smoke tests passed — switching traffic to $NEXT"
+
+              # Switch Nginx upstream
+              echo "$NEXT" > /opt/utos/active-slot
+              docker compose -f docker/docker-compose.$ENVIRONMENT.yml restart nginx
+
+              # Wait and verify
+              sleep 5
+              bash scripts/smoke-test.sh active $ENVIRONMENT
+              VERIFY_EXIT=$?
+
+              if [ $VERIFY_EXIT -eq 0 ]; then
+                echo "Deployment successful — $NEXT is now active"
+                # Stop old slot after grace period
+                sleep 30
+                docker compose -f docker/docker-compose.$ENVIRONMENT.yml stop backend-$CURRENT frontend-$CURRENT
+              else
+                echo "Verification failed — rolling back to $CURRENT"
+                echo "$CURRENT" > /opt/utos/active-slot
+                docker compose -f docker/docker-compose.$ENVIRONMENT.yml restart nginx
+                docker compose -f docker/docker-compose.$ENVIRONMENT.yml stop backend-$NEXT frontend-$NEXT
+                exit 1
+              fi
+            else
+              echo "Smoke tests failed — aborting deployment"
+              docker compose -f docker/docker-compose.$ENVIRONMENT.yml stop backend-$NEXT frontend-$NEXT
+              exit 1
+            fi
+
+      - name: Notify deployment status
+        if: always()
+        run: |
+          if [ ${{ job.status }} = "success" ]; then
+            echo "::notice::Deployment to ${{ steps.tag.outputs.environment }} successful (tag: ${{ steps.tag.outputs.image_tag }})"
+          else
+            echo "::error::Deployment to ${{ steps.tag.outputs.environment }} failed (tag: ${{ steps.tag.outputs.image_tag }})"
+          fi
