@@ -1,8 +1,8 @@
 # Core dependencies
-fastapi==0.104.1
+fastapi==0.118.0
 uvicorn[standard]==0.24.0
-pydantic==2.5.0
-pydantic-settings==2.1.0
+pydantic==2.9.2
+pydantic-settings==2.5.2
 
 # Database
 sqlalchemy==2.0.23
@@ -15,14 +15,14 @@ redis==5.0.1
 redis[hiredis]==5.0.1
 
 # Authentication & Security
-python-jose[cryptography]==3.3.0
+python-jose[cryptography]==3.4.0
 passlib[bcrypt]==1.7.4
 cryptography==49.0.0
-python-multipart==0.0.6
+python-multipart==0.0.9
 
 # HTTP client
 httpx==0.25.2
-requests==2.31.0
+requests==2.33.0
 
 # Data validation
 email-validator==2.1.0
@@ -31,14 +31,14 @@ email-validator==2.1.0
 structlog==23.2.0
 
 # Testing
-pytest==7.4.3
-pytest-asyncio==0.21.1
+pytest==8.3.4
+pytest-asyncio==0.25.0
 pytest-mock==3.12.0
 pytest-cov==4.1.0
 pytest-xdist==3.5.0
 
 # Development
-black==23.11.0
+black==26.3.1
 isort==5.12.0
 flake8==6.1.0
 mypy==1.7.1
@@ -48,7 +48,7 @@ ccxt==4.1.80
 
 # Utilities
 python-dotenv==1.0.0
-click==8.1.7
+click==8.3.3
 rich==13.7.0
 typer==0.9.0
 
@@ -61,26 +61,23 @@ celery==5.3.4
 # WebSockets
 websockets==12.0
 
-# Currency handling
-decimal
-
 # Date/time handling
 python-dateutil==2.8.2
 
 # JSON handling
-orjson==3.9.10
+orjson==3.11.6
 
 # Configuration
 pyyaml==6.0.1
 
 # Async utilities
 aiofiles==23.2.1
-aiohttp==3.9.1
+aiohttp==3.14.1
 
 # Database migrations
 alembic==1.13.1
 
 # Type hints
 types-redis==4.6.0.11
-types-requests==2.31.0.10
+types-requests==2.32.0.20241016
 types-urllib3==1.26.25.14
