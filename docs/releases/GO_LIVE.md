@@ -119,6 +119,9 @@ Dokumen ini adalah acuan akhir sebelum melakukan go-live ke production. Setiap i
 | 9 | pip-audit: no unaccepted Critical/High | ⬜ | See ACCEPTED_RISKS.md | |
 | 10 | npm audit: no unaccepted Critical/High | ⬜ | See ACCEPTED_RISKS.md | |
 | 11 | SBOM generated and attached to release | ⬜ | SPDX + CycloneDX via Syft | `scripts/generate-sbom.sh v1.0.0` |
+| 12 | Docker images signed with Cosign | ⬜ | `cosign verify` passes | Keyless signing via GitHub OIDC |
+| 13 | SBOM attestation attached to images | ⬜ | `cosign verify-attestation` passes | SPDX JSON attestation |
+| 14 | SLSA provenance generated | ⬜ | `cosign verify-attestation --type slsaprovenance` | in-toto Statement v0.1 |
 
 ---
 

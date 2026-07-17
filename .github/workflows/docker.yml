@@ -152,3 +152,76 @@ jobs:
         if: always()
         with:
           sarif_file: trivy-backend.sarif
+
+  # ── Sign images with Cosign (keyless) ────────
+  sign-images:
+    name: Sign Images (Cosign)
+    needs: [build-backend, build-frontend]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Syft
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh \
+            | sh -s -- -b /usr/local/bin
+
+      - name: Sign backend image (keyless)
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: |
+          cosign sign --yes \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:latest
+
+      - name: Sign frontend image (keyless)
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: |
+          cosign sign --yes \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:latest
+
+      - name: Generate and attach SBOM to backend image
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: |
+          syft ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:latest \
+            --output spdx-json=sbom-backend.spdx.json
+          cosign attest --yes \
+            --predicate sbom-backend.spdx.json \
+            --type spdxjson \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:latest
+
+      - name: Generate and attach SBOM to frontend image
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: |
+          syft ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:latest \
+            --output spdx-json=sbom-frontend.spdx.json
+          cosign attest --yes \
+            --predicate sbom-frontend.spdx.json \
+            --type spdxjson \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:latest
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-signed
+          path: |
+            sbom-backend.spdx.json
+            sbom-frontend.spdx.json
+          retention-days: 365

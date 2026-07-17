@@ -177,10 +177,135 @@ jobs:
             sbom-frontend-image.spdx.json
           retention-days: 365
 
+  # ── SLSA Provenance ─────────────────────────
+  generate-provenance:
+    name: Generate SLSA Provenance
+    needs: [prepare, build-and-push, generate-sbom]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate SLSA provenance for backend image
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: |
+          IMAGE="ghcr.io/${{ github.repository_owner }}/utos-backend:${{ needs.prepare.outputs.version }}"
+          DIGEST=$(docker buildx imagetools inspect "$IMAGE" --format '{{json .Manifest.Digest}}' | tr -d '"')
+          echo "Backend digest: $DIGEST"
+
+          cosign attest --yes \
+            --type slsaprovenance \
+            --predicate-objects <<EOF
+          {
+            "_type": "https://in-toto.io/Statement/v0.1",
+            "subject": [
+              {
+                "name": "$IMAGE",
+                "digest": {"sha256": "$DIGEST"}
+              }
+            ],
+            "predicateType": "https://slsa.dev/provenance/v0.2",
+            "predicate": {
+              "builder": {
+                "id": "github-actions"
+              },
+              "buildType": "https://github.com/actions/runner",
+              "invocation": {
+                "configSource": {
+                  "uri": "git+${{ github.repositoryUrl }}",
+                  "digest": {"sha1": "${{ github.sha }}"}
+                },
+                "parameters": {
+                  "version": "${{ needs.prepare.outputs.version }}"
+                }
+              },
+              "metadata": {
+                "buildStartedOn": "${{ github.event.head_commit.timestamp }}",
+                "completeness": {
+                  "environment": true
+                },
+                "reproducible": false
+              },
+              "materials": [
+                {
+                  "uri": "git+${{ github.repositoryUrl }}@${{ github.ref }}",
+                  "digest": {"sha1": "${{ github.sha }}"}
+                }
+              ]
+            }
+          }
+          EOF
+
+      - name: Generate SLSA provenance for frontend image
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: |
+          IMAGE="ghcr.io/${{ github.repository_owner }}/utos-frontend:${{ needs.prepare.outputs.version }}"
+          DIGEST=$(docker buildx imagetools inspect "$IMAGE" --format '{{json .Manifest.Digest}}' | tr -d '"')
+          echo "Frontend digest: $DIGEST"
+
+          cosign attest --yes \
+            --type slsaprovenance \
+            --predicate-objects <<EOF
+          {
+            "_type": "https://in-toto.io/Statement/v0.1",
+            "subject": [
+              {
+                "name": "$IMAGE",
+                "digest": {"sha256": "$DIGEST"}
+              }
+            ],
+            "predicateType": "https://slsa.dev/provenance/v0.2",
+            "predicate": {
+              "builder": {
+                "id": "github-actions"
+              },
+              "buildType": "https://github.com/actions/runner",
+              "invocation": {
+                "configSource": {
+                  "uri": "git+${{ github.repositoryUrl }}",
+                  "digest": {"sha1": "${{ github.sha }}"}
+                },
+                "parameters": {
+                  "version": "${{ needs.prepare.outputs.version }}"
+                }
+              },
+              "metadata": {
+                "buildStartedOn": "${{ github.event.head_commit.timestamp }}",
+                "completeness": {
+                  "environment": true
+                },
+                "reproducible": false
+              },
+              "materials": [
+                {
+                  "uri": "git+${{ github.repositoryUrl }}@${{ github.ref }}",
+                  "digest": {"sha1": "${{ github.sha }}"}
+                }
+              ]
+            }
+          }
+          EOF
+
   # ── Create GitHub Release ───────────────────
   github-release:
     name: Create GitHub Release
-    needs: [prepare, build-and-push, generate-sbom]
+    needs: [prepare, build-and-push, generate-sbom, generate-provenance]
     runs-on: ubuntu-latest
     permissions:
       contents: write

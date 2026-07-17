@@ -26,6 +26,9 @@ Tags follow semantic versioning: `vMAJOR.MINOR.PATCH[-SPRINT]`.
 - SBOM generation in release pipeline (Syft: SPDX + CycloneDX for Python and Node.js)
 - SBOM generation in security pipeline (periodic)
 - `scripts/generate-sbom.sh` — local SBOM generation script
+- Cosign keyless image signing via GitHub OIDC (docker workflow)
+- SBOM attestation attached to Docker images (cosign attest --type spdxjson)
+- SLSA provenance generation for Docker images (cosign attest --type slsaprovenance)
 
 ### Verified
 - 1100 tests passing after all dependency upgrades (0 regressions)
