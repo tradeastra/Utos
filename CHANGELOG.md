@@ -5,6 +5,46 @@ Tags follow semantic versioning: `vMAJOR.MINOR.PATCH[-SPRINT]`.
 
 ---
 
+## v0.17.0-RC2 — Security Patches & RC2 Checklist (2026-07-17)
+
+### Security
+- Fixed 58 of 77 pip-audit vulnerabilities (77 → 19 residual, all transitive)
+- Fixed 3 of 13 npm audit vulnerabilities (13 → 10 residual, all dev deps)
+- Critical: Next.js 14.2.5 → 14.2.35 (cache poisoning + DoS)
+- FastAPI 0.104.1 → 0.118.0, Pydantic 2.5.0 → 2.9.2
+- python-jose 3.3.0 → 3.4.0, requests 2.31.0 → 2.33.0
+- aiohttp 3.9.1 → 3.14.1, orjson 3.9.10 → 3.11.6
+- black 23.11.0 → 26.3.1, click 8.1.7 → 8.3.3
+- python-multipart 0.0.6 → 0.0.9, pytest-asyncio 0.21.1 → 0.25.0
+- Removed invalid `decimal` entry from requirements.txt (Python built-in)
+
+### Added
+- `docs/releases/RC2_CHECKLIST.md` — staging validation, soak test, sandbox trading, security scan
+- `docs/releases/ACCEPTED_RISKS.md` — residual vulnerability register with mitigations
+
+### Verified
+- 1100 tests passing after all dependency upgrades (0 regressions)
+
+---
+
+## v0.17.0-RC1 — Code Freeze & Release Candidate (2026-07-16)
+
+### Added
+- `docs/releases/RC1_CHECKLIST.md` — full release validation checklist
+- `CHANGELOG.md` — complete release history (Sprint 1–16G)
+
+### Frozen
+- Architecture (no new features, engines, or interface changes)
+- Dependencies (all Python and Node packages pinned)
+- Docker images (python:3.11-slim, node:20-alpine, postgres:16-alpine, redis:7-alpine)
+
+### Verified
+- 1100 tests passing (1026 unit/integration + 74 chaos), 0 failures
+- All dependencies pinned with exact versions
+- All documentation exists and is complete
+
+---
+
 ## v0.16.0-16G — Chaos Engineering (2026-07-16)
 
 ### Added
