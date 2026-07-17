@@ -1,0 +1,22 @@
+# Keep directory structure but ignore large binary files
+# Populate during release, then commit selectively
+
+# Logs — too large for git, store externally
+logs/*
+!logs/.gitkeep
+
+# Screenshots — binary, commit selectively if needed
+screenshots/*
+!screenshots/.gitkeep
+
+# SBOM — JSON, safe to commit
+# sbom/*.json — commit when populated
+
+# Provenance — JSON, safe to commit
+# provenance/*.json — commit when populated
+
+# Signatures — small, safe to commit
+# signatures/*.sig — commit when populated
+
+# Benchmark — JSON, safe to commit
+# benchmark/*.json — commit when populated
