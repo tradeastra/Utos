@@ -156,3 +156,35 @@ jobs:
         with:
           name: secret-scan-report
           path: secret-scan-report.json
+
+  generate-sbom:
+    name: SBOM Generation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Syft
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh \
+            | sh -s -- -b /usr/local/bin
+
+      - name: Generate Python SBOM
+        run: |
+          syft dir:backend --output spdx-json=sbom-python.spdx.json
+          syft dir:backend --output cyclonedx-json=sbom-python.cyclonedx.json
+
+      - name: Generate Node.js SBOM
+        run: |
+          syft dir:frontend --output spdx-json=sbom-nodejs.spdx.json
+          syft dir:frontend --output cyclonedx-json=sbom-nodejs.cyclonedx.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: |
+            sbom-python.spdx.json
+            sbom-python.cyclonedx.json
+            sbom-nodejs.spdx.json
+            sbom-nodejs.cyclonedx.json
+          retention-days: 90

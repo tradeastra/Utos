@@ -130,16 +130,69 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  # ── Generate SBOM ───────────────────────────
+  generate-sbom:
+    name: Generate SBOM
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Syft
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh \
+            | sh -s -- -b /usr/local/bin
+
+      - name: Generate Python SBOM (SPDX)
+        run: |
+          syft dir:backend --output spdx-json=sbom-python.spdx.json
+          syft dir:backend --output cyclonedx-json=sbom-python.cyclonedx.json
+
+      - name: Generate Node.js SBOM (SPDX)
+        run: |
+          syft dir:frontend --output spdx-json=sbom-nodejs.spdx.json
+          syft dir:frontend --output cyclonedx-json=sbom-nodejs.cyclonedx.json
+
+      - name: Generate Docker image SBOM
+        run: |
+          syft ghcr.io/${{ github.repository_owner }}/utos-backend:${{ needs.prepare.outputs.version }} \
+            --output spdx-json=sbom-backend-image.spdx.json || true
+          syft ghcr.io/${{ github.repository_owner }}/utos-frontend:${{ needs.prepare.outputs.version }} \
+            --output spdx-json=sbom-frontend-image.spdx.json || true
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ needs.prepare.outputs.version }}
+          path: |
+            sbom-python.spdx.json
+            sbom-python.cyclonedx.json
+            sbom-nodejs.spdx.json
+            sbom-nodejs.cyclonedx.json
+            sbom-backend-image.spdx.json
+            sbom-frontend-image.spdx.json
+          retention-days: 365
+
   # ── Create GitHub Release ───────────────────
   github-release:
     name: Create GitHub Release
-    needs: [prepare, build-and-push]
+    needs: [prepare, build-and-push, generate-sbom]
     runs-on: ubuntu-latest
     permissions:
       contents: write
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download SBOM artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: sbom-${{ needs.prepare.outputs.version }}
+          path: sbom
 
       - name: Create release
         uses: softprops/action-gh-release@v2
@@ -149,6 +202,13 @@ jobs:
           body: ${{ needs.prepare.outputs.changelog }}
           prerelease: ${{ inputs.prerelease || false }}
           generate_release_notes: true
+          files: |
+            sbom/sbom-python.spdx.json
+            sbom/sbom-python.cyclonedx.json
+            sbom/sbom-nodejs.spdx.json
+            sbom/sbom-nodejs.cyclonedx.json
+            sbom/sbom-backend-image.spdx.json
+            sbom/sbom-frontend-image.spdx.json
 
   # ── Update CHANGELOG.md ─────────────────────
   update-changelog:

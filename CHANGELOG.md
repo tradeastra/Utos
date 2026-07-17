@@ -21,6 +21,11 @@ Tags follow semantic versioning: `vMAJOR.MINOR.PATCH[-SPRINT]`.
 ### Added
 - `docs/releases/RC2_CHECKLIST.md` — staging validation, soak test, sandbox trading, security scan
 - `docs/releases/ACCEPTED_RISKS.md` — residual vulnerability register with mitigations
+- `docs/releases/BETA_CHECKLIST.md` — 10 exit criteria, 12 sandbox trading scenarios, Go/No-Go review
+- `docs/releases/GO_LIVE.md` — 10-section operational go-live checklist
+- SBOM generation in release pipeline (Syft: SPDX + CycloneDX for Python and Node.js)
+- SBOM generation in security pipeline (periodic)
+- `scripts/generate-sbom.sh` — local SBOM generation script
 
 ### Verified
 - 1100 tests passing after all dependency upgrades (0 regressions)

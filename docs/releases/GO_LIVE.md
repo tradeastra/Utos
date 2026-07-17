@@ -118,6 +118,7 @@ Dokumen ini adalah acuan akhir sebelum melakukan go-live ke production. Setiap i
 | 8 | Network isolation | ⬜ | frontend-net / backend-net separate | |
 | 9 | pip-audit: no unaccepted Critical/High | ⬜ | See ACCEPTED_RISKS.md | |
 | 10 | npm audit: no unaccepted Critical/High | ⬜ | See ACCEPTED_RISKS.md | |
+| 11 | SBOM generated and attached to release | ⬜ | SPDX + CycloneDX via Syft | `scripts/generate-sbom.sh v1.0.0` |
 
 ---
 
