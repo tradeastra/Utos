@@ -5,9 +5,6 @@ Loads all settings from environment variables / .env file using
 pydantic-settings v2. Never has hardcoded production secrets.
 """
 
-import secrets as _secrets
-from typing import List, Optional
-
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -40,11 +37,11 @@ class Settings(BaseSettings):
     ENCRYPTION_KEY: str = Field(default="")
 
     # ── CORS ─────────────────────────────────────────────────────────────────
-    CORS_ORIGINS: List[str] = Field(default=["http://localhost:3000"])
+    CORS_ORIGINS: list[str] = Field(default=["http://localhost:3000"])
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
-    def parse_cors_origins(cls, v: object) -> List[str]:
+    def parse_cors_origins(cls, v: object) -> list[str]:
         if isinstance(v, str):
             return [origin.strip() for origin in v.split(",")]
         return v  # type: ignore[return-value]
@@ -56,10 +53,12 @@ class Settings(BaseSettings):
             if self.SECRET_KEY == "change-me-to-a-long-random-string-at-least-32-chars":
                 raise ValueError(
                     "SECRET_KEY must be set to a secure value in production. "
-                    "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+                    'Generate one with: python -c "import secrets; print(secrets.token_hex(32))"'
                 )
             if len(self.SECRET_KEY) < 32:
-                raise ValueError("SECRET_KEY must be at least 32 characters in production.")
+                raise ValueError(
+                    "SECRET_KEY must be at least 32 characters in production."
+                )
             if self.DEBUG:
                 raise ValueError("DEBUG must be False in production.")
         return self
@@ -70,6 +69,17 @@ class Settings(BaseSettings):
     )
     DATABASE_POOL_SIZE: int = Field(default=10)
     DATABASE_MAX_OVERFLOW: int = Field(default=20)
+
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def normalize_database_url(cls, v: object) -> object:
+        """Auto-convert postgres:// and postgresql:// to postgresql+asyncpg:// for Railway/Render compatibility."""
+        if isinstance(v, str):
+            if v.startswith("postgresql://"):
+                return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+            if v.startswith("postgres://"):
+                return v.replace("postgres://", "postgresql+asyncpg://", 1)
+        return v
 
     # ── Test Database ─────────────────────────────────────────────────────────
     TEST_DATABASE_URL: str = Field(
@@ -83,7 +93,7 @@ class Settings(BaseSettings):
     # ── Logging ───────────────────────────────────────────────────────────────
     LOG_LEVEL: str = Field(default="INFO")
     LOG_FORMAT: str = Field(default="console")  # "console" | "json"
-    LOG_FILE: Optional[str] = Field(default=None)
+    LOG_FILE: str | None = Field(default=None)
     LOG_MAX_SIZE: str = Field(default="10MB")
 
     # ── Testing ───────────────────────────────────────────────────────────────

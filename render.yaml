@@ -1,0 +1,69 @@
+# Render Blueprint — UTOS Trading Engine
+# Deploy via: render blueprint deploy render.yaml
+# Or via dashboard: New → Blueprint → select this file
+
+services:
+  # ── PostgreSQL ──────────────────────────────
+  - type: postgres
+    name: utos-postgres
+    plan: free
+    ipAllowList: []
+    initialDatabases:
+      - name: utos
+
+  # ── Redis ───────────────────────────────────
+  - type: redis
+    name: utos-redis
+    plan: free
+    ipAllowList: []
+
+  # ── Backend (FastAPI) ───────────────────────
+  - type: web
+    name: utos-backend
+    plan: free
+    runtime: docker
+    dockerfilePath: ./docker/backend.Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: utos-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: utos-redis
+          property: connectionString
+      - key: SECRET_KEY
+        sync: false
+      - key: APP_ENV
+        value: staging
+      - key: DEBUG
+        value: false
+      - key: LOG_FORMAT
+        value: json
+      - key: CORS_ORIGINS
+        sync: false
+      - key: OTEL_ENABLED
+        value: false
+      - key: PYTHONPATH
+        value: /app/backend
+    # Run migrations before app starts
+    preDeployCommand: cd backend && alembic upgrade head
+
+  # ── Frontend (Next.js) ──────────────────────
+  - type: web
+    name: utos-frontend
+    plan: free
+    runtime: docker
+    dockerfilePath: ./frontend/Dockerfile.prod
+    dockerContext: .
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
+      - key: NODE_ENV
+        value: production
