@@ -4,7 +4,7 @@
 # ─────────────────────────────────────────────
 
 # ── Stage 1: Builder ──────────────────────────
-FROM python:3.12-slim@sha256:6c3b294bf8e4a8d54b5d3a4e5c5f0a1e2d3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8 AS builder
+FROM python:3.12-slim AS builder
 
 WORKDIR /build
 
@@ -20,7 +20,7 @@ COPY backend/requirements.txt .
 RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 # ── Stage 2: Runtime ──────────────────────────
-FROM python:3.12-slim@sha256:6c3b294bf8e4a8d54b5d3a4e5c5f0a1e2d3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8 AS runtime
+FROM python:3.12-slim AS runtime
 
 # Install only runtime libs (no compilers)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -54,4 +54,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=5 \
     CMD curl -sf http://localhost:8000/health || exit 1
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4", "--no-access-log", "--timeout-graceful-shutdown", "30"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--no-access-log", "--timeout-graceful-shutdown", "30"]

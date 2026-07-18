@@ -12,12 +12,10 @@ import hashlib
 import json
 import os
 import shutil
-import subprocess
 import time
-from datetime import datetime, timezone, timedelta
+from dataclasses import asdict, dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Optional
-from dataclasses import dataclass, asdict
 
 from core.config import settings
 from core.logging import get_logger
@@ -28,6 +26,7 @@ logger = get_logger(__name__)
 @dataclass
 class BackupMetadata:
     """Metadata for a single backup."""
+
     backup_id: str
     timestamp: str
     database: str
@@ -47,7 +46,7 @@ class BackupManager:
 
     def __init__(
         self,
-        backup_dir: str = "/backups",
+        backup_dir: str = "/tmp/backups",
         retention_days: int = 7,
         retention_count: int = 10,
         compression: str = "gzip",
@@ -67,6 +66,7 @@ class BackupManager:
         # postgresql+asyncpg://user:pass@host:port/dbname
         url = url.replace("postgresql+asyncpg://", "postgresql://")
         from urllib.parse import urlparse
+
         parsed = urlparse(url)
         return {
             "host": parsed.hostname or "localhost",
@@ -78,8 +78,8 @@ class BackupManager:
 
     async def create_backup(self) -> BackupMetadata:
         """Create a compressed database backup with checksum."""
-        backup_id = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
-        timestamp = datetime.now(tz=timezone.utc).isoformat()
+        backup_id = datetime.now(tz=UTC).strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(tz=UTC).isoformat()
         start = time.perf_counter()
 
         params = self._parse_db_url()
@@ -94,10 +94,14 @@ class BackupManager:
 
         cmd = [
             "pg_dump",
-            "-h", params["host"],
-            "-p", str(params["port"]),
-            "-U", params["user"],
-            "-d", params["dbname"],
+            "-h",
+            params["host"],
+            "-p",
+            str(params["port"]),
+            "-U",
+            params["user"],
+            "-d",
+            params["dbname"],
             "--no-owner",
             "--no-privileges",
             "--format=plain",
@@ -141,11 +145,13 @@ class BackupManager:
             # Compress
             if self.compression == "gzip":
                 import gzip
-                with open(dump_file, "rb") as f_in:
-                    with gzip.open(compressed_file, "wb") as f_out:
-                        shutil.copyfileobj(f_in, f_out)
+
+                with (
+                    open(dump_file, "rb") as f_in,
+                    gzip.open(compressed_file, "wb") as f_out,
+                ):
+                    shutil.copyfileobj(f_in, f_out)
                 dump_file.unlink()
-            else:
                 compressed_file = dump_file
 
             size_compressed = compressed_file.stat().st_size
@@ -155,7 +161,8 @@ class BackupManager:
 
             # Get pg_dump version
             version_proc = await asyncio.create_subprocess_exec(
-                "pg_dump", "--version",
+                "pg_dump",
+                "--version",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 env=env,
@@ -225,6 +232,7 @@ class BackupManager:
         """Get current Alembic migration version."""
         try:
             from database.migrations import get_current_revision
+
             rev = get_current_revision()
             return str(rev) if rev else "unknown"
         except Exception:  # noqa: BLE001
@@ -236,7 +244,7 @@ class BackupManager:
         with open(meta_file, "w") as f:
             json.dump(asdict(metadata), f, indent=2)
 
-    def _read_metadata(self, meta_file: Path) -> Optional[BackupMetadata]:
+    def _read_metadata(self, meta_file: Path) -> BackupMetadata | None:
         """Read metadata from JSON file."""
         try:
             with open(meta_file) as f:
@@ -262,7 +270,7 @@ class BackupManager:
                 backups.append(meta)
 
         # Delete by age
-        cutoff = datetime.now(tz=timezone.utc) - timedelta(days=self.retention_days)
+        cutoff = datetime.now(tz=UTC) - timedelta(days=self.retention_days)
         for meta in backups:
             try:
                 ts = datetime.fromisoformat(meta.timestamp)
@@ -274,13 +282,10 @@ class BackupManager:
                 pass
 
         # Delete by count (keep newest retention_count)
-        remaining = [
-            b for b in backups
-            if b.backup_id not in deleted_ids
-        ]
+        remaining = [b for b in backups if b.backup_id not in deleted_ids]
         remaining.sort(key=lambda b: b.timestamp, reverse=True)
         if len(remaining) > self.retention_count:
-            for meta in remaining[self.retention_count:]:
+            for meta in remaining[self.retention_count :]:
                 self._delete_backup(meta)
                 deleted += 1
 
@@ -310,7 +315,7 @@ class BackupManager:
                 backups.append(meta)
         return backups
 
-    def get_latest_backup(self) -> Optional[BackupMetadata]:
+    def get_latest_backup(self) -> BackupMetadata | None:
         """Get the most recent successful backup."""
         backups = self.list_backups()
         completed = [b for b in backups if b.status == "completed"]
@@ -328,14 +333,14 @@ class BackupManager:
         current_checksum = self._compute_checksum(file_path)
         return current_checksum == meta.checksum_sha256
 
-    def get_backup_age_hours(self) -> Optional[float]:
+    def get_backup_age_hours(self) -> float | None:
         """Get age of latest backup in hours (None if no backup)."""
         latest = self.get_latest_backup()
         if not latest:
             return None
         try:
             ts = datetime.fromisoformat(latest.timestamp)
-            age = datetime.now(tz=timezone.utc) - ts
+            age = datetime.now(tz=UTC) - ts
             return age.total_seconds() / 3600
         except Exception:  # noqa: BLE001
             return None
@@ -343,7 +348,7 @@ class BackupManager:
 
 # Singleton
 backup_manager = BackupManager(
-    backup_dir=os.environ.get("BACKUP_DIR", "/backups"),
+    backup_dir=os.environ.get("BACKUP_DIR", "/tmp/backups"),
     retention_days=int(os.environ.get("BACKUP_RETENTION_DAYS", "7")),
     retention_count=int(os.environ.get("BACKUP_RETENTION_COUNT", "10")),
 )
