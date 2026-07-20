@@ -8,9 +8,10 @@ All engines communicate via events, not direct calls.
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Callable, Coroutine
+from collections.abc import Callable, Coroutine
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
 
 from core.logging import get_logger
 
@@ -48,7 +49,7 @@ class EventBus:
         event_data = {
             "event_type": event_type,
             "event_id": event_id,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "data": data,
             "metadata": metadata or {},
         }

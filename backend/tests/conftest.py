@@ -7,7 +7,7 @@ Set TEST_DATABASE_URL to use PostgreSQL instead.
 
 import os
 from collections.abc import AsyncGenerator, Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -34,11 +34,14 @@ TEST_DB_URL = os.getenv(
 _is_sqlite = TEST_DB_URL.startswith("sqlite")
 
 _test_engine = create_async_engine(TEST_DB_URL, echo=False)
-_TestSession = async_sessionmaker(_test_engine, class_=AsyncSession, expire_on_commit=False)
+_TestSession = async_sessionmaker(
+    _test_engine, class_=AsyncSession, expire_on_commit=False
+)
 
 
 # For SQLite: register JSON functions and enable foreign keys
 if _is_sqlite:
+
     @event.listens_for(_test_engine.sync_engine, "connect")
     def _set_sqlite_pragma(dbapi_conn, connection_record):
         cursor = dbapi_conn.cursor()
@@ -89,14 +92,14 @@ def fake_adapter() -> Any:
             return True
 
         async def get_exchange_info(self) -> Any:
-            from core.types import ExchangeInfo
+            from core.domain_types import ExchangeInfo
 
             return ExchangeInfo(
                 name="binance",
                 supported_symbols=["BTCUSDT"],
                 rate_limits={},
                 fee_structure={},
-                server_time=datetime.now(tz=timezone.utc),
+                server_time=datetime.now(tz=UTC),
             )
 
         async def disconnect(self) -> bool:
@@ -108,7 +111,9 @@ def fake_adapter() -> Any:
 @pytest_asyncio.fixture
 async def test_user(db_session: AsyncSession) -> User:
     """Create a test user in the test DB."""
-    user = User(email=f"tu_{os.urandom(4).hex()}@example.com", password_hash="x", is_active=True)
+    user = User(
+        email=f"tu_{os.urandom(4).hex()}@example.com", password_hash="x", is_active=True
+    )
     db_session.add(user)
     await db_session.flush()
     await db_session.refresh(user)
@@ -130,7 +135,12 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
 
 
 @pytest_asyncio.fixture
-async def trading_client(db_session: AsyncSession, test_user: User, monkeypatch: pytest.MonkeyPatch, fake_adapter: Any) -> AsyncGenerator[AsyncClient, None]:
+async def trading_client(
+    db_session: AsyncSession,
+    test_user: User,
+    monkeypatch: pytest.MonkeyPatch,
+    fake_adapter: Any,
+) -> AsyncGenerator[AsyncClient, None]:
     """AsyncClient with DB, auth and exchange dependencies overridden for trading tests."""
 
     async def _override_db() -> AsyncGenerator[AsyncSession, None]:
@@ -155,21 +165,30 @@ async def trading_client(db_session: AsyncSession, test_user: User, monkeypatch:
 
 @pytest.fixture
 def sample_user_data() -> dict:
-    return {"email": "test@example.com", "password": "TestPassword123!", "full_name": "Test User"}
+    return {
+        "email": "test@example.com",
+        "password": "TestPassword123!",
+        "full_name": "Test User",
+    }
 
 
 @pytest_asyncio.fixture
 async def create_trading_instance() -> Callable:
     """Factory fixture that creates a full trading instance setup (user, exchange account, strategy, grid profile, instance)."""
-    from models import ExchangeAccount, Strategy, GridProfile, TradingInstance
-    from models.exchange_account import ExchangeName
-    from core.types import StrategyType, TradingInstanceStatus
+    from core.domain_types import StrategyType, TradingInstanceStatus
     from exchanges.credential_manager import CredentialManager
+    from models import ExchangeAccount, GridProfile, Strategy, TradingInstance
+    from models.exchange_account import ExchangeName
 
-    async def _create(db_session: AsyncSession, user: User | None = None) -> TradingInstance:
+    async def _create(
+        db_session: AsyncSession, user: User | None = None
+    ) -> TradingInstance:
         if user is None:
             from models.user import User as UserModel
-            user = UserModel(email=f"ti_{os.urandom(4).hex()}@example.com", password_hash="x")
+
+            user = UserModel(
+                email=f"ti_{os.urandom(4).hex()}@example.com", password_hash="x"
+            )
             db_session.add(user)
             await db_session.flush()
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -29,7 +29,7 @@ class AffiliateRecord:
     active_referrals: int = 0
     is_active: bool = True
     referral_code: str = ""
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 @dataclass
@@ -38,7 +38,7 @@ class Commission:
     affiliate_id: str
     amount: Decimal
     source: str
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 @dataclass
@@ -85,10 +85,15 @@ class AffiliateService:
         self._affiliates[user_id] = affiliate
         self._referral_map[referral_code] = affiliate.id
         self._metrics["affiliates_registered"] += 1
-        logger.info("Affiliate registered", extra={"user_id": user_id, "referral_code": referral_code})
+        logger.info(
+            "Affiliate registered",
+            extra={"user_id": user_id, "referral_code": referral_code},
+        )
         return affiliate
 
-    async def generate_referral_link(self, user_id: str, base_url: str = "https://utos.app") -> str:
+    async def generate_referral_link(
+        self, user_id: str, base_url: str = "https://utos.app"
+    ) -> str:
         affiliate = self._affiliates.get(user_id)
         if affiliate is None:
             raise ValidationError("User is not an affiliate")
@@ -108,14 +113,24 @@ class AffiliateService:
             affiliate.active_referrals += 1
 
         self._metrics["referrals_tracked"] += 1
-        logger.info("Referral tracked", extra={"referral_code": referral_code, "referred_user_id": referred_user_id})
+        logger.info(
+            "Referral tracked",
+            extra={
+                "referral_code": referral_code,
+                "referred_user_id": referred_user_id,
+            },
+        )
         return True
 
     async def calculate_commission(self, affiliate_id: str, amount: Decimal) -> Decimal:
         affiliate = self._find_affiliate_by_id(affiliate_id)
         if affiliate is None:
             return Decimal("0")
-        return (Decimal(str(amount)) * Decimal(str(affiliate.commission_rate)) / Decimal("100")).quantize(Decimal("0.00000001"))
+        return (
+            Decimal(str(amount))
+            * Decimal(str(affiliate.commission_rate))
+            / Decimal("100")
+        ).quantize(Decimal("0.00000001"))
 
     async def record_commission(
         self,
@@ -137,7 +152,10 @@ class AffiliateService:
             affiliate.total_earnings += commission_amount
 
         self._metrics["commissions_recorded"] += 1
-        logger.info("Commission recorded", extra={"affiliate_id": affiliate_id, "amount": str(commission_amount)})
+        logger.info(
+            "Commission recorded",
+            extra={"affiliate_id": affiliate_id, "amount": str(commission_amount)},
+        )
         return commission
 
     async def get_affiliate_stats(self, user_id: str) -> AffiliateStats | None:

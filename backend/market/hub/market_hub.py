@@ -9,14 +9,16 @@ for market data; no engine above should talk directly to an exchange adapter.
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from collections.abc import Callable
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, Callable
+from typing import Any
 
 from adapters.base import IExchangeAdapter
+from core.domain_types import Candle, OrderBook, TickerData
 from core.exceptions import SymbolNotSupported
 from core.logging import get_logger
-from core.types import Candle, OrderBook, TickerData
+
 from market.base import IMarketHub, MarketMetrics, MarketStatus
 from market.cache.market_cache import MarketCache
 from market.connector.exchange_connector import ExchangeConnector
@@ -35,7 +37,9 @@ class MarketHub(IMarketHub):
         symbol_registry: SymbolRegistry | None = None,
         stale_threshold_seconds: float = 30.0,
     ) -> None:
-        self.cache = cache or MarketCache(stale_threshold_seconds=stale_threshold_seconds)
+        self.cache = cache or MarketCache(
+            stale_threshold_seconds=stale_threshold_seconds
+        )
         self.symbols = symbol_registry or SymbolRegistry()
         self._connectors: dict[str, ExchangeConnector] = {}
         self._subscription_manager: SubscriptionManager | None = None
@@ -102,7 +106,9 @@ class MarketHub(IMarketHub):
         if self._subscription_manager is None:
             raise RuntimeError("MarketHub has not been started")
         self.symbols.validate(exchange, symbol)
-        return await self._subscription_manager.subscribe(exchange, symbol, channel, callback)
+        return await self._subscription_manager.subscribe(
+            exchange, symbol, channel, callback
+        )
 
     async def unsubscribe(self, subscription_id: str) -> None:
         """Unsubscribe a single consumer."""
@@ -137,7 +143,9 @@ class MarketHub(IMarketHub):
             raise SymbolNotSupported(symbol, exchange)
         return orderbook
 
-    async def get_candles(self, exchange: str, symbol: str, interval: str) -> list[Candle]:
+    async def get_candles(
+        self, exchange: str, symbol: str, interval: str
+    ) -> list[Candle]:
         candles = self.cache.get_candles(exchange, symbol, interval)
         if candles is None:
             await self._fetch_and_cache_candles(exchange, symbol, interval)
@@ -250,7 +258,7 @@ class MarketHub(IMarketHub):
         for ex, connector in self._connectors.items():
             if exchange is not None and ex != exchange.lower():
                 continue
-            for symbol, metrics in connector._metrics.items():
+            for _symbol, metrics in connector._metrics.items():
                 if metrics.latency_ms > 0:
                     values.append(metrics.latency_ms)
         return sum(values) / len(values) if values else 0.0
@@ -260,7 +268,7 @@ class MarketHub(IMarketHub):
 
     def snapshot(self) -> dict[str, Any]:
         """Operational snapshot for monitoring/tests."""
-        now = datetime.now(timezone.utc)
+        datetime.now(UTC)
         return {
             "running": self._running,
             "active_logical_subscriptions": self.active_subscriptions(),

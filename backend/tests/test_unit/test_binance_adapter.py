@@ -1,12 +1,10 @@
 """Unit tests for Binance Spot Adapter and Exchange Certification — Sprint 4."""
 
-import asyncio
 import hashlib
 import hmac
 import json
 import time
 import urllib.parse
-from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -14,7 +12,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 import websockets
-
+from core.domain_types import (
+    ExchangeAdapterConfig,
+    ExchangeCredentials,
+    OrderResult,
+)
 from core.exceptions import (
     AuthenticationError,
     ExchangeConnectionError,
@@ -25,15 +27,9 @@ from core.exceptions import (
     SymbolNotSupported,
     TimeoutError,
 )
-from core.types import (
-    ExchangeAdapterConfig,
-    ExchangeCredentials,
-    OrderResult,
-)
 from exchanges.adapters.binance import BinanceAuthenticator, BinanceSpotAdapter
 from exchanges.factory import ExchangeFactory
 from exchanges.websocket_manager import WebSocketManager
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -153,7 +149,7 @@ class TestBinanceAuthenticator:
     def test_sign(self):
         auth = BinanceAuthenticator(api_key="k", api_secret="s")
         signature = auth.sign("a=1&b=2")
-        expected = hmac.new("s".encode(), b"a=1&b=2", hashlib.sha256).hexdigest()
+        expected = hmac.new(b"s", b"a=1&b=2", hashlib.sha256).hexdigest()
         assert signature == expected
 
     def test_auth_headers(self):
@@ -193,12 +189,16 @@ class TestBinanceLifecycle:
         assert adapter.rest_url == "https://api.binance.com"
         assert adapter.ws_url == "wss://stream.binance.com:9443/ws"
 
-    async def test_authenticate_syncs_time_and_checks_account(self, adapter, config, credentials):
+    async def test_authenticate_syncs_time_and_checks_account(
+        self, adapter, config, credentials
+    ):
         await adapter.initialize(config)
-        adapter.http.get = AsyncMock(side_effect=[
-            response_200({"serverTime": 1000}),
-            response_200({"accountType": "SPOT"}),
-        ])
+        adapter.http.get = AsyncMock(
+            side_effect=[
+                response_200({"serverTime": 1000}),
+                response_200({"accountType": "SPOT"}),
+            ]
+        )
 
         with patch("time.time", return_value=0.5):
             result = await adapter.authenticate(credentials)
@@ -215,10 +215,12 @@ class TestBinanceLifecycle:
 
     async def test_authenticate_failure_raises(self, adapter, config, credentials):
         await adapter.initialize(config)
-        adapter.http.get = AsyncMock(side_effect=[
-            response_200({"serverTime": 1000}),
-            response_error(401, -2015, "Invalid API-key"),
-        ])
+        adapter.http.get = AsyncMock(
+            side_effect=[
+                response_200({"serverTime": 1000}),
+                response_error(401, -2015, "Invalid API-key"),
+            ]
+        )
 
         with pytest.raises(AuthenticationError):
             await adapter.authenticate(credentials)
@@ -230,10 +232,16 @@ class TestBinanceLifecycle:
 
     async def test_connect_account(self, adapter, config, credentials):
         await adapter.initialize(config)
-        adapter.authenticator.set_credentials(credentials.api_key, credentials.api_secret)
-        adapter.http.post = AsyncMock(return_value=response_200({"listenKey": "key123"}))
+        adapter.authenticator.set_credentials(
+            credentials.api_key, credentials.api_secret
+        )
+        adapter.http.post = AsyncMock(
+            return_value=response_200({"listenKey": "key123"})
+        )
         assert await adapter.connect_account() is True
-        adapter.ws_account.connect.assert_awaited_once_with("wss://testnet.binance.vision/ws/key123")
+        adapter.ws_account.connect.assert_awaited_once_with(
+            "wss://testnet.binance.vision/ws/key123"
+        )
 
     async def test_disconnect(self, adapter, config):
         await adapter.initialize(config)
@@ -249,7 +257,9 @@ class TestBinanceLifecycle:
 
     async def test_health_check_failure(self, adapter, config):
         await adapter.initialize(config)
-        adapter.http.get = AsyncMock(return_value=response_error(500, -1000, "Internal"))
+        adapter.http.get = AsyncMock(
+            return_value=response_error(500, -1000, "Internal")
+        )
         assert await adapter.health_check() is False
 
 
@@ -278,10 +288,14 @@ class TestBinanceSignatureAndTimestamp:
     async def test_place_order_body_includes_signature(self, adapter, config):
         await adapter.initialize(config)
         adapter.authenticator.set_credentials("test_key", "test_secret")
-        adapter.http.post = AsyncMock(return_value=response_200({"orderId": 1, "status": "NEW"}))
+        adapter.http.post = AsyncMock(
+            return_value=response_200({"orderId": 1, "status": "NEW"})
+        )
 
         with patch("time.time", return_value=1000.0):
-            await adapter.place_order("BTCUSDT", "buy", "limit", Decimal("1"), Decimal("50000"))
+            await adapter.place_order(
+                "BTCUSDT", "buy", "limit", Decimal("1"), Decimal("50000")
+            )
 
         call = adapter.http.post.call_args
         body = call.kwargs["content"]
@@ -292,7 +306,9 @@ class TestBinanceSignatureAndTimestamp:
     async def test_cancel_order_includes_signature(self, adapter, config):
         await adapter.initialize(config)
         adapter.authenticator.set_credentials("test_key", "test_secret")
-        adapter.http.delete = AsyncMock(return_value=response_200({"orderId": 1, "status": "CANCELED"}))
+        adapter.http.delete = AsyncMock(
+            return_value=response_200({"orderId": 1, "status": "CANCELED"})
+        )
 
         with patch("time.time", return_value=1000.0):
             await adapter.cancel_order("BTCUSDT", "123")
@@ -388,11 +404,15 @@ class TestBinanceTimestampResync:
     async def test_auto_resync_on_timestamp_drift(self, adapter, config):
         await adapter.initialize(config)
         adapter.authenticator.set_credentials("test_key", "test_secret")
-        adapter.http.get = AsyncMock(side_effect=[
-            response_error(400, -1021, "Timestamp outside recvWindow"),
-            response_200({"serverTime": 2_000}),
-            response_200({"balances": [{"asset": "BTC", "free": "1", "locked": "0"}]}),
-        ])
+        adapter.http.get = AsyncMock(
+            side_effect=[
+                response_error(400, -1021, "Timestamp outside recvWindow"),
+                response_200({"serverTime": 2_000}),
+                response_200(
+                    {"balances": [{"asset": "BTC", "free": "1", "locked": "0"}]}
+                ),
+            ]
+        )
 
         with patch("time.time", return_value=1000.0):
             result = await adapter.get_account()
@@ -408,11 +428,13 @@ class TestBinanceTimestampResync:
         await adapter.initialize(config)
         adapter.authenticator.set_credentials("test_key", "test_secret")
         # /api/v3/time succeeds, but /api/v3/account keeps returning -1021.
-        adapter.http.get = AsyncMock(side_effect=[
-            response_error(400, -1021, "Timestamp outside recvWindow"),
-            response_200({"serverTime": 2_000}),
-            response_error(400, -1021, "Timestamp outside recvWindow"),
-        ])
+        adapter.http.get = AsyncMock(
+            side_effect=[
+                response_error(400, -1021, "Timestamp outside recvWindow"),
+                response_200({"serverTime": 2_000}),
+                response_error(400, -1021, "Timestamp outside recvWindow"),
+            ]
+        )
 
         with pytest.raises(ExchangeError):
             await adapter.get_account()
@@ -427,13 +449,17 @@ class TestBinanceAccount:
     async def test_get_account(self, adapter, config):
         await adapter.initialize(config)
         adapter.authenticator.set_credentials("test_key", "test_secret")
-        adapter.http.get = AsyncMock(return_value=response_200({
-            "accountType": "SPOT",
-            "balances": [
-                {"asset": "BTC", "free": "1.5", "locked": "0.5"},
-                {"asset": "USDT", "free": "100.0", "locked": "0.0"},
-            ],
-        }))
+        adapter.http.get = AsyncMock(
+            return_value=response_200(
+                {
+                    "accountType": "SPOT",
+                    "balances": [
+                        {"asset": "BTC", "free": "1.5", "locked": "0.5"},
+                        {"asset": "USDT", "free": "100.0", "locked": "0.0"},
+                    ],
+                }
+            )
+        )
 
         result = await adapter.get_account()
         assert result["accountType"] == "SPOT"
@@ -442,12 +468,16 @@ class TestBinanceAccount:
     async def test_get_balance(self, adapter, config):
         await adapter.initialize(config)
         adapter.authenticator.set_credentials("test_key", "test_secret")
-        adapter.http.get = AsyncMock(return_value=response_200({
-            "balances": [
-                {"asset": "BTC", "free": "1.5", "locked": "0.5"},
-                {"asset": "USDT", "free": "100.0", "locked": "0.0"},
-            ],
-        }))
+        adapter.http.get = AsyncMock(
+            return_value=response_200(
+                {
+                    "balances": [
+                        {"asset": "BTC", "free": "1.5", "locked": "0.5"},
+                        {"asset": "USDT", "free": "100.0", "locked": "0.0"},
+                    ],
+                }
+            )
+        )
 
         balances = await adapter.get_balance()
         assert len(balances) == 2
@@ -459,12 +489,16 @@ class TestBinanceAccount:
     async def test_get_balance_filtered(self, adapter, config):
         await adapter.initialize(config)
         adapter.authenticator.set_credentials("test_key", "test_secret")
-        adapter.http.get = AsyncMock(return_value=response_200({
-            "balances": [
-                {"asset": "BTC", "free": "1.5", "locked": "0.5"},
-                {"asset": "USDT", "free": "100.0", "locked": "0.0"},
-            ],
-        }))
+        adapter.http.get = AsyncMock(
+            return_value=response_200(
+                {
+                    "balances": [
+                        {"asset": "BTC", "free": "1.5", "locked": "0.5"},
+                        {"asset": "USDT", "free": "100.0", "locked": "0.0"},
+                    ],
+                }
+            )
+        )
 
         balances = await adapter.get_balance("usdt")
         assert len(balances) == 1
@@ -472,14 +506,18 @@ class TestBinanceAccount:
 
     async def test_get_exchange_info(self, adapter, config):
         await adapter.initialize(config)
-        adapter.http.get = AsyncMock(return_value=response_200({
-            "serverTime": 1_000_000,
-            "symbols": [
-                {"symbol": "BTCUSDT", "status": "TRADING"},
-                {"symbol": "ETHUSDT", "status": "TRADING"},
-            ],
-            "rateLimits": [{"rateLimitType": "REQUEST_WEIGHT", "limit": 1200}],
-        }))
+        adapter.http.get = AsyncMock(
+            return_value=response_200(
+                {
+                    "serverTime": 1_000_000,
+                    "symbols": [
+                        {"symbol": "BTCUSDT", "status": "TRADING"},
+                        {"symbol": "ETHUSDT", "status": "TRADING"},
+                    ],
+                    "rateLimits": [{"rateLimitType": "REQUEST_WEIGHT", "limit": 1200}],
+                }
+            )
+        )
 
         info = await adapter.get_exchange_info()
         assert info.name == "binance"
@@ -488,11 +526,15 @@ class TestBinanceAccount:
 
     async def test_get_symbol_info(self, adapter, config):
         await adapter.initialize(config)
-        adapter.http.get = AsyncMock(return_value=response_200({
-            "symbols": [
-                {"symbol": "BTCUSDT", "status": "TRADING", "filters": []},
-            ],
-        }))
+        adapter.http.get = AsyncMock(
+            return_value=response_200(
+                {
+                    "symbols": [
+                        {"symbol": "BTCUSDT", "status": "TRADING", "filters": []},
+                    ],
+                }
+            )
+        )
 
         symbol = await adapter.get_symbol_info("BTCUSDT")
         assert symbol["symbol"] == "BTCUSDT"
@@ -513,10 +555,21 @@ class TestBinanceAccount:
 class TestBinanceMarketData:
     async def test_get_ticker(self, adapter, config):
         await adapter.initialize(config)
-        adapter.http.get = AsyncMock(side_effect=[
-            response_200({"bidPrice": "50000.0", "askPrice": "50001.0", "bidQty": "1", "askQty": "1"}),
-            response_200({"lastPrice": "50000.5", "volume": "100.0", "closeTime": 1_000_000}),
-        ])
+        adapter.http.get = AsyncMock(
+            side_effect=[
+                response_200(
+                    {
+                        "bidPrice": "50000.0",
+                        "askPrice": "50001.0",
+                        "bidQty": "1",
+                        "askQty": "1",
+                    }
+                ),
+                response_200(
+                    {"lastPrice": "50000.5", "volume": "100.0", "closeTime": 1_000_000}
+                ),
+            ]
+        )
 
         ticker = await adapter.get_ticker("BTCUSDT")
         assert ticker.symbol == "BTCUSDT"
@@ -527,11 +580,15 @@ class TestBinanceMarketData:
 
     async def test_get_order_book(self, adapter, config):
         await adapter.initialize(config)
-        adapter.http.get = AsyncMock(return_value=response_200({
-            "lastUpdateId": 100,
-            "bids": [["50000.0", "1.0"], ["49999.0", "2.0"]],
-            "asks": [["50001.0", "1.0"], ["50002.0", "2.0"]],
-        }))
+        adapter.http.get = AsyncMock(
+            return_value=response_200(
+                {
+                    "lastUpdateId": 100,
+                    "bids": [["50000.0", "1.0"], ["49999.0", "2.0"]],
+                    "asks": [["50001.0", "1.0"], ["50002.0", "2.0"]],
+                }
+            )
+        )
 
         book = await adapter.get_order_book("BTCUSDT", 5)
         assert book.symbol == "BTCUSDT"
@@ -541,10 +598,14 @@ class TestBinanceMarketData:
 
     async def test_get_candles(self, adapter, config):
         await adapter.initialize(config)
-        adapter.http.get = AsyncMock(return_value=response_200([
-            [1_000_000, "50000", "51000", "49000", "50500", "100"],
-            [1_008_000, "50500", "51500", "50000", "51000", "200"],
-        ]))
+        adapter.http.get = AsyncMock(
+            return_value=response_200(
+                [
+                    [1_000_000, "50000", "51000", "49000", "50500", "100"],
+                    [1_008_000, "50500", "51500", "50000", "51000", "200"],
+                ]
+            )
+        )
 
         candles = await adapter.get_candles("BTCUSDT", "1m", 2)
         assert len(candles) == 2
@@ -557,10 +618,26 @@ class TestBinanceMarketData:
 
     async def test_get_trades(self, adapter, config):
         await adapter.initialize(config)
-        adapter.http.get = AsyncMock(return_value=response_200([
-            {"id": 1, "price": "50000", "qty": "1", "time": 1_000_000, "isBuyerMaker": True},
-            {"id": 2, "price": "50001", "qty": "2", "time": 1_000_001, "isBuyerMaker": False},
-        ]))
+        adapter.http.get = AsyncMock(
+            return_value=response_200(
+                [
+                    {
+                        "id": 1,
+                        "price": "50000",
+                        "qty": "1",
+                        "time": 1_000_000,
+                        "isBuyerMaker": True,
+                    },
+                    {
+                        "id": 2,
+                        "price": "50001",
+                        "qty": "2",
+                        "time": 1_000_001,
+                        "isBuyerMaker": False,
+                    },
+                ]
+            )
+        )
 
         trades = await adapter.get_trades("BTCUSDT", 2)
         assert len(trades) == 2
@@ -575,7 +652,9 @@ class TestBinanceMarketData:
 
 
 class TestBinanceOrders:
-    def order_response(self, order_id: int = 123, status: str = "NEW") -> dict[str, Any]:
+    def order_response(
+        self, order_id: int = 123, status: str = "NEW"
+    ) -> dict[str, Any]:
         return {
             "orderId": order_id,
             "clientOrderId": "cid-123",
@@ -596,7 +675,9 @@ class TestBinanceOrders:
         adapter.authenticator.set_credentials("test_key", "test_secret")
         adapter.http.post = AsyncMock(return_value=response_200(self.order_response()))
 
-        result = await adapter.place_order("BTCUSDT", "buy", "limit", Decimal("1"), Decimal("50000"))
+        result = await adapter.place_order(
+            "BTCUSDT", "buy", "limit", Decimal("1"), Decimal("50000")
+        )
         assert isinstance(result, OrderResult)
         assert result.exchange_order_id == "123"
         assert result.status == "open"
@@ -606,7 +687,7 @@ class TestBinanceOrders:
         adapter.authenticator.set_credentials("test_key", "test_secret")
         adapter.http.post = AsyncMock(return_value=response_200(self.order_response()))
 
-        result = await adapter.place_order("BTCUSDT", "buy", "market", Decimal("1"))
+        await adapter.place_order("BTCUSDT", "buy", "market", Decimal("1"))
         body = adapter.http.post.call_args.kwargs["content"]
         assert "type=MARKET" in body
         assert "price" not in body
@@ -614,7 +695,9 @@ class TestBinanceOrders:
     async def test_get_order(self, adapter, config):
         await adapter.initialize(config)
         adapter.authenticator.set_credentials("test_key", "test_secret")
-        adapter.http.get = AsyncMock(return_value=response_200(self.order_response(123, "FILLED")))
+        adapter.http.get = AsyncMock(
+            return_value=response_200(self.order_response(123, "FILLED"))
+        )
 
         result = await adapter.get_order("BTCUSDT", "123")
         assert result.exchange_order_id == "123"
@@ -623,7 +706,9 @@ class TestBinanceOrders:
     async def test_cancel_order(self, adapter, config):
         await adapter.initialize(config)
         adapter.authenticator.set_credentials("test_key", "test_secret")
-        adapter.http.delete = AsyncMock(return_value=response_200(self.order_response(123, "CANCELED")))
+        adapter.http.delete = AsyncMock(
+            return_value=response_200(self.order_response(123, "CANCELED"))
+        )
 
         result = await adapter.cancel_order("BTCUSDT", "123")
         assert result.status == "cancelled"
@@ -631,7 +716,9 @@ class TestBinanceOrders:
     async def test_get_open_orders(self, adapter, config):
         await adapter.initialize(config)
         adapter.authenticator.set_credentials("test_key", "test_secret")
-        adapter.http.get = AsyncMock(return_value=response_200([self.order_response(1), self.order_response(2)]))
+        adapter.http.get = AsyncMock(
+            return_value=response_200([self.order_response(1), self.order_response(2)])
+        )
 
         orders = await adapter.get_open_orders("BTCUSDT")
         assert len(orders) == 2
@@ -640,7 +727,11 @@ class TestBinanceOrders:
     async def test_cancel_all_with_symbol(self, adapter, config):
         await adapter.initialize(config)
         adapter.authenticator.set_credentials("test_key", "test_secret")
-        adapter.http.delete = AsyncMock(return_value=response_200([self.order_response(1, "CANCELED"), self.order_response(2, "CANCELED")]))
+        adapter.http.delete = AsyncMock(
+            return_value=response_200(
+                [self.order_response(1, "CANCELED"), self.order_response(2, "CANCELED")]
+            )
+        )
 
         orders = await adapter.cancel_all("BTCUSDT")
         assert len(orders) == 2
@@ -649,8 +740,12 @@ class TestBinanceOrders:
     async def test_cancel_all_without_symbol(self, adapter, config):
         await adapter.initialize(config)
         adapter.authenticator.set_credentials("test_key", "test_secret")
-        adapter.http.get = AsyncMock(return_value=response_200([self.order_response(1), self.order_response(2)]))
-        adapter.http.delete = AsyncMock(return_value=response_200(self.order_response(1, "CANCELED")))
+        adapter.http.get = AsyncMock(
+            return_value=response_200([self.order_response(1), self.order_response(2)])
+        )
+        adapter.http.delete = AsyncMock(
+            return_value=response_200(self.order_response(1, "CANCELED"))
+        )
 
         orders = await adapter.cancel_all()
         assert len(orders) == 2
@@ -706,18 +801,26 @@ class TestBinanceWebSocket:
 
     async def test_subscribe_user_data(self, adapter, config, credentials):
         await adapter.initialize(config)
-        adapter.authenticator.set_credentials(credentials.api_key, credentials.api_secret)
+        adapter.authenticator.set_credentials(
+            credentials.api_key, credentials.api_secret
+        )
         adapter.http.post = AsyncMock(return_value=response_200({"listenKey": "lk"}))
 
         callback = MagicMock()
         await adapter.subscribe_user_data(callback)
 
-        adapter.ws_account.connect.assert_awaited_with("wss://testnet.binance.vision/ws/lk")
+        adapter.ws_account.connect.assert_awaited_with(
+            "wss://testnet.binance.vision/ws/lk"
+        )
         assert adapter._user_data_callback is callback
 
-    async def test_market_and_user_stream_use_separate_websocket_managers(self, adapter, config, credentials):
+    async def test_market_and_user_stream_use_separate_websocket_managers(
+        self, adapter, config, credentials
+    ):
         await adapter.initialize(config)
-        adapter.authenticator.set_credentials(credentials.api_key, credentials.api_secret)
+        adapter.authenticator.set_credentials(
+            credentials.api_key, credentials.api_secret
+        )
         adapter.http.post = AsyncMock(return_value=response_200({"listenKey": "lk"}))
 
         await adapter.connect_market()
@@ -742,7 +845,9 @@ class TestBinanceWebSocket:
 
         assert mock_ws.send.await_count == 1
 
-    async def test_subscribe_orderbook_different_channel_not_duplicate(self, adapter, config):
+    async def test_subscribe_orderbook_different_channel_not_duplicate(
+        self, adapter, config
+    ):
         await adapter.initialize(config)
         real_ws = WebSocketManager()
         mock_ws = AsyncMock(spec=websockets.WebSocketClientProtocol)
@@ -791,7 +896,9 @@ class TestBinanceCertification:
     async def test_rest_api_success(self, adapter, config):
         await adapter.initialize(config)
         adapter.authenticator.set_credentials("test_key", "test_secret")
-        adapter.http.get = AsyncMock(return_value=response_200({"serverTime": 1_000_000}))
+        adapter.http.get = AsyncMock(
+            return_value=response_200({"serverTime": 1_000_000})
+        )
         assert await adapter.health_check() is True
 
     async def test_websocket_success(self, adapter, config):
@@ -809,26 +916,42 @@ class TestBinanceCertification:
     async def test_cancel_order_success(self, adapter, config):
         await adapter.initialize(config)
         adapter.authenticator.set_credentials("test_key", "test_secret")
-        adapter.http.delete = AsyncMock(return_value=response_200({
-            "orderId": 1, "clientOrderId": "cid", "symbol": "BTCUSDT",
-            "side": "BUY", "type": "LIMIT", "origQty": "1", "price": "50000",
-            "executedQty": "0", "cummulativeQuoteQty": "0", "status": "CANCELED",
-            "time": 1_000_000, "updateTime": 1_000_000,
-        }))
+        adapter.http.delete = AsyncMock(
+            return_value=response_200(
+                {
+                    "orderId": 1,
+                    "clientOrderId": "cid",
+                    "symbol": "BTCUSDT",
+                    "side": "BUY",
+                    "type": "LIMIT",
+                    "origQty": "1",
+                    "price": "50000",
+                    "executedQty": "0",
+                    "cummulativeQuoteQty": "0",
+                    "status": "CANCELED",
+                    "time": 1_000_000,
+                    "updateTime": 1_000_000,
+                }
+            )
+        )
         result = await adapter.cancel_order("BTCUSDT", "1")
         assert result.status == "cancelled"
 
     async def test_rate_limit_handling(self, adapter, config):
         await adapter.initialize(config)
         adapter.authenticator.set_credentials("test_key", "test_secret")
-        adapter.http.get = AsyncMock(return_value=response_error(429, -1003, "Rate limit"))
+        adapter.http.get = AsyncMock(
+            return_value=response_error(429, -1003, "Rate limit")
+        )
         with pytest.raises(ExchangeRateLimitError):
             await adapter.get_account()
 
     async def test_error_mapping_correctness(self, adapter, config):
         await adapter.initialize(config)
         adapter.authenticator.set_credentials("test_key", "test_secret")
-        adapter.http.get = AsyncMock(return_value=response_error(401, -1022, "Invalid signature"))
+        adapter.http.get = AsyncMock(
+            return_value=response_error(401, -1022, "Invalid signature")
+        )
         with pytest.raises(AuthenticationError):
             await adapter.get_account()
 
@@ -842,21 +965,27 @@ class TestBinanceCertification:
     async def test_api_key_invalid(self, adapter, config):
         await adapter.initialize(config)
         adapter.authenticator.set_credentials("test_key", "test_secret")
-        adapter.http.get = AsyncMock(return_value=response_error(401, -2014, "API key invalid"))
+        adapter.http.get = AsyncMock(
+            return_value=response_error(401, -2014, "API key invalid")
+        )
         with pytest.raises(AuthenticationError):
             await adapter.get_account()
 
     async def test_timestamp_drift_handling(self, adapter, config):
         await adapter.initialize(config)
         adapter.authenticator.set_credentials("test_key", "test_secret")
-        adapter.http.get = AsyncMock(return_value=response_error(400, -1021, "Timestamp drift"))
+        adapter.http.get = AsyncMock(
+            return_value=response_error(400, -1021, "Timestamp drift")
+        )
         with pytest.raises(ExchangeError):
             await adapter.get_account()
 
     async def test_signature_invalid_handling(self, adapter, config):
         await adapter.initialize(config)
         adapter.authenticator.set_credentials("test_key", "test_secret")
-        adapter.http.get = AsyncMock(return_value=response_error(400, -1022, "Invalid signature"))
+        adapter.http.get = AsyncMock(
+            return_value=response_error(400, -1022, "Invalid signature")
+        )
         with pytest.raises(AuthenticationError):
             await adapter.get_account()
 
@@ -881,21 +1010,39 @@ class TestBinanceEdgeCases:
     async def test_order_result_filled_computes_avg_price(self, adapter, config):
         await adapter.initialize(config)
         adapter.authenticator.set_credentials("test_key", "test_secret")
-        adapter.http.post = AsyncMock(return_value=response_200({
-            "orderId": 1, "clientOrderId": "cid", "symbol": "BTCUSDT",
-            "side": "BUY", "type": "LIMIT", "origQty": "2", "price": "50000",
-            "executedQty": "2", "cummulativeQuoteQty": "100000",
-            "status": "FILLED", "time": 1_000_000, "updateTime": 1_000_000,
-        }))
-        result = await adapter.place_order("BTCUSDT", "buy", "limit", Decimal("2"), Decimal("50000"))
+        adapter.http.post = AsyncMock(
+            return_value=response_200(
+                {
+                    "orderId": 1,
+                    "clientOrderId": "cid",
+                    "symbol": "BTCUSDT",
+                    "side": "BUY",
+                    "type": "LIMIT",
+                    "origQty": "2",
+                    "price": "50000",
+                    "executedQty": "2",
+                    "cummulativeQuoteQty": "100000",
+                    "status": "FILLED",
+                    "time": 1_000_000,
+                    "updateTime": 1_000_000,
+                }
+            )
+        )
+        result = await adapter.place_order(
+            "BTCUSDT", "buy", "limit", Decimal("2"), Decimal("50000")
+        )
         assert result.average_fill_price == Decimal("50000")
 
     async def test_exchange_info_caches(self, adapter, config):
         await adapter.initialize(config)
-        adapter.http.get = AsyncMock(return_value=response_200({
-            "serverTime": 1_000_000,
-            "symbols": [{"symbol": "BTCUSDT"}],
-        }))
+        adapter.http.get = AsyncMock(
+            return_value=response_200(
+                {
+                    "serverTime": 1_000_000,
+                    "symbols": [{"symbol": "BTCUSDT"}],
+                }
+            )
+        )
         await adapter.get_exchange_info()
         await adapter.get_exchange_info()
         assert adapter.http.get.await_count == 1

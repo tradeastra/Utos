@@ -3,15 +3,10 @@ Tests for Sprint 16D: Database Reliability — backup manager,
 restore manager, migration validator, and db health service.
 """
 
-import json
-import os
-import gzip
 import hashlib
-from pathlib import Path
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
-
 from core.backup import BackupManager, BackupMetadata
 from core.migration_check import MigrationValidator
 
@@ -22,7 +17,7 @@ class TestBackupManager:
     def test_backup_metadata_dataclass(self):
         meta = BackupMetadata(
             backup_id="20250716_120000",
-            timestamp=datetime.now(tz=timezone.utc).isoformat(),
+            timestamp=datetime.now(tz=UTC).isoformat(),
             database="utos",
             size_bytes=1024,
             size_compressed_bytes=512,
@@ -41,7 +36,7 @@ class TestBackupManager:
     def test_backup_metadata_serialization(self, tmp_path):
         meta = BackupMetadata(
             backup_id="test123",
-            timestamp=datetime.now(tz=timezone.utc).isoformat(),
+            timestamp=datetime.now(tz=UTC).isoformat(),
             database="utos",
             size_bytes=100,
             size_compressed_bytes=50,
@@ -76,7 +71,7 @@ class TestBackupManager:
         checksum = hashlib.sha256(b"backup content").hexdigest()
         meta = BackupMetadata(
             backup_id="verify_test",
-            timestamp=datetime.now(tz=timezone.utc).isoformat(),
+            timestamp=datetime.now(tz=UTC).isoformat(),
             database="utos",
             size_bytes=14,
             size_compressed_bytes=14,
@@ -97,7 +92,7 @@ class TestBackupManager:
         test_file.write_bytes(b"backup content")
         meta = BackupMetadata(
             backup_id="verify_fail",
-            timestamp=datetime.now(tz=timezone.utc).isoformat(),
+            timestamp=datetime.now(tz=UTC).isoformat(),
             database="utos",
             size_bytes=14,
             size_compressed_bytes=14,
@@ -118,7 +113,7 @@ class TestBackupManager:
         for i in range(3):
             meta = BackupMetadata(
                 backup_id=f"list_test_{i}",
-                timestamp=datetime.now(tz=timezone.utc).isoformat(),
+                timestamp=datetime.now(tz=UTC).isoformat(),
                 database="utos",
                 size_bytes=100,
                 size_compressed_bytes=50,
@@ -186,7 +181,7 @@ class TestBackupManager:
         mgr = BackupManager(backup_dir=str(tmp_path))
         meta = BackupMetadata(
             backup_id="age_test",
-            timestamp=datetime.now(tz=timezone.utc).isoformat(),
+            timestamp=datetime.now(tz=UTC).isoformat(),
             database="utos",
             size_bytes=100,
             size_compressed_bytes=50,
@@ -233,7 +228,7 @@ class TestBackupManager:
         new_file.write_bytes(b"new")
         new_meta = BackupMetadata(
             backup_id="new",
-            timestamp=datetime.now(tz=timezone.utc).isoformat(),
+            timestamp=datetime.now(tz=UTC).isoformat(),
             database="utos",
             size_bytes=3,
             size_compressed_bytes=3,
@@ -248,6 +243,7 @@ class TestBackupManager:
         mgr._write_metadata(new_meta)
 
         import asyncio
+
         deleted = asyncio.run(mgr.apply_retention())
         assert deleted >= 1
         assert not old_file.exists()

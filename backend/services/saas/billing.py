@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -30,7 +30,7 @@ class Invoice:
     status: str = "pending"  # pending | paid | failed | cancelled
     provider: str | None = None
     transaction_id: str | None = None
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     paid_at: datetime | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -73,7 +73,10 @@ class ManualProvider(BillingProvider):
         metadata: dict[str, Any],
     ) -> PaymentResult:
         invoice_id = metadata.get("invoice_id", str(uuid.uuid4()))
-        logger.info("Manual payment processed", extra={"invoice_id": invoice_id, "amount": str(amount)})
+        logger.info(
+            "Manual payment processed",
+            extra={"invoice_id": invoice_id, "amount": str(amount)},
+        )
         return PaymentResult(
             invoice_id=invoice_id,
             status="success",
@@ -189,7 +192,9 @@ class BillingService:
 
     def register_provider(self, provider: BillingProvider) -> None:
         self._providers[provider.provider_name] = provider
-        logger.info("Billing provider registered", extra={"provider": provider.provider_name})
+        logger.info(
+            "Billing provider registered", extra={"provider": provider.provider_name}
+        )
 
     async def create_invoice(
         self,
@@ -212,10 +217,15 @@ class BillingService:
         )
         self._invoices[invoice.id] = invoice
         self._metrics["invoices_created"] += 1
-        logger.info("Invoice created", extra={"invoice_id": invoice.id, "user_id": user_id, "amount": str(amount)})
+        logger.info(
+            "Invoice created",
+            extra={"invoice_id": invoice.id, "user_id": user_id, "amount": str(amount)},
+        )
         return invoice
 
-    async def process_payment(self, invoice_id: str, provider_name: str) -> PaymentResult:
+    async def process_payment(
+        self, invoice_id: str, provider_name: str
+    ) -> PaymentResult:
         invoice = self._invoices.get(invoice_id)
         if invoice is None:
             raise ValidationError(f"Invoice not found: {invoice_id}")
@@ -234,7 +244,7 @@ class BillingService:
             invoice.status = "paid"
             invoice.provider = provider_name
             invoice.transaction_id = result.transaction_id
-            invoice.paid_at = datetime.now(timezone.utc)
+            invoice.paid_at = datetime.now(UTC)
             self._metrics["payments_succeeded"] += 1
         else:
             invoice.status = "failed"

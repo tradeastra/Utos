@@ -1,7 +1,6 @@
 """Unit tests for SubscriptionService."""
 
 import pytest
-
 from core.exceptions import ValidationError
 from services.saas.subscription import SubscriptionService
 

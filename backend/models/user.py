@@ -5,22 +5,20 @@ User model — matches DATABASE.md §2.1.
 import enum
 import uuid
 
+from database.base import GUID, Base
 from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, String
-from database.base import GUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
-from database.base import Base
 
-
-class SubscriptionTier(str, enum.Enum):
+class SubscriptionTier(enum.StrEnum):
     FREE = "free"
     BASIC = "basic"
     PRO = "pro"
     ENTERPRISE = "enterprise"
 
 
-class UserRole(str, enum.Enum):
+class UserRole(enum.StrEnum):
     USER = "user"
     ADMIN = "admin"
 
@@ -30,9 +28,7 @@ class User(Base):
 
     __tablename__ = "users"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        GUID(), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -42,12 +38,12 @@ class User(Base):
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     role: Mapped[UserRole] = mapped_column(
-        Enum(UserRole, name="user_role"),
+        Enum(UserRole, name="user_role", values_callable=lambda x: [e.value for e in x]),
         default=UserRole.USER,
         nullable=False,
     )
     subscription_tier: Mapped[SubscriptionTier] = mapped_column(
-        Enum(SubscriptionTier, name="subscription_tier"),
+        Enum(SubscriptionTier, name="subscription_tier", values_callable=lambda x: [e.value for e in x]),
         default=SubscriptionTier.FREE,
         nullable=False,
     )

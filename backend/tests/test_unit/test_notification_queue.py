@@ -1,7 +1,6 @@
 """Unit tests for NotificationQueue."""
 
 import pytest
-
 from engine.notification.queue import NotificationQueue, QueuedNotification
 
 
@@ -34,9 +33,11 @@ class TestProcess:
     @pytest.mark.asyncio
     async def test_process_success(self) -> None:
         sent: list[QueuedNotification] = []
+
         def send_fn(n: QueuedNotification) -> bool:
             sent.append(n)
             return True
+
         nq = NotificationQueue(send_fn=send_fn)
         nq.create_and_enqueue("user-1", "telegram", "@user", "Title", "Message")
         results = await nq.process()
@@ -56,11 +57,13 @@ class TestProcess:
     @pytest.mark.asyncio
     async def test_retry_then_success(self) -> None:
         attempts: list[int] = []
+
         def send_fn(n: QueuedNotification) -> bool:
             attempts.append(1)
             if len(attempts) < 2:
                 raise RuntimeError("fail")
             return True
+
         nq = NotificationQueue(send_fn=send_fn, max_retries=3)
         nq.create_and_enqueue("user-1", "telegram", "@user", "Title", "Message")
         await nq.process()
@@ -72,6 +75,7 @@ class TestProcess:
     @pytest.mark.asyncio
     async def test_fail_after_max_retries(self) -> None:
         dlq_entries: list[tuple] = []
+
         def dlq_cb(n: QueuedNotification, reason: str) -> None:
             dlq_entries.append((n.id, reason))
 

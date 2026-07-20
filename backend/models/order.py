@@ -4,13 +4,21 @@ Order model — matches DATABASE.md §2.5.
 
 import uuid
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, Integer, Numeric, String, Text
-from database.base import GUID
+from core.domain_types import OrderSide, OrderStatus, OrderType
+from database.base import GUID, Base
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-
-from core.types import OrderSide, OrderStatus, OrderType
-from database.base import Base
 
 
 class Order(Base):
@@ -18,9 +26,7 @@ class Order(Base):
 
     __tablename__ = "orders"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        GUID(), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
         GUID(), ForeignKey("users.id"), nullable=False
     )
@@ -34,20 +40,24 @@ class Order(Base):
 
     symbol: Mapped[str] = mapped_column(String(20), nullable=False)
     side: Mapped[OrderSide] = mapped_column(
-        Enum(OrderSide, name="order_side"), nullable=False
+        Enum(OrderSide, name="order_side", values_callable=lambda x: [e.value for e in x]), nullable=False
     )
     order_type: Mapped[OrderType] = mapped_column(
-        Enum(OrderType, name="order_type"), nullable=False
+        Enum(OrderType, name="order_type", values_callable=lambda x: [e.value for e in x]), nullable=False
     )
     quantity: Mapped[float] = mapped_column(Numeric(20, 8), nullable=False)
     price: Mapped[float | None] = mapped_column(Numeric(20, 8), nullable=True)
     stop_price: Mapped[float | None] = mapped_column(Numeric(20, 8), nullable=True)
 
-    filled_quantity: Mapped[float] = mapped_column(Numeric(20, 8), default=0, nullable=False)
-    average_fill_price: Mapped[float | None] = mapped_column(Numeric(20, 8), nullable=True)
+    filled_quantity: Mapped[float] = mapped_column(
+        Numeric(20, 8), default=0, nullable=False
+    )
+    average_fill_price: Mapped[float | None] = mapped_column(
+        Numeric(20, 8), nullable=True
+    )
 
     status: Mapped[OrderStatus] = mapped_column(
-        Enum(OrderStatus, name="order_status"),
+        Enum(OrderStatus, name="order_status", values_callable=lambda x: [e.value for e in x]),
         default=OrderStatus.PENDING,
         nullable=False,
     )

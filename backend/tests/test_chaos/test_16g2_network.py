@@ -15,26 +15,21 @@ Verifies:
 - recovery coordinator
 """
 
-import asyncio
 import uuid
 from decimal import Decimal
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock
 
 import pytest
-
-from core.exceptions import ExchangeConnectionError, ExchangeError
-from core.types import OrderSide, OrderType, OrderStatus
-from engine.execution.models import OrderRequest
+from core.domain_types import OrderSide, OrderStatus, OrderType
+from core.exceptions import ExchangeConnectionError
 from engine.execution.executor import OrderExecutor
-from engine.execution.tracker import OrderTracker
-from engine.execution.execution_engine import ExecutionEngine
-from engine.execution.validator import OrderValidator
+from engine.execution.models import OrderRequest
 from engine.recovery.connection import ConnectionRecovery, QueuedOrder
 from exchanges.websocket_manager import WebSocketManager
 from tests.test_chaos.chaos_adapter import ChaosExchangeAdapter
 
-
 # ── Latency Chaos ─────────────────────────────
+
 
 class TestNetworkLatency:
     """Simulate network latency — system should still function, albeit slower."""
@@ -110,6 +105,7 @@ class TestNetworkLatency:
 
 # ── Packet Loss ───────────────────────────────
 
+
 class TestPacketLoss:
     """Simulate packet loss — some requests fail, retry should handle it."""
 
@@ -176,6 +172,7 @@ class TestPacketLoss:
 
 # ── Packet Corruption ─────────────────────────
 
+
 class TestPacketCorruption:
     """Simulate packet corruption — random errors during transmission."""
 
@@ -198,11 +195,13 @@ class TestPacketCorruption:
         # 500 errors are not retried by executor (they're ExchangeError, not transient)
         # This test verifies that non-transient errors are not retried
         from engine.execution.exceptions import OrderExecutionError
+
         with pytest.raises(OrderExecutionError):
             await executor.execute(request, adapter)
 
 
 # ── Network Partition ─────────────────────────
+
 
 class TestNetworkPartition:
     """Simulate network partition — complete communication breakdown."""
@@ -220,15 +219,17 @@ class TestNetworkPartition:
 
         # Queue orders during partition
         for i in range(5):
-            recovery.queue_order(QueuedOrder(
-                instance_id=f"inst-{i}",
-                account_id="acc-1",
-                exchange="binance",
-                symbol="BTCUSDT",
-                side="buy",
-                quantity=Decimal("0.1"),
-                price=Decimal("45000"),
-            ))
+            recovery.queue_order(
+                QueuedOrder(
+                    instance_id=f"inst-{i}",
+                    account_id="acc-1",
+                    exchange="binance",
+                    symbol="BTCUSDT",
+                    side="buy",
+                    quantity=Decimal("0.1"),
+                    price=Decimal("45000"),
+                )
+            )
 
         assert recovery.get_queue_size() == 5
 
@@ -255,15 +256,17 @@ class TestNetworkPartition:
 
         recovery = ConnectionRecovery(place_order_fn=place_order_fn)
 
-        recovery.queue_order(QueuedOrder(
-            instance_id="inst-1",
-            account_id="acc-1",
-            exchange="binance",
-            symbol="BTCUSDT",
-            side="buy",
-            quantity=Decimal("0.1"),
-            price=Decimal("45000"),
-        ))
+        recovery.queue_order(
+            QueuedOrder(
+                instance_id="inst-1",
+                account_id="acc-1",
+                exchange="binance",
+                symbol="BTCUSDT",
+                side="buy",
+                quantity=Decimal("0.1"),
+                price=Decimal("45000"),
+            )
+        )
 
         # First replay
         await recovery.replay_queued_orders()
@@ -277,20 +280,23 @@ class TestNetworkPartition:
     @pytest.mark.asyncio
     async def test_partition_replay_failure_tracked(self):
         """Failed replay should be tracked in metrics."""
+
         def bad_place_order(order):
             raise Exception("Exchange still down")
 
         recovery = ConnectionRecovery(place_order_fn=bad_place_order)
 
-        recovery.queue_order(QueuedOrder(
-            instance_id="inst-1",
-            account_id="acc-1",
-            exchange="binance",
-            symbol="BTCUSDT",
-            side="buy",
-            quantity=Decimal("0.1"),
-            price=Decimal("45000"),
-        ))
+        recovery.queue_order(
+            QueuedOrder(
+                instance_id="inst-1",
+                account_id="acc-1",
+                exchange="binance",
+                symbol="BTCUSDT",
+                side="buy",
+                quantity=Decimal("0.1"),
+                price=Decimal("45000"),
+            )
+        )
 
         await recovery.replay_queued_orders()
 
@@ -300,6 +306,7 @@ class TestNetworkPartition:
 
 
 # ── WebSocket Reconnect ───────────────────────
+
 
 class TestWebSocketReconnect:
     """Verify WebSocket reconnect logic under network chaos."""

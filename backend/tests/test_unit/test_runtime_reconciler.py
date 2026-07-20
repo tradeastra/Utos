@@ -2,13 +2,18 @@
 Unit tests for RuntimeReconciler (Layer 3).
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
-
-from core.types import GridLevel, GridLevelStatus, GridState, OrderResult, OrderStatus, PositionEntry
-from engine.recovery.reconciler import ReconciliationResult, RuntimeReconciler
+from core.domain_types import (
+    GridLevel,
+    GridLevelStatus,
+    GridState,
+    OrderResult,
+    PositionEntry,
+)
+from engine.recovery.reconciler import RuntimeReconciler
 from engine.risk.portfolio import PortfolioManager
 
 
@@ -30,8 +35,8 @@ def _make_order(
         filled_quantity=filled,
         average_fill_price=Decimal("100") if filled > 0 else None,
         status=status,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
     )
 
 
@@ -45,9 +50,20 @@ def _make_grid_state(levels: list[GridLevel] | None = None) -> GridState:
         grid_spacing=Decimal("2"),
         investment_per_grid=Decimal("100"),
         symbol="BTCUSDT",
-        levels=levels or [
-            GridLevel(level=0, buy_price=Decimal("100"), sell_price=Decimal("102"), quantity=Decimal("1")),
-            GridLevel(level=1, buy_price=Decimal("98"), sell_price=Decimal("100"), quantity=Decimal("1")),
+        levels=levels
+        or [
+            GridLevel(
+                level=0,
+                buy_price=Decimal("100"),
+                sell_price=Decimal("102"),
+                quantity=Decimal("1"),
+            ),
+            GridLevel(
+                level=1,
+                buy_price=Decimal("98"),
+                sell_price=Decimal("100"),
+                quantity=Decimal("1"),
+            ),
         ],
     )
 
@@ -56,20 +72,36 @@ class TestFindMissingOrders:
 
     def test_no_missing_when_all_present(self) -> None:
         reconciler = RuntimeReconciler()
-        grid = _make_grid_state([
-            GridLevel(level=0, buy_price=Decimal("100"), sell_price=Decimal("102"),
-                      quantity=Decimal("1"), buy_order_id="ord-1", status=GridLevelStatus.OPEN),
-        ])
+        grid = _make_grid_state(
+            [
+                GridLevel(
+                    level=0,
+                    buy_price=Decimal("100"),
+                    sell_price=Decimal("102"),
+                    quantity=Decimal("1"),
+                    buy_order_id="ord-1",
+                    status=GridLevelStatus.OPEN,
+                ),
+            ]
+        )
         live = [_make_order("ord-1")]
         missing = reconciler.find_missing_orders(grid, live)
         assert missing == []
 
     def test_missing_when_order_not_on_exchange(self) -> None:
         reconciler = RuntimeReconciler()
-        grid = _make_grid_state([
-            GridLevel(level=0, buy_price=Decimal("100"), sell_price=Decimal("102"),
-                      quantity=Decimal("1"), buy_order_id="ord-1", status=GridLevelStatus.OPEN),
-        ])
+        grid = _make_grid_state(
+            [
+                GridLevel(
+                    level=0,
+                    buy_price=Decimal("100"),
+                    sell_price=Decimal("102"),
+                    quantity=Decimal("1"),
+                    buy_order_id="ord-1",
+                    status=GridLevelStatus.OPEN,
+                ),
+            ]
+        )
         live: list[OrderResult] = []
         missing = reconciler.find_missing_orders(grid, live)
         assert len(missing) == 1
@@ -77,10 +109,17 @@ class TestFindMissingOrders:
 
     def test_no_missing_for_waiting_levels(self) -> None:
         reconciler = RuntimeReconciler()
-        grid = _make_grid_state([
-            GridLevel(level=0, buy_price=Decimal("100"), sell_price=Decimal("102"),
-                      quantity=Decimal("1"), status=GridLevelStatus.WAITING),
-        ])
+        grid = _make_grid_state(
+            [
+                GridLevel(
+                    level=0,
+                    buy_price=Decimal("100"),
+                    sell_price=Decimal("102"),
+                    quantity=Decimal("1"),
+                    status=GridLevelStatus.WAITING,
+                ),
+            ]
+        )
         live: list[OrderResult] = []
         missing = reconciler.find_missing_orders(grid, live)
         assert missing == []
@@ -90,10 +129,18 @@ class TestFindOrphanOrders:
 
     def test_no_orphans_when_all_tracked(self) -> None:
         reconciler = RuntimeReconciler()
-        grid = _make_grid_state([
-            GridLevel(level=0, buy_price=Decimal("100"), sell_price=Decimal("102"),
-                      quantity=Decimal("1"), buy_order_id="ord-1", status=GridLevelStatus.OPEN),
-        ])
+        grid = _make_grid_state(
+            [
+                GridLevel(
+                    level=0,
+                    buy_price=Decimal("100"),
+                    sell_price=Decimal("102"),
+                    quantity=Decimal("1"),
+                    buy_order_id="ord-1",
+                    status=GridLevelStatus.OPEN,
+                ),
+            ]
+        )
         live = [_make_order("ord-1")]
         orphans = reconciler.find_orphan_orders(grid, live)
         assert orphans == []
@@ -119,10 +166,18 @@ class TestReconcileGrid:
     @pytest.mark.asyncio
     async def test_reconcile_filled_on_exchange(self) -> None:
         reconciler = RuntimeReconciler()
-        grid = _make_grid_state([
-            GridLevel(level=0, buy_price=Decimal("100"), sell_price=Decimal("102"),
-                      quantity=Decimal("1"), buy_order_id="ord-1", status=GridLevelStatus.OPEN),
-        ])
+        grid = _make_grid_state(
+            [
+                GridLevel(
+                    level=0,
+                    buy_price=Decimal("100"),
+                    sell_price=Decimal("102"),
+                    quantity=Decimal("1"),
+                    buy_order_id="ord-1",
+                    status=GridLevelStatus.OPEN,
+                ),
+            ]
+        )
         live = [_make_order("ord-1", status="filled", filled=Decimal("1"))]
         result = await reconciler.reconcile_grid("inst-1", grid, live)
         assert result.component == "grid"
@@ -132,10 +187,18 @@ class TestReconcileGrid:
     @pytest.mark.asyncio
     async def test_reconcile_cancelled_on_exchange(self) -> None:
         reconciler = RuntimeReconciler()
-        grid = _make_grid_state([
-            GridLevel(level=0, buy_price=Decimal("100"), sell_price=Decimal("102"),
-                      quantity=Decimal("1"), buy_order_id="ord-1", status=GridLevelStatus.OPEN),
-        ])
+        grid = _make_grid_state(
+            [
+                GridLevel(
+                    level=0,
+                    buy_price=Decimal("100"),
+                    sell_price=Decimal("102"),
+                    quantity=Decimal("1"),
+                    buy_order_id="ord-1",
+                    status=GridLevelStatus.OPEN,
+                ),
+            ]
+        )
         live = [_make_order("ord-1", status="cancelled")]
         result = await reconciler.reconcile_grid("inst-1", grid, live)
         assert result.action == "restored"
@@ -145,10 +208,18 @@ class TestReconcileGrid:
     @pytest.mark.asyncio
     async def test_reconcile_no_changes(self) -> None:
         reconciler = RuntimeReconciler()
-        grid = _make_grid_state([
-            GridLevel(level=0, buy_price=Decimal("100"), sell_price=Decimal("102"),
-                      quantity=Decimal("1"), buy_order_id="ord-1", status=GridLevelStatus.OPEN),
-        ])
+        grid = _make_grid_state(
+            [
+                GridLevel(
+                    level=0,
+                    buy_price=Decimal("100"),
+                    sell_price=Decimal("102"),
+                    quantity=Decimal("1"),
+                    buy_order_id="ord-1",
+                    status=GridLevelStatus.OPEN,
+                ),
+            ]
+        )
         live = [_make_order("ord-1", status="open")]
         result = await reconciler.reconcile_grid("inst-1", grid, live)
         assert result.action == "skipped"
@@ -170,8 +241,11 @@ class TestReconcilePortfolio:
         reconciler = RuntimeReconciler(portfolio=pm)
         exchange_positions = [
             PositionEntry(
-                symbol="BTCUSDT", side="long", quantity=Decimal("2"),
-                entry_price=Decimal("100"), unrealized_pnl=Decimal("0"),
+                symbol="BTCUSDT",
+                side="long",
+                quantity=Decimal("2"),
+                entry_price=Decimal("100"),
+                unrealized_pnl=Decimal("0"),
             ),
         ]
         result = await reconciler.reconcile_portfolio("inst-1", [], exchange_positions)
@@ -183,8 +257,13 @@ class TestReconcilePortfolio:
     async def test_close_stale_position(self) -> None:
         pm = PortfolioManager()
         pm.register_position(
-            "inst-1", "acc-1", "binance", "BTCUSDT", "long",
-            Decimal("100"), Decimal("2"),
+            "inst-1",
+            "acc-1",
+            "binance",
+            "BTCUSDT",
+            "long",
+            Decimal("100"),
+            Decimal("2"),
         )
         reconciler = RuntimeReconciler(portfolio=pm)
         result = await reconciler.reconcile_portfolio("inst-1", pm.get_positions(), [])
@@ -196,14 +275,22 @@ class TestReconcilePortfolio:
     async def test_no_changes_when_in_sync(self) -> None:
         pm = PortfolioManager()
         pm.register_position(
-            "inst-1", "acc-1", "binance", "BTCUSDT", "long",
-            Decimal("100"), Decimal("2"),
+            "inst-1",
+            "acc-1",
+            "binance",
+            "BTCUSDT",
+            "long",
+            Decimal("100"),
+            Decimal("2"),
         )
         reconciler = RuntimeReconciler(portfolio=pm)
         exchange_positions = [
             PositionEntry(
-                symbol="BTCUSDT", side="long", quantity=Decimal("2"),
-                entry_price=Decimal("100"), unrealized_pnl=Decimal("0"),
+                symbol="BTCUSDT",
+                side="long",
+                quantity=Decimal("2"),
+                entry_price=Decimal("100"),
+                unrealized_pnl=Decimal("0"),
             ),
         ]
         result = await reconciler.reconcile_portfolio(

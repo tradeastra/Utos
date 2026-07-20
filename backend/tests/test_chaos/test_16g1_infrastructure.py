@@ -12,31 +12,25 @@ Simulates:
 Target: System recovery otomatis tanpa duplicate order.
 """
 
-import asyncio
 import uuid
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
-
+from core.domain_types import OrderSide, OrderStatus, OrderType
 from core.exceptions import (
     ExchangeConnectionError,
-    ExchangeError,
-    CacheError,
-    DatabaseError,
-    RetryableError,
 )
-from core.types import OrderSide, OrderType, OrderResult, OrderStatus
-from engine.execution.models import OrderRequest
-from engine.execution.executor import OrderExecutor
-from engine.execution.tracker import OrderTracker
 from engine.execution.execution_engine import ExecutionEngine
+from engine.execution.executor import OrderExecutor
+from engine.execution.models import OrderRequest
+from engine.execution.tracker import OrderTracker
 from engine.execution.validator import OrderValidator
 from engine.recovery.connection import ConnectionRecovery, QueuedOrder
 from tests.test_chaos.chaos_adapter import ChaosExchangeAdapter
 
-
 # ── Redis Failure ─────────────────────────────
+
 
 class TestRedisFailure:
     """Simulate Redis going down and recovering."""
@@ -76,6 +70,7 @@ class TestRedisFailure:
     @pytest.mark.asyncio
     async def test_redis_health_check_exception(self):
         """Redis health check raising exception should not crash recovery."""
+
         def bad_health_check():
             raise ConnectionError("Redis connection refused")
 
@@ -113,6 +108,7 @@ class TestRedisFailure:
 
 # ── PostgreSQL Failure ────────────────────────
 
+
 class TestPostgresFailure:
     """Simulate PostgreSQL going down and recovering."""
 
@@ -148,6 +144,7 @@ class TestPostgresFailure:
     @pytest.mark.asyncio
     async def test_postgres_health_check_exception(self):
         """PostgreSQL health check exception should not crash."""
+
         def bad_health_check():
             raise ConnectionError("PG connection refused")
 
@@ -158,6 +155,7 @@ class TestPostgresFailure:
 
 
 # ── Exchange API Timeout ──────────────────────
+
 
 class TestExchangeTimeout:
     """Simulate exchange API timeout — should retry, not duplicate orders."""
@@ -181,6 +179,7 @@ class TestExchangeTimeout:
         )
 
         from engine.execution.exceptions import OrderExecutionError
+
         with pytest.raises(OrderExecutionError):
             await executor.execute(request, adapter)
 
@@ -222,7 +221,9 @@ class TestExchangeTimeout:
         validator = OrderValidator()
         tracker = OrderTracker()
         executor = OrderExecutor(max_retries=2, base_delay=0.01)
-        engine = ExecutionEngine(validator=validator, executor=executor, tracker=tracker)
+        engine = ExecutionEngine(
+            validator=validator, executor=executor, tracker=tracker
+        )
         engine.register_adapter(uuid.uuid4(), adapter)
 
         request = OrderRequest(
@@ -246,6 +247,7 @@ class TestExchangeTimeout:
 
 # ── Exchange API 500 ──────────────────────────
 
+
 class TestExchange500:
     """Simulate exchange returning 500 errors."""
 
@@ -266,11 +268,13 @@ class TestExchange500:
         )
 
         from engine.execution.exceptions import OrderExecutionError
+
         with pytest.raises(OrderExecutionError):
             await executor.execute(request, adapter)
 
 
 # ── DNS Failure ───────────────────────────────
+
 
 class TestDNSFailure:
     """Simulate DNS resolution failure."""
@@ -292,6 +296,7 @@ class TestDNSFailure:
         )
 
         from engine.execution.exceptions import OrderExecutionError
+
         with pytest.raises(OrderExecutionError):
             await executor.execute(request, adapter)
 
@@ -307,6 +312,7 @@ class TestDNSFailure:
 
 
 # ── TLS Handshake Failure ─────────────────────
+
 
 class TestTLSFailure:
     """Simulate TLS handshake failure — behaves like connection error."""
@@ -328,11 +334,13 @@ class TestTLSFailure:
         )
 
         from engine.execution.exceptions import OrderExecutionError
+
         with pytest.raises(OrderExecutionError):
             await executor.execute(request, adapter)
 
 
 # ── Combined Infrastructure Failure ───────────
+
 
 class TestCombinedInfrastructureFailure:
     """All infrastructure down simultaneously."""

@@ -7,29 +7,19 @@ codes) lives in this file.
 """
 
 import asyncio
+import contextlib
 import hashlib
 import hmac
 import json
 import time
 import urllib.parse
 from collections.abc import Callable
-from datetime import datetime, timezone
-from decimal import Decimal, InvalidOperation
-from typing import Any, Optional
+from datetime import UTC, datetime
+from decimal import Decimal
+from typing import Any
 
 import httpx
-
-from core.exceptions import (
-    AuthenticationError,
-    ExchangeConnectionError,
-    ExchangeError,
-    ExchangeRateLimitError,
-    InsufficientBalanceError,
-    OrderNotFound,
-    SymbolNotSupported,
-)
-from core.logging import get_logger
-from core.types import (
+from core.domain_types import (
     BalanceEntry,
     Candle,
     ExchangeAdapterConfig,
@@ -41,12 +31,22 @@ from core.types import (
     TickerData,
     TradeEntry,
 )
+from core.exceptions import (
+    AuthenticationError,
+    ExchangeConnectionError,
+    ExchangeError,
+    ExchangeRateLimitError,
+    InsufficientBalanceError,
+    OrderNotFound,
+    SymbolNotSupported,
+)
+from core.logging import get_logger
+
 from exchanges.adapter import IExchangeAdapter
 from exchanges.credential_manager import CredentialManager
-from exchanges.errors import ErrorMapper
 from exchanges.factory import ExchangeFactory
 from exchanges.http_client import HttpClient
-from exchanges.rate_limiter import RateLimiter, RateLimitConfig
+from exchanges.rate_limiter import RateLimitConfig, RateLimiter
 from exchanges.retry import RetryPolicy
 from exchanges.websocket_manager import WebSocketManager
 
@@ -95,11 +95,11 @@ class BinanceSpotAdapter(IExchangeAdapter):
 
     def __init__(
         self,
-        http_client: Optional[HttpClient] = None,
-        ws_manager: Optional[WebSocketManager] = None,
-        ws_account_manager: Optional[WebSocketManager] = None,
-        credential_manager: Optional[CredentialManager] = None,
-        authenticator: Optional[BinanceAuthenticator] = None,
+        http_client: HttpClient | None = None,
+        ws_manager: WebSocketManager | None = None,
+        ws_account_manager: WebSocketManager | None = None,
+        credential_manager: CredentialManager | None = None,
+        authenticator: BinanceAuthenticator | None = None,
     ) -> None:
         self.http = http_client
         self.ws = ws_manager
@@ -107,18 +107,18 @@ class BinanceSpotAdapter(IExchangeAdapter):
         self.credential_manager = credential_manager
         self.authenticator = authenticator or BinanceAuthenticator()
 
-        self.config: Optional[ExchangeAdapterConfig] = None
-        self.credentials: Optional[ExchangeCredentials] = None
+        self.config: ExchangeAdapterConfig | None = None
+        self.credentials: ExchangeCredentials | None = None
         self.rest_url: str = ""
         self.ws_url: str = ""
         self.recv_window: int = 5000
-        self._exchange_info: Optional[dict[str, Any]] = None
-        self._listen_key: Optional[str] = None
-        self._keepalive_task: Optional[asyncio.Task] = None
+        self._exchange_info: dict[str, Any] | None = None
+        self._listen_key: str | None = None
+        self._keepalive_task: asyncio.Task | None = None
 
         self._ticker_callbacks: dict[str, Callable[[Any], None]] = {}
         self._orderbook_callbacks: dict[str, Callable[[Any], None]] = {}
-        self._user_data_callback: Optional[Callable[[Any], None]] = None
+        self._user_data_callback: Callable[[Any], None] | None = None
 
         self._subscribed_ids: dict[str, int] = {}
         self._next_id: int = 1
@@ -130,16 +130,24 @@ class BinanceSpotAdapter(IExchangeAdapter):
         self.config = config
         self.name = config.exchange_name or self.name
         self.rest_url = (
-            self.REST_TESTNET if config.is_testnet else config.rest_url or self.REST_MAINNET
+            self.REST_TESTNET
+            if config.is_testnet
+            else config.rest_url or self.REST_MAINNET
         ).rstrip("/")
         self.ws_url = (
-            self.WS_TESTNET if config.is_testnet else config.market_stream_url or self.WS_MAINNET
+            self.WS_TESTNET
+            if config.is_testnet
+            else config.market_stream_url or self.WS_MAINNET
         ).rstrip("/")
         self.recv_window = getattr(config, "recv_window", 5000)
 
         rate_limiter = RateLimiter()
-        rate_limiter.configure("rest", RateLimitConfig(max_tokens=1200.0, refill_rate=20.0))
-        rate_limiter.configure("websocket", RateLimitConfig(max_tokens=5.0, refill_rate=5.0))
+        rate_limiter.configure(
+            "rest", RateLimitConfig(max_tokens=1200.0, refill_rate=20.0)
+        )
+        rate_limiter.configure(
+            "websocket", RateLimitConfig(max_tokens=5.0, refill_rate=5.0)
+        )
 
         retry_policy = RetryPolicy(
             max_retries=3,
@@ -166,9 +174,13 @@ class BinanceSpotAdapter(IExchangeAdapter):
 
         ws_retry_policy = RetryPolicy(max_retries=5, base_delay=1.0)
         if self.ws is None:
-            self.ws = WebSocketManager(retry_policy=ws_retry_policy, rate_limiter=rate_limiter)
+            self.ws = WebSocketManager(
+                retry_policy=ws_retry_policy, rate_limiter=rate_limiter
+            )
         if self.ws_account is None:
-            self.ws_account = WebSocketManager(retry_policy=ws_retry_policy, rate_limiter=rate_limiter)
+            self.ws_account = WebSocketManager(
+                retry_policy=ws_retry_policy, rate_limiter=rate_limiter
+            )
 
         if self.credential_manager is None:
             self.credential_manager = CredentialManager()
@@ -214,10 +226,8 @@ class BinanceSpotAdapter(IExchangeAdapter):
 
         if self._keepalive_task is not None:
             self._keepalive_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._keepalive_task
-            except asyncio.CancelledError:
-                pass
             self._keepalive_task = None
 
         if self.ws is not None:
@@ -246,7 +256,7 @@ class BinanceSpotAdapter(IExchangeAdapter):
         response = await self._signed_get("/api/v3/account")
         return self._parse_json(response)
 
-    async def get_balance(self, asset: Optional[str] = None) -> list[BalanceEntry]:
+    async def get_balance(self, asset: str | None = None) -> list[BalanceEntry]:
         account = await self.get_account()
         balances: list[BalanceEntry] = []
         for item in account.get("balances", []):
@@ -278,11 +288,11 @@ class BinanceSpotAdapter(IExchangeAdapter):
             rate_limits=info.get("rateLimits", {}),
             fee_structure={},
             server_time=datetime.fromtimestamp(
-                info.get("serverTime", int(time.time() * 1000)) / 1000, tz=timezone.utc
+                info.get("serverTime", int(time.time() * 1000)) / 1000, tz=UTC
             ),
         )
 
-    async def get_positions(self, symbol: Optional[str] = None) -> list[PositionEntry]:
+    async def get_positions(self, symbol: str | None = None) -> list[PositionEntry]:
         # Spot does not have leveraged positions in this adapter.
         return []
 
@@ -303,18 +313,20 @@ class BinanceSpotAdapter(IExchangeAdapter):
             ask=Decimal(book["askPrice"]),
             last=Decimal(stats["lastPrice"]),
             volume=Decimal(stats["volume"]),
-            timestamp=datetime.fromtimestamp(stats["closeTime"] / 1000, tz=timezone.utc),
+            timestamp=datetime.fromtimestamp(stats["closeTime"] / 1000, tz=UTC),
         )
 
     async def get_order_book(self, symbol: str, limit: int = 100) -> OrderBook:
         data = self._parse_json(
-            await self.http.get("/api/v3/depth", params={"symbol": symbol.upper(), "limit": limit})
+            await self.http.get(
+                "/api/v3/depth", params={"symbol": symbol.upper(), "limit": limit}
+            )
         )
         return OrderBook(
             symbol=symbol.upper(),
             bids=[(Decimal(b[0]), Decimal(b[1])) for b in data.get("bids", [])],
             asks=[(Decimal(a[0]), Decimal(a[1])) for a in data.get("asks", [])],
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         )
 
     async def get_candles(
@@ -337,7 +349,7 @@ class BinanceSpotAdapter(IExchangeAdapter):
                     low=Decimal(row[3]),
                     close=Decimal(row[4]),
                     volume=Decimal(row[5]),
-                    timestamp=datetime.fromtimestamp(row[0] / 1000, tz=timezone.utc),
+                    timestamp=datetime.fromtimestamp(row[0] / 1000, tz=UTC),
                 )
             )
         return candles
@@ -360,7 +372,7 @@ class BinanceSpotAdapter(IExchangeAdapter):
                     price=Decimal(row["price"]),
                     fee=Decimal("0"),
                     fee_currency=self._quote_asset(symbol),
-                    timestamp=datetime.fromtimestamp(row["time"] / 1000, tz=timezone.utc),
+                    timestamp=datetime.fromtimestamp(row["time"] / 1000, tz=UTC),
                 )
             )
         return trades
@@ -374,7 +386,7 @@ class BinanceSpotAdapter(IExchangeAdapter):
         side: str,
         order_type: str,
         quantity: Decimal,
-        price: Optional[Decimal] = None,
+        price: Decimal | None = None,
         **kwargs: Any,
     ) -> OrderResult:
         params: dict[str, Any] = {
@@ -397,7 +409,7 @@ class BinanceSpotAdapter(IExchangeAdapter):
         response = await self._signed_delete("/api/v3/order", params)
         return self._order_result_from_response(self._parse_json(response))
 
-    async def cancel_all(self, symbol: Optional[str] = None) -> list[OrderResult]:
+    async def cancel_all(self, symbol: str | None = None) -> list[OrderResult]:
         if symbol:
             params = {"symbol": symbol.upper()}
             response = await self._signed_delete("/api/v3/openOrders", params)
@@ -406,7 +418,9 @@ class BinanceSpotAdapter(IExchangeAdapter):
             results: list[OrderResult] = []
             for order in await self.get_open_orders():
                 if order.symbol:
-                    results.append(await self.cancel_order(order.symbol, order.exchange_order_id))
+                    results.append(
+                        await self.cancel_order(order.symbol, order.exchange_order_id)
+                    )
             return results
 
         if response.status_code == 200:
@@ -422,7 +436,7 @@ class BinanceSpotAdapter(IExchangeAdapter):
         response = await self._signed_get("/api/v3/order", params)
         return self._order_result_from_response(self._parse_json(response))
 
-    async def get_open_orders(self, symbol: Optional[str] = None) -> list[OrderResult]:
+    async def get_open_orders(self, symbol: str | None = None) -> list[OrderResult]:
         params = {"symbol": symbol.upper()} if symbol else {}
         response = await self._signed_get("/api/v3/openOrders", params)
         data = self._parse_json(response)
@@ -454,7 +468,9 @@ class BinanceSpotAdapter(IExchangeAdapter):
         await self.ws.subscribe(json.dumps(msg))
         return True
 
-    async def subscribe_account(self, channel: str, callback: Callable[[Any], None]) -> bool:
+    async def subscribe_account(
+        self, channel: str, callback: Callable[[Any], None]
+    ) -> bool:
         if not self.ws_account.is_connected or not self._listen_key:
             await self.connect_account()
         self._user_data_callback = callback
@@ -501,7 +517,7 @@ class BinanceSpotAdapter(IExchangeAdapter):
         self,
         method: str,
         path: str,
-        params: Optional[dict[str, Any]] = None,
+        params: dict[str, Any] | None = None,
     ) -> httpx.Response:
         """Execute a signed request and auto-resync once on timestamp drift."""
         params = params or {}
@@ -516,20 +532,29 @@ class BinanceSpotAdapter(IExchangeAdapter):
                     body = urllib.parse.urlencode(sorted(signed.items()), doseq=True)
                     response = await self.http.post(path, content=body, headers=headers)
                 elif method == "DELETE":
-                    response = await self.http.delete(path, params=signed, headers=headers)
+                    response = await self.http.delete(
+                        path, params=signed, headers=headers
+                    )
                 else:
                     raise ValueError(f"Unsupported signed method: {method}")
                 self._raise_for_status(response)
                 return response
             except ExchangeError as exc:
-                if attempt == 0 and getattr(exc, "error_code", None) == "TIMESTAMP_DRIFT":
-                    logger.warning("Binance timestamp drift detected; resyncing server time")
+                if (
+                    attempt == 0
+                    and getattr(exc, "error_code", None) == "TIMESTAMP_DRIFT"
+                ):
+                    logger.warning(
+                        "Binance timestamp drift detected; resyncing server time"
+                    )
                     await self._sync_time()
                     continue
                 raise
         raise ExchangeError("Binance timestamp drift persisted after resync", self.name)
 
-    async def _signed_get(self, path: str, params: Optional[dict[str, Any]] = None) -> httpx.Response:
+    async def _signed_get(
+        self, path: str, params: dict[str, Any] | None = None
+    ) -> httpx.Response:
         return await self._signed_request("GET", path, params)
 
     async def _signed_post(self, path: str, params: dict[str, Any]) -> httpx.Response:
@@ -541,9 +566,7 @@ class BinanceSpotAdapter(IExchangeAdapter):
     async def _start_listen_key(self) -> httpx.Response:
         self._ensure_authenticated()
         headers = self.authenticator.auth_headers()
-        return await self.http.post(
-            "/api/v3/userDataStream", headers=headers
-        )
+        return await self.http.post("/api/v3/userDataStream", headers=headers)
 
     async def _keepalive_loop(self, interval: float = 1800.0) -> None:
         while True:
@@ -571,7 +594,9 @@ class BinanceSpotAdapter(IExchangeAdapter):
         try:
             return response.json()
         except Exception as exc:
-            raise ExchangeError("Invalid JSON response from Binance", self.name) from exc
+            raise ExchangeError(
+                "Invalid JSON response from Binance", self.name
+            ) from exc
 
     def _raise_for_status(self, response: httpx.Response) -> None:
         if response.status_code < 400:
@@ -606,7 +631,9 @@ class BinanceSpotAdapter(IExchangeAdapter):
         if code == -1120 or code == -1121:
             raise SymbolNotSupported(body.get("symbol", ""), self.name)
         if status >= 500:
-            raise ExchangeConnectionError(f"Binance server error {status}: {msg}", self.name)
+            raise ExchangeConnectionError(
+                f"Binance server error {status}: {msg}", self.name
+            )
 
         raise ExchangeError(f"Binance HTTP {status}: {msg}", self.name)
 
@@ -625,8 +652,12 @@ class BinanceSpotAdapter(IExchangeAdapter):
             filled_quantity=filled,
             average_fill_price=avg_price,
             status=self._map_order_status(data.get("status", "")),
-            created_at=datetime.fromtimestamp(data.get("time", int(time.time() * 1000)) / 1000, tz=timezone.utc),
-            updated_at=datetime.fromtimestamp(data.get("updateTime", int(time.time() * 1000)) / 1000, tz=timezone.utc),
+            created_at=datetime.fromtimestamp(
+                data.get("time", int(time.time() * 1000)) / 1000, tz=UTC
+            ),
+            updated_at=datetime.fromtimestamp(
+                data.get("updateTime", int(time.time() * 1000)) / 1000, tz=UTC
+            ),
             error_message=None,
         )
 

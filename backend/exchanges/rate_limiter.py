@@ -9,7 +9,6 @@ import asyncio
 import time
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -23,12 +22,10 @@ class RateLimitConfig:
 class RateLimiter:
     """Token-bucket rate limiter with per-endpoint buckets."""
 
-    def __init__(self, default: Optional[RateLimitConfig] = None) -> None:
+    def __init__(self, default: RateLimitConfig | None = None) -> None:
         self._default = default or RateLimitConfig(max_tokens=120.0, refill_rate=120.0)
         self._configs: dict[str, RateLimitConfig] = {}
-        self._tokens: dict[str, float] = defaultdict(
-            lambda: self._default.max_tokens
-        )
+        self._tokens: dict[str, float] = defaultdict(lambda: self._default.max_tokens)
         self._last_update: dict[str, float] = defaultdict(time.monotonic)
         self._lock = asyncio.Lock()
 
@@ -86,7 +83,7 @@ class RateLimiter:
         self._refill(endpoint)
         return self._tokens[endpoint] >= tokens
 
-    def reset(self, endpoint: Optional[str] = None) -> None:
+    def reset(self, endpoint: str | None = None) -> None:
         """Reset token buckets for an endpoint or all endpoints."""
         if endpoint is None:
             self._tokens.clear()

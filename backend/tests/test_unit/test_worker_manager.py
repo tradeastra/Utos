@@ -1,8 +1,6 @@
 """Unit tests for WorkerManager."""
 
-import pytest
-
-from engine.scheduler.manager import WorkerManager, WorkerStatus
+from engine.scheduler.manager import WorkerManager
 
 
 class TestWorkerLifecycle:

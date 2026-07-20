@@ -14,11 +14,11 @@ from __future__ import annotations
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
-from core.types import Candle, OrderBook, TickerData
+from core.domain_types import Candle, OrderBook, TickerData
 
 
 @dataclass
@@ -37,7 +37,7 @@ class _CacheEntry:
     last_sequence: int | None = None
 
     def update_timestamp(self) -> None:
-        self.last_update = datetime.now(timezone.utc)
+        self.last_update = datetime.now(UTC)
         now = time.time()
         self.message_times.append(now)
         self.message_count += 1
@@ -61,10 +61,14 @@ class MarketCache:
     def _key(self, exchange: str, symbol: str) -> tuple[str, str]:
         return exchange.lower(), symbol.upper()
 
-    def _entry(self, exchange: str, symbol: str, create: bool = True) -> _CacheEntry | None:
+    def _entry(
+        self, exchange: str, symbol: str, create: bool = True
+    ) -> _CacheEntry | None:
         key = self._key(exchange, symbol)
         if key not in self._data and create:
-            self._data[key] = _CacheEntry(symbol=symbol.upper(), exchange=exchange.lower())
+            self._data[key] = _CacheEntry(
+                symbol=symbol.upper(), exchange=exchange.lower()
+            )
         return self._data.get(key)
 
     def update_ticker(self, exchange: str, symbol: str, ticker: TickerData) -> None:
@@ -75,7 +79,9 @@ class MarketCache:
         entry.price = ticker.last
         entry.update_timestamp()
 
-    def update_orderbook(self, exchange: str, symbol: str, orderbook: OrderBook) -> None:
+    def update_orderbook(
+        self, exchange: str, symbol: str, orderbook: OrderBook
+    ) -> None:
         entry = self._entry(exchange, symbol)
         if entry is None:
             return
@@ -103,7 +109,9 @@ class MarketCache:
         entry = self._entry(exchange, symbol, create=False)
         return entry.orderbook if entry else None
 
-    def get_candles(self, exchange: str, symbol: str, interval: str) -> list[Candle] | None:
+    def get_candles(
+        self, exchange: str, symbol: str, interval: str
+    ) -> list[Candle] | None:
         entry = self._entry(exchange, symbol, create=False)
         if entry is None:
             return None
@@ -126,7 +134,7 @@ class MarketCache:
         entry = self._entry(exchange, symbol, create=False)
         if entry is None or entry.last_update is None:
             return False
-        elapsed = (datetime.now(timezone.utc) - entry.last_update).total_seconds()
+        elapsed = (datetime.now(UTC) - entry.last_update).total_seconds()
         return elapsed < self._stale_threshold
 
     def clear(self, exchange: str | None = None, symbol: str | None = None) -> None:
@@ -134,7 +142,12 @@ class MarketCache:
             self._data.clear()
             return
         target = (exchange or "").lower(), (symbol or "").upper()
-        keys = [k for k in self._data if (target[0] == "" or k[0] == target[0]) and (target[1] == "" or k[1] == target[1])]
+        keys = [
+            k
+            for k in self._data
+            if (target[0] == "" or k[0] == target[0])
+            and (target[1] == "" or k[1] == target[1])
+        ]
         for key in keys:
             del self._data[key]
 
@@ -159,7 +172,9 @@ class MarketCache:
                 "has_orderbook": entry.orderbook is not None,
                 "candle_intervals": list(entry.candles.keys()),
                 "price": str(entry.price) if entry.price else None,
-                "last_update": entry.last_update.isoformat() if entry.last_update else None,
+                "last_update": (
+                    entry.last_update.isoformat() if entry.last_update else None
+                ),
                 "message_count": entry.message_count,
                 "message_rate": round(entry.message_rate, 3),
             }

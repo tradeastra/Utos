@@ -6,15 +6,11 @@ Tests are independent and do not make real network calls.
 
 import asyncio
 import json
-import uuid
-from decimal import Decimal
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
 import websockets
-
 from core.exceptions import (
     AuthenticationError,
     ExchangeConnectionError,
@@ -22,23 +18,19 @@ from core.exceptions import (
     ExchangeRateLimitError,
     TimeoutError,
 )
-from core.types import (
-    ExchangeAdapterConfig,
-    ExchangeCredentials,
-)
 from exchanges.adapter import IExchangeAdapter
 from exchanges.credential_manager import CredentialManager
 from exchanges.errors import ErrorMapper
 from exchanges.factory import ExchangeFactory
 from exchanges.http_client import HttpClient
-from exchanges.rate_limiter import RateLimiter, RateLimitConfig
+from exchanges.rate_limiter import RateLimitConfig, RateLimiter
 from exchanges.retry import RetryPolicy
 from exchanges.websocket_manager import WebSocketManager
-
 
 # -----------------------------------------------------------------------------
 # IExchangeAdapter
 # -----------------------------------------------------------------------------
+
 
 class TestIExchangeAdapter:
     def test_instantiating_abstract_adapter_raises(self):
@@ -72,7 +64,7 @@ class TestIExchangeAdapter:
             "unsubscribe_market",
             "unsubscribe_account",
         }
-        abstract = {m for m in dir(IExchangeAdapter) if getattr(IExchangeAdapter, m, None)}
+        {m for m in dir(IExchangeAdapter) if getattr(IExchangeAdapter, m, None)}
         for m in missing:
             assert hasattr(IExchangeAdapter, m)
 
@@ -80,6 +72,7 @@ class TestIExchangeAdapter:
 # -----------------------------------------------------------------------------
 # ExchangeFactory
 # -----------------------------------------------------------------------------
+
 
 class TestExchangeFactory:
     def setup_method(self):
@@ -92,30 +85,77 @@ class TestExchangeFactory:
         class DummyAdapter(IExchangeAdapter):
             name = "dummy"
 
-            async def initialize(self, config): return True
-            async def authenticate(self, credentials): return True
-            async def connect_market(self): return True
-            async def connect_account(self): return True
-            async def disconnect(self): pass
-            async def get_exchange_info(self): return None
-            async def get_balance(self, asset=None): return []
-            async def get_account(self): return None
-            async def get_symbol_info(self, symbol): return None
-            async def get_positions(self, symbol=None): return []
-            async def place_order(self, *args, **kwargs): return None
-            async def cancel_order(self, symbol, order_id): return None
-            async def cancel_all(self, symbol=None): return []
-            async def get_order(self, symbol, order_id): return None
-            async def get_open_orders(self, symbol=None): return []
-            async def get_ticker(self, symbol): return None
-            async def get_order_book(self, symbol, limit=100): return None
-            async def get_candles(self, symbol, interval, limit=100): return []
-            async def get_trades(self, symbol, limit=100): return []
-            async def health_check(self): return True
-            async def subscribe_market(self, symbols, channel, callback): return True
-            async def subscribe_account(self, channel, callback): return True
-            async def unsubscribe_market(self, symbols, channel): return True
-            async def unsubscribe_account(self, channel): return True
+            async def initialize(self, config):
+                return True
+
+            async def authenticate(self, credentials):
+                return True
+
+            async def connect_market(self):
+                return True
+
+            async def connect_account(self):
+                return True
+
+            async def disconnect(self):
+                pass
+
+            async def get_exchange_info(self):
+                return None
+
+            async def get_balance(self, asset=None):
+                return []
+
+            async def get_account(self):
+                return None
+
+            async def get_symbol_info(self, symbol):
+                return None
+
+            async def get_positions(self, symbol=None):
+                return []
+
+            async def place_order(self, *args, **kwargs):
+                return None
+
+            async def cancel_order(self, symbol, order_id):
+                return None
+
+            async def cancel_all(self, symbol=None):
+                return []
+
+            async def get_order(self, symbol, order_id):
+                return None
+
+            async def get_open_orders(self, symbol=None):
+                return []
+
+            async def get_ticker(self, symbol):
+                return None
+
+            async def get_order_book(self, symbol, limit=100):
+                return None
+
+            async def get_candles(self, symbol, interval, limit=100):
+                return []
+
+            async def get_trades(self, symbol, limit=100):
+                return []
+
+            async def health_check(self):
+                return True
+
+            async def subscribe_market(self, symbols, channel, callback):
+                return True
+
+            async def subscribe_account(self, channel, callback):
+                return True
+
+            async def unsubscribe_market(self, symbols, channel):
+                return True
+
+            async def unsubscribe_account(self, channel):
+                return True
 
         ExchangeFactory.register("dummy", DummyAdapter)
         adapter = ExchangeFactory.create("dummy")
@@ -128,30 +168,77 @@ class TestExchangeFactory:
 
     def test_is_registered(self):
         class DummyAdapter(IExchangeAdapter):
-            async def initialize(self, config): return True
-            async def authenticate(self, credentials): return True
-            async def connect_market(self): return True
-            async def connect_account(self): return True
-            async def disconnect(self): pass
-            async def get_exchange_info(self): return None
-            async def get_balance(self, asset=None): return []
-            async def get_account(self): return None
-            async def get_symbol_info(self, symbol): return None
-            async def get_positions(self, symbol=None): return []
-            async def place_order(self, *args, **kwargs): return None
-            async def cancel_order(self, symbol, order_id): return None
-            async def cancel_all(self, symbol=None): return []
-            async def get_order(self, symbol, order_id): return None
-            async def get_open_orders(self, symbol=None): return []
-            async def get_ticker(self, symbol): return None
-            async def get_order_book(self, symbol, limit=100): return None
-            async def get_candles(self, symbol, interval, limit=100): return []
-            async def get_trades(self, symbol, limit=100): return []
-            async def health_check(self): return True
-            async def subscribe_market(self, symbols, channel, callback): return True
-            async def subscribe_account(self, channel, callback): return True
-            async def unsubscribe_market(self, symbols, channel): return True
-            async def unsubscribe_account(self, channel): return True
+            async def initialize(self, config):
+                return True
+
+            async def authenticate(self, credentials):
+                return True
+
+            async def connect_market(self):
+                return True
+
+            async def connect_account(self):
+                return True
+
+            async def disconnect(self):
+                pass
+
+            async def get_exchange_info(self):
+                return None
+
+            async def get_balance(self, asset=None):
+                return []
+
+            async def get_account(self):
+                return None
+
+            async def get_symbol_info(self, symbol):
+                return None
+
+            async def get_positions(self, symbol=None):
+                return []
+
+            async def place_order(self, *args, **kwargs):
+                return None
+
+            async def cancel_order(self, symbol, order_id):
+                return None
+
+            async def cancel_all(self, symbol=None):
+                return []
+
+            async def get_order(self, symbol, order_id):
+                return None
+
+            async def get_open_orders(self, symbol=None):
+                return []
+
+            async def get_ticker(self, symbol):
+                return None
+
+            async def get_order_book(self, symbol, limit=100):
+                return None
+
+            async def get_candles(self, symbol, interval, limit=100):
+                return []
+
+            async def get_trades(self, symbol, limit=100):
+                return []
+
+            async def health_check(self):
+                return True
+
+            async def subscribe_market(self, symbols, channel, callback):
+                return True
+
+            async def subscribe_account(self, channel, callback):
+                return True
+
+            async def unsubscribe_market(self, symbols, channel):
+                return True
+
+            async def unsubscribe_account(self, channel):
+                return True
 
         ExchangeFactory.register("dummy", DummyAdapter)
         assert ExchangeFactory.is_registered("dummy") is True
@@ -159,30 +246,77 @@ class TestExchangeFactory:
 
     def test_registered_exchanges_list(self):
         class DummyAdapter(IExchangeAdapter):
-            async def initialize(self, config): return True
-            async def authenticate(self, credentials): return True
-            async def connect_market(self): return True
-            async def connect_account(self): return True
-            async def disconnect(self): pass
-            async def get_exchange_info(self): return None
-            async def get_balance(self, asset=None): return []
-            async def get_account(self): return None
-            async def get_symbol_info(self, symbol): return None
-            async def get_positions(self, symbol=None): return []
-            async def place_order(self, *args, **kwargs): return None
-            async def cancel_order(self, symbol, order_id): return None
-            async def cancel_all(self, symbol=None): return []
-            async def get_order(self, symbol, order_id): return None
-            async def get_open_orders(self, symbol=None): return []
-            async def get_ticker(self, symbol): return None
-            async def get_order_book(self, symbol, limit=100): return None
-            async def get_candles(self, symbol, interval, limit=100): return []
-            async def get_trades(self, symbol, limit=100): return []
-            async def health_check(self): return True
-            async def subscribe_market(self, symbols, channel, callback): return True
-            async def subscribe_account(self, channel, callback): return True
-            async def unsubscribe_market(self, symbols, channel): return True
-            async def unsubscribe_account(self, channel): return True
+            async def initialize(self, config):
+                return True
+
+            async def authenticate(self, credentials):
+                return True
+
+            async def connect_market(self):
+                return True
+
+            async def connect_account(self):
+                return True
+
+            async def disconnect(self):
+                pass
+
+            async def get_exchange_info(self):
+                return None
+
+            async def get_balance(self, asset=None):
+                return []
+
+            async def get_account(self):
+                return None
+
+            async def get_symbol_info(self, symbol):
+                return None
+
+            async def get_positions(self, symbol=None):
+                return []
+
+            async def place_order(self, *args, **kwargs):
+                return None
+
+            async def cancel_order(self, symbol, order_id):
+                return None
+
+            async def cancel_all(self, symbol=None):
+                return []
+
+            async def get_order(self, symbol, order_id):
+                return None
+
+            async def get_open_orders(self, symbol=None):
+                return []
+
+            async def get_ticker(self, symbol):
+                return None
+
+            async def get_order_book(self, symbol, limit=100):
+                return None
+
+            async def get_candles(self, symbol, interval, limit=100):
+                return []
+
+            async def get_trades(self, symbol, limit=100):
+                return []
+
+            async def health_check(self):
+                return True
+
+            async def subscribe_market(self, symbols, channel, callback):
+                return True
+
+            async def subscribe_account(self, channel, callback):
+                return True
+
+            async def unsubscribe_market(self, symbols, channel):
+                return True
+
+            async def unsubscribe_account(self, channel):
+                return True
 
         ExchangeFactory.register("binance", DummyAdapter)
         ExchangeFactory.register("bybit", DummyAdapter)
@@ -192,30 +326,77 @@ class TestExchangeFactory:
         class DummyAdapter(IExchangeAdapter):
             name = "Dummy"
 
-            async def initialize(self, config): return True
-            async def authenticate(self, credentials): return True
-            async def connect_market(self): return True
-            async def connect_account(self): return True
-            async def disconnect(self): pass
-            async def get_exchange_info(self): return None
-            async def get_balance(self, asset=None): return []
-            async def get_account(self): return None
-            async def get_symbol_info(self, symbol): return None
-            async def get_positions(self, symbol=None): return []
-            async def place_order(self, *args, **kwargs): return None
-            async def cancel_order(self, symbol, order_id): return None
-            async def cancel_all(self, symbol=None): return []
-            async def get_order(self, symbol, order_id): return None
-            async def get_open_orders(self, symbol=None): return []
-            async def get_ticker(self, symbol): return None
-            async def get_order_book(self, symbol, limit=100): return None
-            async def get_candles(self, symbol, interval, limit=100): return []
-            async def get_trades(self, symbol, limit=100): return []
-            async def health_check(self): return True
-            async def subscribe_market(self, symbols, channel, callback): return True
-            async def subscribe_account(self, channel, callback): return True
-            async def unsubscribe_market(self, symbols, channel): return True
-            async def unsubscribe_account(self, channel): return True
+            async def initialize(self, config):
+                return True
+
+            async def authenticate(self, credentials):
+                return True
+
+            async def connect_market(self):
+                return True
+
+            async def connect_account(self):
+                return True
+
+            async def disconnect(self):
+                pass
+
+            async def get_exchange_info(self):
+                return None
+
+            async def get_balance(self, asset=None):
+                return []
+
+            async def get_account(self):
+                return None
+
+            async def get_symbol_info(self, symbol):
+                return None
+
+            async def get_positions(self, symbol=None):
+                return []
+
+            async def place_order(self, *args, **kwargs):
+                return None
+
+            async def cancel_order(self, symbol, order_id):
+                return None
+
+            async def cancel_all(self, symbol=None):
+                return []
+
+            async def get_order(self, symbol, order_id):
+                return None
+
+            async def get_open_orders(self, symbol=None):
+                return []
+
+            async def get_ticker(self, symbol):
+                return None
+
+            async def get_order_book(self, symbol, limit=100):
+                return None
+
+            async def get_candles(self, symbol, interval, limit=100):
+                return []
+
+            async def get_trades(self, symbol, limit=100):
+                return []
+
+            async def health_check(self):
+                return True
+
+            async def subscribe_market(self, symbols, channel, callback):
+                return True
+
+            async def subscribe_account(self, channel, callback):
+                return True
+
+            async def unsubscribe_market(self, symbols, channel):
+                return True
+
+            async def unsubscribe_account(self, channel):
+                return True
 
         ExchangeFactory.register("Dummy", DummyAdapter)
         assert ExchangeFactory.is_registered("dummy")
@@ -225,6 +406,7 @@ class TestExchangeFactory:
 # -----------------------------------------------------------------------------
 # ErrorMapper
 # -----------------------------------------------------------------------------
+
 
 class TestErrorMapper:
     def test_rate_limit_error(self):
@@ -268,6 +450,7 @@ class TestErrorMapper:
 # CredentialManager
 # -----------------------------------------------------------------------------
 
+
 class TestCredentialManager:
     def test_encrypt_decrypt_roundtrip(self):
         manager = CredentialManager(secret_key="test_secret_32_bytes_long_key")
@@ -297,6 +480,7 @@ class TestCredentialManager:
 # -----------------------------------------------------------------------------
 # RateLimiter
 # -----------------------------------------------------------------------------
+
 
 class TestRateLimiter:
     async def test_acquire_immediately(self):
@@ -352,6 +536,7 @@ class TestRateLimiter:
 # RetryPolicy
 # -----------------------------------------------------------------------------
 
+
 class TestRetryPolicy:
     def test_should_retry_until_max(self):
         policy = RetryPolicy(max_retries=3)
@@ -389,6 +574,7 @@ class TestRetryPolicy:
 # -----------------------------------------------------------------------------
 # HttpClient
 # -----------------------------------------------------------------------------
+
 
 class TestHttpClient:
     async def test_get_success(self):
@@ -522,6 +708,7 @@ class TestHttpClient:
 # WebSocketManager
 # -----------------------------------------------------------------------------
 
+
 class TestWebSocketManager:
     async def test_register_unregister_callback(self):
         manager = WebSocketManager()
@@ -547,8 +734,10 @@ class TestWebSocketManager:
         mock_ws = AsyncMock(spec=websockets.WebSocketClientProtocol)
         mock_ws.open = True
 
-        with patch("websockets.connect", new=AsyncMock(return_value=mock_ws)) as mock_connect:
-            manager = WebSocketManager(retry_policy=RetryPolicy(max_retries=1, base_delay=0.0))
+        with patch("websockets.connect", new=AsyncMock(return_value=mock_ws)):
+            manager = WebSocketManager(
+                retry_policy=RetryPolicy(max_retries=1, base_delay=0.0)
+            )
             # Prevent background receive loop from running in this test
             with patch.object(manager, "_receive_loop", new=AsyncMock()):
                 result = await manager.connect("wss://example.com/ws")
@@ -616,7 +805,9 @@ class TestWebSocketManager:
         message = '{"method":"SUBSCRIBE","params":["btcusdt@ticker"],"id":1}'
 
         await manager.subscribe(message)
-        await manager.subscribe('{"method":"SUBSCRIBE","params":["btcusdt@ticker"],"id":2}')
+        await manager.subscribe(
+            '{"method":"SUBSCRIBE","params":["btcusdt@ticker"],"id":2}'
+        )
 
         assert mock_ws.send.await_count == 1
         assert manager._subscribed_messages == [message]
@@ -635,7 +826,10 @@ class TestWebSocketManager:
         await manager.subscribe(account_msg)
 
         assert market_msg in manager._subscriptions["wss://market.example/ws"].values()
-        assert account_msg in manager._subscriptions["wss://account.example/ws/key"].values()
+        assert (
+            account_msg
+            in manager._subscriptions["wss://account.example/ws/key"].values()
+        )
         assert mock_ws.send.await_count == 2
 
     async def test_reconnect_resubscribes_only_current_url(self):
@@ -643,7 +837,9 @@ class TestWebSocketManager:
         mock_ws.open = True
 
         with patch("websockets.connect", new=AsyncMock(return_value=mock_ws)):
-            manager = WebSocketManager(retry_policy=RetryPolicy(max_retries=1, base_delay=0.0))
+            manager = WebSocketManager(
+                retry_policy=RetryPolicy(max_retries=1, base_delay=0.0)
+            )
             manager._ws = mock_ws
             with patch.object(manager, "_receive_loop", new=AsyncMock()):
                 manager.url = "wss://market.example/ws"
@@ -666,6 +862,7 @@ class TestWebSocketManager:
 # Integration / helper behavior
 # -----------------------------------------------------------------------------
 
+
 class TestIntegration:
     async def test_factory_creates_adapter_with_http_and_ws(self):
         class TestAdapter(IExchangeAdapter):
@@ -673,30 +870,77 @@ class TestIntegration:
                 self.http = HttpClient()
                 self.ws = WebSocketManager()
 
-            async def initialize(self, config): return True
-            async def authenticate(self, credentials): return True
-            async def connect_market(self): return True
-            async def connect_account(self): return True
-            async def disconnect(self): pass
-            async def get_exchange_info(self): return None
-            async def get_balance(self, asset=None): return []
-            async def get_account(self): return None
-            async def get_symbol_info(self, symbol): return None
-            async def get_positions(self, symbol=None): return []
-            async def place_order(self, *args, **kwargs): return None
-            async def cancel_order(self, symbol, order_id): return None
-            async def cancel_all(self, symbol=None): return []
-            async def get_order(self, symbol, order_id): return None
-            async def get_open_orders(self, symbol=None): return []
-            async def get_ticker(self, symbol): return None
-            async def get_order_book(self, symbol, limit=100): return None
-            async def get_candles(self, symbol, interval, limit=100): return []
-            async def get_trades(self, symbol, limit=100): return []
-            async def health_check(self): return True
-            async def subscribe_market(self, symbols, channel, callback): return True
-            async def subscribe_account(self, channel, callback): return True
-            async def unsubscribe_market(self, symbols, channel): return True
-            async def unsubscribe_account(self, channel): return True
+            async def initialize(self, config):
+                return True
+
+            async def authenticate(self, credentials):
+                return True
+
+            async def connect_market(self):
+                return True
+
+            async def connect_account(self):
+                return True
+
+            async def disconnect(self):
+                pass
+
+            async def get_exchange_info(self):
+                return None
+
+            async def get_balance(self, asset=None):
+                return []
+
+            async def get_account(self):
+                return None
+
+            async def get_symbol_info(self, symbol):
+                return None
+
+            async def get_positions(self, symbol=None):
+                return []
+
+            async def place_order(self, *args, **kwargs):
+                return None
+
+            async def cancel_order(self, symbol, order_id):
+                return None
+
+            async def cancel_all(self, symbol=None):
+                return []
+
+            async def get_order(self, symbol, order_id):
+                return None
+
+            async def get_open_orders(self, symbol=None):
+                return []
+
+            async def get_ticker(self, symbol):
+                return None
+
+            async def get_order_book(self, symbol, limit=100):
+                return None
+
+            async def get_candles(self, symbol, interval, limit=100):
+                return []
+
+            async def get_trades(self, symbol, limit=100):
+                return []
+
+            async def health_check(self):
+                return True
+
+            async def subscribe_market(self, symbols, channel, callback):
+                return True
+
+            async def subscribe_account(self, channel, callback):
+                return True
+
+            async def unsubscribe_market(self, symbols, channel):
+                return True
+
+            async def unsubscribe_account(self, channel):
+                return True
 
         ExchangeFactory.clear()
         ExchangeFactory.register("test", TestAdapter)
@@ -707,7 +951,9 @@ class TestIntegration:
 
     async def test_http_client_maps_error_with_error_mapper(self):
         mock_client = AsyncMock(spec=httpx.AsyncClient)
-        mock_client.request = AsyncMock(return_value=MagicMock(status_code=502, text="bad gateway"))
+        mock_client.request = AsyncMock(
+            return_value=MagicMock(status_code=502, text="bad gateway")
+        )
 
         client = HttpClient(
             base_url="https://example.com",
@@ -734,6 +980,7 @@ class TestIntegration:
 # -----------------------------------------------------------------------------
 # Additional edge cases to meet Sprint 3 test target
 # -----------------------------------------------------------------------------
+
 
 class TestErrorMapperEdgeCases:
     def test_400_error(self):
@@ -819,7 +1066,9 @@ class TestHttpClientEdgeCases:
         mock_client.request = AsyncMock(return_value=response)
 
         client = HttpClient(client=mock_client, retry_policy=RetryPolicy(max_retries=1))
-        resp = await client.request("GET", "/test", endpoint_key="custom", rate_limit_tokens=0.5)
+        resp = await client.request(
+            "GET", "/test", endpoint_key="custom", rate_limit_tokens=0.5
+        )
         assert resp.status_code == 200
 
     async def test_http_client_without_retry(self):
@@ -882,8 +1131,12 @@ class TestWebSocketManagerEdgeCases:
         assert manager._running is False
 
     async def test_connect_failure_with_retries(self):
-        with patch("websockets.connect", new=AsyncMock(side_effect=Exception("refused"))):
-            manager = WebSocketManager(retry_policy=RetryPolicy(max_retries=2, base_delay=0.0))
+        with patch(
+            "websockets.connect", new=AsyncMock(side_effect=Exception("refused"))
+        ):
+            manager = WebSocketManager(
+                retry_policy=RetryPolicy(max_retries=2, base_delay=0.0)
+            )
             result = await manager.connect("wss://example.com/ws")
         assert result is False
 
@@ -901,30 +1154,77 @@ class TestWebSocketManagerEdgeCases:
 class TestFactoryEdgeCases:
     def test_clear_removes_all(self):
         class DummyAdapter(IExchangeAdapter):
-            async def initialize(self, config): return True
-            async def authenticate(self, credentials): return True
-            async def connect_market(self): return True
-            async def connect_account(self): return True
-            async def disconnect(self): pass
-            async def get_exchange_info(self): return None
-            async def get_balance(self, asset=None): return []
-            async def get_account(self): return None
-            async def get_symbol_info(self, symbol): return None
-            async def get_positions(self, symbol=None): return []
-            async def place_order(self, *args, **kwargs): return None
-            async def cancel_order(self, symbol, order_id): return None
-            async def cancel_all(self, symbol=None): return []
-            async def get_order(self, symbol, order_id): return None
-            async def get_open_orders(self, symbol=None): return []
-            async def get_ticker(self, symbol): return None
-            async def get_order_book(self, symbol, limit=100): return None
-            async def get_candles(self, symbol, interval, limit=100): return []
-            async def get_trades(self, symbol, limit=100): return []
-            async def health_check(self): return True
-            async def subscribe_market(self, symbols, channel, callback): return True
-            async def subscribe_account(self, channel, callback): return True
-            async def unsubscribe_market(self, symbols, channel): return True
-            async def unsubscribe_account(self, channel): return True
+            async def initialize(self, config):
+                return True
+
+            async def authenticate(self, credentials):
+                return True
+
+            async def connect_market(self):
+                return True
+
+            async def connect_account(self):
+                return True
+
+            async def disconnect(self):
+                pass
+
+            async def get_exchange_info(self):
+                return None
+
+            async def get_balance(self, asset=None):
+                return []
+
+            async def get_account(self):
+                return None
+
+            async def get_symbol_info(self, symbol):
+                return None
+
+            async def get_positions(self, symbol=None):
+                return []
+
+            async def place_order(self, *args, **kwargs):
+                return None
+
+            async def cancel_order(self, symbol, order_id):
+                return None
+
+            async def cancel_all(self, symbol=None):
+                return []
+
+            async def get_order(self, symbol, order_id):
+                return None
+
+            async def get_open_orders(self, symbol=None):
+                return []
+
+            async def get_ticker(self, symbol):
+                return None
+
+            async def get_order_book(self, symbol, limit=100):
+                return None
+
+            async def get_candles(self, symbol, interval, limit=100):
+                return []
+
+            async def get_trades(self, symbol, limit=100):
+                return []
+
+            async def health_check(self):
+                return True
+
+            async def subscribe_market(self, symbols, channel, callback):
+                return True
+
+            async def subscribe_account(self, channel, callback):
+                return True
+
+            async def unsubscribe_market(self, symbols, channel):
+                return True
+
+            async def unsubscribe_account(self, channel):
+                return True
 
         ExchangeFactory.register("a", DummyAdapter)
         ExchangeFactory.clear()
@@ -932,30 +1232,77 @@ class TestFactoryEdgeCases:
 
     def test_multiple_instances_are_independent(self):
         class DummyAdapter(IExchangeAdapter):
-            async def initialize(self, config): return True
-            async def authenticate(self, credentials): return True
-            async def connect_market(self): return True
-            async def connect_account(self): return True
-            async def disconnect(self): pass
-            async def get_exchange_info(self): return None
-            async def get_balance(self, asset=None): return []
-            async def get_account(self): return None
-            async def get_symbol_info(self, symbol): return None
-            async def get_positions(self, symbol=None): return []
-            async def place_order(self, *args, **kwargs): return None
-            async def cancel_order(self, symbol, order_id): return None
-            async def cancel_all(self, symbol=None): return []
-            async def get_order(self, symbol, order_id): return None
-            async def get_open_orders(self, symbol=None): return []
-            async def get_ticker(self, symbol): return None
-            async def get_order_book(self, symbol, limit=100): return None
-            async def get_candles(self, symbol, interval, limit=100): return []
-            async def get_trades(self, symbol, limit=100): return []
-            async def health_check(self): return True
-            async def subscribe_market(self, symbols, channel, callback): return True
-            async def subscribe_account(self, channel, callback): return True
-            async def unsubscribe_market(self, symbols, channel): return True
-            async def unsubscribe_account(self, channel): return True
+            async def initialize(self, config):
+                return True
+
+            async def authenticate(self, credentials):
+                return True
+
+            async def connect_market(self):
+                return True
+
+            async def connect_account(self):
+                return True
+
+            async def disconnect(self):
+                pass
+
+            async def get_exchange_info(self):
+                return None
+
+            async def get_balance(self, asset=None):
+                return []
+
+            async def get_account(self):
+                return None
+
+            async def get_symbol_info(self, symbol):
+                return None
+
+            async def get_positions(self, symbol=None):
+                return []
+
+            async def place_order(self, *args, **kwargs):
+                return None
+
+            async def cancel_order(self, symbol, order_id):
+                return None
+
+            async def cancel_all(self, symbol=None):
+                return []
+
+            async def get_order(self, symbol, order_id):
+                return None
+
+            async def get_open_orders(self, symbol=None):
+                return []
+
+            async def get_ticker(self, symbol):
+                return None
+
+            async def get_order_book(self, symbol, limit=100):
+                return None
+
+            async def get_candles(self, symbol, interval, limit=100):
+                return []
+
+            async def get_trades(self, symbol, limit=100):
+                return []
+
+            async def health_check(self):
+                return True
+
+            async def subscribe_market(self, symbols, channel, callback):
+                return True
+
+            async def subscribe_account(self, channel, callback):
+                return True
+
+            async def unsubscribe_market(self, symbols, channel):
+                return True
+
+            async def unsubscribe_account(self, channel):
+                return True
 
         ExchangeFactory.clear()
         ExchangeFactory.register("dummy", DummyAdapter)
@@ -965,56 +1312,150 @@ class TestFactoryEdgeCases:
 
     def test_register_overwrites_existing(self):
         class DummyAdapter(IExchangeAdapter):
-            async def initialize(self, config): return True
-            async def authenticate(self, credentials): return True
-            async def connect_market(self): return True
-            async def connect_account(self): return True
-            async def disconnect(self): pass
-            async def get_exchange_info(self): return None
-            async def get_balance(self, asset=None): return []
-            async def get_account(self): return None
-            async def get_symbol_info(self, symbol): return None
-            async def get_positions(self, symbol=None): return []
-            async def place_order(self, *args, **kwargs): return None
-            async def cancel_order(self, symbol, order_id): return None
-            async def cancel_all(self, symbol=None): return []
-            async def get_order(self, symbol, order_id): return None
-            async def get_open_orders(self, symbol=None): return []
-            async def get_ticker(self, symbol): return None
-            async def get_order_book(self, symbol, limit=100): return None
-            async def get_candles(self, symbol, interval, limit=100): return []
-            async def get_trades(self, symbol, limit=100): return []
-            async def health_check(self): return True
-            async def subscribe_market(self, symbols, channel, callback): return True
-            async def subscribe_account(self, channel, callback): return True
-            async def unsubscribe_market(self, symbols, channel): return True
-            async def unsubscribe_account(self, channel): return True
+            async def initialize(self, config):
+                return True
+
+            async def authenticate(self, credentials):
+                return True
+
+            async def connect_market(self):
+                return True
+
+            async def connect_account(self):
+                return True
+
+            async def disconnect(self):
+                pass
+
+            async def get_exchange_info(self):
+                return None
+
+            async def get_balance(self, asset=None):
+                return []
+
+            async def get_account(self):
+                return None
+
+            async def get_symbol_info(self, symbol):
+                return None
+
+            async def get_positions(self, symbol=None):
+                return []
+
+            async def place_order(self, *args, **kwargs):
+                return None
+
+            async def cancel_order(self, symbol, order_id):
+                return None
+
+            async def cancel_all(self, symbol=None):
+                return []
+
+            async def get_order(self, symbol, order_id):
+                return None
+
+            async def get_open_orders(self, symbol=None):
+                return []
+
+            async def get_ticker(self, symbol):
+                return None
+
+            async def get_order_book(self, symbol, limit=100):
+                return None
+
+            async def get_candles(self, symbol, interval, limit=100):
+                return []
+
+            async def get_trades(self, symbol, limit=100):
+                return []
+
+            async def health_check(self):
+                return True
+
+            async def subscribe_market(self, symbols, channel, callback):
+                return True
+
+            async def subscribe_account(self, channel, callback):
+                return True
+
+            async def unsubscribe_market(self, symbols, channel):
+                return True
+
+            async def unsubscribe_account(self, channel):
+                return True
 
         class DummyAdapter2(IExchangeAdapter):
-            async def initialize(self, config): return True
-            async def authenticate(self, credentials): return True
-            async def connect_market(self): return True
-            async def connect_account(self): return True
-            async def disconnect(self): pass
-            async def get_exchange_info(self): return None
-            async def get_balance(self, asset=None): return []
-            async def get_account(self): return None
-            async def get_symbol_info(self, symbol): return None
-            async def get_positions(self, symbol=None): return []
-            async def place_order(self, *args, **kwargs): return None
-            async def cancel_order(self, symbol, order_id): return None
-            async def cancel_all(self, symbol=None): return []
-            async def get_order(self, symbol, order_id): return None
-            async def get_open_orders(self, symbol=None): return []
-            async def get_ticker(self, symbol): return None
-            async def get_order_book(self, symbol, limit=100): return None
-            async def get_candles(self, symbol, interval, limit=100): return []
-            async def get_trades(self, symbol, limit=100): return []
-            async def health_check(self): return True
-            async def subscribe_market(self, symbols, channel, callback): return True
-            async def subscribe_account(self, channel, callback): return True
-            async def unsubscribe_market(self, symbols, channel): return True
-            async def unsubscribe_account(self, channel): return True
+            async def initialize(self, config):
+                return True
+
+            async def authenticate(self, credentials):
+                return True
+
+            async def connect_market(self):
+                return True
+
+            async def connect_account(self):
+                return True
+
+            async def disconnect(self):
+                pass
+
+            async def get_exchange_info(self):
+                return None
+
+            async def get_balance(self, asset=None):
+                return []
+
+            async def get_account(self):
+                return None
+
+            async def get_symbol_info(self, symbol):
+                return None
+
+            async def get_positions(self, symbol=None):
+                return []
+
+            async def place_order(self, *args, **kwargs):
+                return None
+
+            async def cancel_order(self, symbol, order_id):
+                return None
+
+            async def cancel_all(self, symbol=None):
+                return []
+
+            async def get_order(self, symbol, order_id):
+                return None
+
+            async def get_open_orders(self, symbol=None):
+                return []
+
+            async def get_ticker(self, symbol):
+                return None
+
+            async def get_order_book(self, symbol, limit=100):
+                return None
+
+            async def get_candles(self, symbol, interval, limit=100):
+                return []
+
+            async def get_trades(self, symbol, limit=100):
+                return []
+
+            async def health_check(self):
+                return True
+
+            async def subscribe_market(self, symbols, channel, callback):
+                return True
+
+            async def subscribe_account(self, channel, callback):
+                return True
+
+            async def unsubscribe_market(self, symbols, channel):
+                return True
+
+            async def unsubscribe_account(self, channel):
+                return True
 
         ExchangeFactory.register("dummy", DummyAdapter)
         ExchangeFactory.register("dummy", DummyAdapter2)

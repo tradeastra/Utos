@@ -9,14 +9,14 @@ idempotency. It does not implement grid, DCA, strategy, or profit-lock logic.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
 
 from adapters.base import IExchangeAdapter
+from core.domain_types import OrderResult, OrderStatus
 from core.exceptions import OrderAlreadyFilled
 from core.logging import get_logger
-from core.types import OrderResult, OrderStatus
+
 from engine.execution.exceptions import OrderExecutionError, OrderNotFound
 from engine.execution.executor import OrderExecutor
 from engine.execution.models import ExecutionOrderStatus, OrderRequest, TrackedOrder
@@ -62,9 +62,7 @@ class ExecutionEngine:
         adapter = self._adapters.get(exchange_account_id)
         if adapter is None:
             raise OrderExecutionError(
-                message=(
-                    f"No adapter registered for account {exchange_account_id}"
-                ),
+                message=(f"No adapter registered for account {exchange_account_id}"),
                 exchange_name="unknown",
             )
         return adapter
@@ -159,7 +157,7 @@ class ExecutionEngine:
                 average_fill_price=tracked.result.average_fill_price,
                 status=OrderStatus.CANCELLED.value,
                 created_at=tracked.result.created_at,
-                updated_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(UTC),
             )
             self.tracker.update(
                 exchange_account_id,
@@ -174,9 +172,7 @@ class ExecutionEngine:
             )
             status = OrderTracker.map_exchange_status(result.status)
             self._transition(tracked, status)
-            self.tracker.update(
-                exchange_account_id, order_id, result, status=status
-            )
+            self.tracker.update(exchange_account_id, order_id, result, status=status)
             return result
 
     async def cancel_all_orders(
@@ -231,10 +227,7 @@ class ExecutionEngine:
         self, exchange_account_id: uuid.UUID | None = None
     ) -> list[OrderResult]:
         """Return active order results, optionally filtered by account."""
-        return [
-            order.result
-            for order in self.tracker.list_active(exchange_account_id)
-        ]
+        return [order.result for order in self.tracker.list_active(exchange_account_id)]
 
     def _create_pending(self, request: OrderRequest) -> TrackedOrder:
         """Create a pending tracked order before submission."""
@@ -249,8 +242,8 @@ class ExecutionEngine:
             filled_quantity=Decimal("0"),
             average_fill_price=None,
             status=OrderStatus.PENDING.value,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
         return self.tracker.track(
             request_id=request.request_id,
@@ -259,9 +252,7 @@ class ExecutionEngine:
             status=ExecutionOrderStatus.PENDING,
         )
 
-    def _transition(
-        self, tracked: TrackedOrder, target: ExecutionOrderStatus
-    ) -> None:
+    def _transition(self, tracked: TrackedOrder, target: ExecutionOrderStatus) -> None:
         OrderStateMachine.validate_transition(tracked.status, target)
         tracked.status = target
         tracked.touch()
@@ -288,6 +279,6 @@ class ExecutionEngine:
             average_fill_price=tracked.result.average_fill_price,
             status=OrderStatus.REJECTED.value,
             created_at=tracked.result.created_at,
-            updated_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(UTC),
             error_message=error_message,
         )

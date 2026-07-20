@@ -6,8 +6,8 @@ Does NOT call engines — only checks limits based on subscription tier.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
 
 from core.exceptions import AuthorizationError
 from core.logging import get_logger
@@ -40,7 +40,7 @@ _DEFAULT_LIMITS: dict[str, PlanLimits] = {
         max_exchange_accounts=2,
         max_symbols=10,
         max_workers=3,
-        feature_flags=["basic_grid", "profit_lock", "notifications"],
+        feature_flags=["basic_grid", "profit_lock", "trailing_profit", "notifications"],
     ),
     "pro": PlanLimits(
         tier="pro",
@@ -48,7 +48,15 @@ _DEFAULT_LIMITS: dict[str, PlanLimits] = {
         max_exchange_accounts=5,
         max_symbols=50,
         max_workers=10,
-        feature_flags=["basic_grid", "profit_lock", "notifications", "automation", "advanced_risk", "priority_support"],
+        feature_flags=[
+            "basic_grid",
+            "profit_lock",
+            "trailing_profit",
+            "notifications",
+            "automation",
+            "advanced_risk",
+            "priority_support",
+        ],
     ),
     "enterprise": PlanLimits(
         tier="enterprise",
@@ -56,17 +64,41 @@ _DEFAULT_LIMITS: dict[str, PlanLimits] = {
         max_exchange_accounts=20,
         max_symbols=500,
         max_workers=100,
-        feature_flags=["basic_grid", "profit_lock", "notifications", "automation", "advanced_risk", "priority_support", "custom_strategies", "dedicated_support", "white_label"],
+        feature_flags=[
+            "basic_grid",
+            "profit_lock",
+            "trailing_profit",
+            "notifications",
+            "automation",
+            "advanced_risk",
+            "priority_support",
+            "custom_strategies",
+            "dedicated_support",
+            "white_label",
+        ],
     ),
+}
+
+ADDON_PRICES: dict[str, float] = {
+    "trailing_profit": 19.0,
+}
+
+ADDON_DESCRIPTIONS: dict[str, str] = {
+    "trailing_profit": "Trailing Profit — automatically trail price upward and lock in profit on every buy fill.",
 }
 
 
 class LicenseManager:
     """Enforce plan limits and feature flags per subscription tier."""
 
-    def __init__(self, tier_resolver: Callable[[str], str] | None = None) -> None:
+    def __init__(
+        self,
+        tier_resolver: Callable[[str], str] | None = None,
+        addon_resolver: Callable[[str], set[str]] | None = None,
+    ) -> None:
         self._limits: dict[str, PlanLimits] = dict(_DEFAULT_LIMITS)
         self._tier_resolver = tier_resolver or (lambda user_id: "free")
+        self._addon_resolver = addon_resolver or (lambda user_id: set())
         self._metrics: dict[str, int] = {
             "checks_instance": 0,
             "checks_exchange": 0,
@@ -94,7 +126,12 @@ class LicenseManager:
             self._metrics["denied"] += 1
             logger.warning(
                 "Instance limit exceeded",
-                extra={"user_id": user_id, "tier": tier, "current": current_count, "max": limits.max_instances},
+                extra={
+                    "user_id": user_id,
+                    "tier": tier,
+                    "current": current_count,
+                    "max": limits.max_instances,
+                },
             )
             return False
         return True
@@ -130,7 +167,14 @@ class LicenseManager:
         self._metrics["checks_feature"] += 1
         tier = self._tier_resolver(user_id)
         limits = self.get_plan_limits(tier)
-        return feature_flag in limits.feature_flags
+        if feature_flag in limits.feature_flags:
+            return True
+        addons = self._addon_resolver(user_id)
+        return feature_flag in addons
+
+    def has_addon(self, user_id: str, addon_key: str) -> bool:
+        addons = self._addon_resolver(user_id)
+        return addon_key in addons
 
     def enforce_instance_limit(self, user_id: str, current_count: int) -> None:
         if not self.check_instance_limit(user_id, current_count):

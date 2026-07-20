@@ -7,7 +7,7 @@ Computes unrealized PnL, realized PnL, total exposure, drawdown, margin usage.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from engine.risk.portfolio import Position
@@ -127,5 +127,5 @@ class PortfolioMetrics:
             drawdown=drawdown,
             margin_usage=margin,
             position_count=open_count,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         )

@@ -6,13 +6,14 @@ for exchange WebSocket streams. No exchange-specific protocol logic.
 """
 
 import asyncio
+import contextlib
 import json
 from collections.abc import Callable
-from typing import Any, Optional
+from typing import Any
 
 import websockets
-
 from core.logging import get_logger
+
 from exchanges.rate_limiter import RateLimiter
 from exchanges.retry import RetryPolicy
 
@@ -25,8 +26,8 @@ class WebSocketManager:
     def __init__(
         self,
         url: str = "",
-        retry_policy: Optional[RetryPolicy] = None,
-        rate_limiter: Optional[RateLimiter] = None,
+        retry_policy: RetryPolicy | None = None,
+        rate_limiter: RateLimiter | None = None,
         ping_interval: float = 20.0,
         pong_timeout: float = 10.0,
         reconnect_jitter: float = 1.0,
@@ -38,10 +39,10 @@ class WebSocketManager:
         self.pong_timeout = pong_timeout
         self.reconnect_jitter = reconnect_jitter
 
-        self._ws: Optional[websockets.WebSocketClientProtocol] = None
+        self._ws: websockets.WebSocketClientProtocol | None = None
         self._callbacks: list[Callable[[Any], None]] = []
         self._running = False
-        self._receive_task: Optional[asyncio.Task] = None
+        self._receive_task: asyncio.Task | None = None
         # Per-URL active subscriptions: url -> {dedup_key: raw_message}
         self._subscriptions: dict[str, dict[str, str]] = {}
 
@@ -86,7 +87,7 @@ class WebSocketManager:
             except Exception as e:
                 logger.error(f"WebSocket callback error: {e}")
 
-    async def connect(self, url: Optional[str] = None) -> bool:
+    async def connect(self, url: str | None = None) -> bool:
         """Connect to the WebSocket server with retry."""
         target_url = url or self.url
         if not target_url:
@@ -196,10 +197,8 @@ class WebSocketManager:
 
         if self._receive_task is not None:
             self._receive_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._receive_task
-            except asyncio.CancelledError:
-                pass
             self._receive_task = None
 
         if self._ws is not None:

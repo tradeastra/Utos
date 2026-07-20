@@ -2,9 +2,9 @@
 Strategy repository — async CRUD for strategies table.
 """
 
+from models.strategy import Strategy
 from sqlalchemy import select
 
-from models.strategy import Strategy
 from repositories.base import IRepository
 
 

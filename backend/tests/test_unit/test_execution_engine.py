@@ -3,16 +3,19 @@ Unit tests for ExecutionEngine.
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
 import pytest
-
+from core.domain_types import OrderResult, OrderSide, OrderStatus, OrderType
 from core.exceptions import ExchangeConnectionError, InsufficientBalanceError
-from core.types import OrderResult, OrderSide, OrderStatus, OrderType
 from engine.execution import ExecutionEngine
-from engine.execution.exceptions import OrderExecutionError, OrderNotFound, OrderValidationError
+from engine.execution.exceptions import (
+    OrderExecutionError,
+    OrderNotFound,
+    OrderValidationError,
+)
 from engine.execution.models import ExecutionOrderStatus, OrderRequest
 
 
@@ -40,13 +43,15 @@ class FakeAdapter:
         stop_price: Decimal | None = None,
         client_order_id: str | None = None,
     ) -> OrderResult:
-        self.place_calls.append({
-            "symbol": symbol,
-            "side": side,
-            "order_type": order_type,
-            "quantity": quantity,
-            "price": price,
-        })
+        self.place_calls.append(
+            {
+                "symbol": symbol,
+                "side": side,
+                "order_type": order_type,
+                "quantity": quantity,
+                "price": price,
+            }
+        )
 
         if self._fail_count > 0:
             self._fail_count -= 1
@@ -68,8 +73,8 @@ class FakeAdapter:
             filled_quantity=Decimal("0"),
             average_fill_price=None,
             status=OrderStatus.OPEN.value,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
         self._orders[order_id] = result
         return result
@@ -85,6 +90,7 @@ class FakeAdapter:
         result = self._orders.get(order_id)
         if result is None:
             from core.exceptions import OrderNotFound as CoreOrderNotFound
+
             raise CoreOrderNotFound(order_id=order_id)
         # Return filled copy
         filled = OrderResult(
@@ -99,7 +105,7 @@ class FakeAdapter:
             average_fill_price=result.price,
             status=OrderStatus.FILLED.value,
             created_at=result.created_at,
-            updated_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(UTC),
         )
         return filled
 
@@ -117,8 +123,8 @@ class FakeAdapter:
                 filled_quantity=Decimal("0"),
                 average_fill_price=None,
                 status=OrderStatus.OPEN.value,
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
             )
         ]
 
@@ -158,13 +164,17 @@ def request_obj(account_id: uuid.UUID) -> OrderRequest:
 
 class TestExecutionEngine:
     @pytest.mark.asyncio
-    async def test_place_order(self, engine: ExecutionEngine, request_obj: OrderRequest) -> None:
+    async def test_place_order(
+        self, engine: ExecutionEngine, request_obj: OrderRequest
+    ) -> None:
         result = await engine.place_order(request_obj)
         assert result.exchange_order_id is not None
         assert result.status == OrderStatus.OPEN.value
 
     @pytest.mark.asyncio
-    async def test_idempotency_returns_cached_result(self, engine: ExecutionEngine, request_obj: OrderRequest) -> None:
+    async def test_idempotency_returns_cached_result(
+        self, engine: ExecutionEngine, request_obj: OrderRequest
+    ) -> None:
         result1 = await engine.place_order(request_obj)
         result2 = await engine.place_order(request_obj)
         assert result1.exchange_order_id == result2.exchange_order_id
@@ -172,7 +182,9 @@ class TestExecutionEngine:
         assert len(adapter.place_calls) == 1
 
     @pytest.mark.asyncio
-    async def test_idempotency_with_different_request_id_calls_exchange(self, engine: ExecutionEngine, request_obj: OrderRequest) -> None:
+    async def test_idempotency_with_different_request_id_calls_exchange(
+        self, engine: ExecutionEngine, request_obj: OrderRequest
+    ) -> None:
         await engine.place_order(request_obj)
         request2 = OrderRequest(
             request_id=uuid.uuid4(),
@@ -188,7 +200,9 @@ class TestExecutionEngine:
         assert len(adapter.place_calls) == 2
 
     @pytest.mark.asyncio
-    async def test_validation_error(self, engine: ExecutionEngine, account_id: uuid.UUID) -> None:
+    async def test_validation_error(
+        self, engine: ExecutionEngine, account_id: uuid.UUID
+    ) -> None:
         bad_request = OrderRequest(
             request_id=uuid.uuid4(),
             exchange_account_id=account_id,
@@ -202,17 +216,22 @@ class TestExecutionEngine:
             await engine.place_order(bad_request)
 
     @pytest.mark.asyncio
-    async def test_retry_on_transient_error(self, engine: ExecutionEngine, request_obj: OrderRequest) -> None:
+    async def test_retry_on_transient_error(
+        self, engine: ExecutionEngine, request_obj: OrderRequest
+    ) -> None:
         adapter = engine._adapters[request_obj.exchange_account_id]
         adapter.set_transient_failures(
-            2, ExchangeConnectionError(message="connection lost", exchange_name="binance")
+            2,
+            ExchangeConnectionError(message="connection lost", exchange_name="binance"),
         )
         result = await engine.place_order(request_obj)
         assert result is not None
         assert len(adapter.place_calls) == 3
 
     @pytest.mark.asyncio
-    async def test_no_retry_on_insufficient_balance(self, engine: ExecutionEngine, request_obj: OrderRequest) -> None:
+    async def test_no_retry_on_insufficient_balance(
+        self, engine: ExecutionEngine, request_obj: OrderRequest
+    ) -> None:
         adapter = engine._adapters[request_obj.exchange_account_id]
         adapter.set_non_transient_error(InsufficientBalanceError(message="no balance"))
         with pytest.raises(OrderExecutionError):
@@ -220,49 +239,69 @@ class TestExecutionEngine:
         assert len(adapter.place_calls) == 1
 
     @pytest.mark.asyncio
-    async def test_cancel_order(self, engine: ExecutionEngine, request_obj: OrderRequest) -> None:
+    async def test_cancel_order(
+        self, engine: ExecutionEngine, request_obj: OrderRequest
+    ) -> None:
         result = await engine.place_order(request_obj)
-        cancel_result = await engine.cancel_order(request_obj.exchange_account_id, result.order_id)
+        cancel_result = await engine.cancel_order(
+            request_obj.exchange_account_id, result.order_id
+        )
         assert cancel_result is not None
         adapter = engine._adapters[request_obj.exchange_account_id]
         assert len(adapter.cancel_calls) == 1
 
     @pytest.mark.asyncio
-    async def test_cancel_order_not_found(self, engine: ExecutionEngine, account_id: uuid.UUID) -> None:
+    async def test_cancel_order_not_found(
+        self, engine: ExecutionEngine, account_id: uuid.UUID
+    ) -> None:
         with pytest.raises(OrderNotFound):
             await engine.cancel_order(account_id, "missing")
 
     @pytest.mark.asyncio
-    async def test_cancel_all_orders(self, engine: ExecutionEngine, account_id: uuid.UUID) -> None:
+    async def test_cancel_all_orders(
+        self, engine: ExecutionEngine, account_id: uuid.UUID
+    ) -> None:
         results = await engine.cancel_all_orders(account_id, "BTCUSDT")
         assert len(results) == 1
         adapter = engine._adapters[account_id]
         assert len(adapter.cancel_calls) == 1
 
     @pytest.mark.asyncio
-    async def test_get_order(self, engine: ExecutionEngine, request_obj: OrderRequest) -> None:
+    async def test_get_order(
+        self, engine: ExecutionEngine, request_obj: OrderRequest
+    ) -> None:
         placed = await engine.place_order(request_obj)
-        result = await engine.get_order(request_obj.exchange_account_id, placed.order_id)
+        result = await engine.get_order(
+            request_obj.exchange_account_id, placed.order_id
+        )
         assert result is not None
         assert result.order_id == placed.order_id
 
     @pytest.mark.asyncio
-    async def test_sync_order(self, engine: ExecutionEngine, request_obj: OrderRequest) -> None:
+    async def test_sync_order(
+        self, engine: ExecutionEngine, request_obj: OrderRequest
+    ) -> None:
         placed = await engine.place_order(request_obj)
-        synced = await engine.sync_order(request_obj.exchange_account_id, placed.order_id)
+        synced = await engine.sync_order(
+            request_obj.exchange_account_id, placed.order_id
+        )
         assert synced.status == OrderStatus.FILLED.value
         tracked = engine.tracker.get(request_obj.exchange_account_id, placed.order_id)
         assert tracked is not None
         assert tracked.status == ExecutionOrderStatus.FILLED
 
     @pytest.mark.asyncio
-    async def test_list_active_orders(self, engine: ExecutionEngine, request_obj: OrderRequest) -> None:
+    async def test_list_active_orders(
+        self, engine: ExecutionEngine, request_obj: OrderRequest
+    ) -> None:
         await engine.place_order(request_obj)
         active = engine.list_active_orders(request_obj.exchange_account_id)
         assert len(active) == 1
 
     @pytest.mark.asyncio
-    async def test_list_active_orders_empty_after_fill(self, engine: ExecutionEngine, request_obj: OrderRequest) -> None:
+    async def test_list_active_orders_empty_after_fill(
+        self, engine: ExecutionEngine, request_obj: OrderRequest
+    ) -> None:
         placed = await engine.place_order(request_obj)
         await engine.sync_order(request_obj.exchange_account_id, placed.order_id)
         active = engine.list_active_orders(request_obj.exchange_account_id)

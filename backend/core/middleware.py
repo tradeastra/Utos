@@ -9,17 +9,16 @@ Middleware for UTOS Trading Engine.
 
 import time
 import uuid
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
+from core.logging import get_logger, set_correlation_id
+from core.metrics import (
+    utos_http_request_duration_ms,
+    utos_http_requests_total,
+)
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import Response, JSONResponse
-
-from core.logging import set_correlation_id, get_correlation_id, get_logger
-from core.metrics import (
-    utos_http_requests_total,
-    utos_http_request_duration_ms,
-)
+from starlette.responses import JSONResponse, Response
 
 logger = get_logger(__name__)
 
@@ -157,7 +156,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             if count > limit:
                 logger.warning(
                     f"Rate limit exceeded for {client_ip} on {path}",
-                    extra={"client_ip": client_ip, "path": path, "count": count, "limit": limit},
+                    extra={
+                        "client_ip": client_ip,
+                        "path": path,
+                        "count": count,
+                        "limit": limit,
+                    },
                 )
                 return JSONResponse(
                     status_code=429,
@@ -178,6 +182,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     def _get_redis(self):
         try:
             from database.redis_client import get_redis
+
             return get_redis()
         except Exception:  # noqa: BLE001
             return None

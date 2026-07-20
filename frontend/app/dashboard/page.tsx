@@ -40,77 +40,64 @@ export default function DashboardOverview() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Dashboard Overview</h1>
-        <p className="text-muted-foreground">Trading performance and system status at a glance</p>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Value</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">{portfolio ? formatCurrency(portfolio.total_value) : '—'}</p>
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+        <Card glass>
+          <CardContent className="p-5">
+            <p className="text-sm font-medium text-muted-foreground">Total Value</p>
+            <p className="mt-1 text-2xl font-bold tracking-tight">{portfolio ? formatCurrency(portfolio.total_value) : '—'}</p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total PnL</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-green-500">
+        <Card glass>
+          <CardContent className="p-5">
+            <p className="text-sm font-medium text-muted-foreground">Total PnL</p>
+            <p className="mt-1 text-2xl font-bold tracking-tight text-profit">
               {portfolio ? formatCurrency(portfolio.total_pnl) : '—'}
             </p>
-            <p className="text-sm text-green-500">
+            <p className="text-sm text-profit">
               {portfolio ? formatPercent(portfolio.total_pnl_pct) : ''}
             </p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Exposure</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">{portfolio ? formatCurrency(portfolio.total_exposure) : '—'}</p>
+        <Card glass>
+          <CardContent className="p-5">
+            <p className="text-sm font-medium text-muted-foreground">Exposure</p>
+            <p className="mt-1 text-2xl font-bold tracking-tight">{portfolio ? formatCurrency(portfolio.total_exposure) : '—'}</p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Open Positions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">{portfolio?.open_positions ?? '—'}</p>
+        <Card glass>
+          <CardContent className="p-5">
+            <p className="text-sm font-medium text-muted-foreground">Open Positions</p>
+            <p className="mt-1 text-2xl font-bold tracking-tight">{portfolio?.open_positions ?? '—'}</p>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Risk Status</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="space-y-3">
             {risk ? (
               <>
-                <div className="flex justify-between">
+                <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Current Exposure</span>
                   <span className="font-medium">{formatCurrency(risk.current_exposure)}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Open Positions</span>
                   <span className="font-medium">{risk.open_positions} / {risk.max_open_positions}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Orders Checked</span>
                   <span className="font-medium">{risk.orders_checked}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Orders Denied</span>
-                  <span className="font-medium text-red-500">{risk.orders_denied}</span>
+                  <Badge variant="loss">{risk.orders_denied}</Badge>
                 </div>
               </>
             ) : (
@@ -123,9 +110,9 @@ export default function DashboardOverview() {
           <CardHeader>
             <CardTitle>Worker Health</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="space-y-3">
             {workers.map((w) => (
-              <div key={w.id} className="flex items-center justify-between">
+              <div key={w.id} className="flex items-center justify-between text-sm">
                 <span className="font-medium">{w.name}</span>
                 <Badge variant={w.status === 'running' ? 'success' : 'destructive'}>
                   {w.status}

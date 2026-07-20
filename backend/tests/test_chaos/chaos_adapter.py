@@ -15,32 +15,31 @@ from __future__ import annotations
 
 import asyncio
 import random
-import uuid
-from datetime import datetime, timezone
+from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, Callable, Optional
-from collections.abc import Awaitable
+from typing import Any
 
-from core.types import (
-    OrderResult,
-    OrderStatus,
+from core.domain_types import (
     BalanceEntry,
-    PositionEntry,
-    TickerData,
-    OrderBook,
     Candle,
-    TradeEntry,
-    ExchangeInfo,
     ExchangeAdapterConfig,
     ExchangeCredentials,
+    ExchangeInfo,
+    OrderBook,
+    OrderResult,
+    OrderStatus,
+    PositionEntry,
+    TickerData,
+    TradeEntry,
 )
 from core.exceptions import (
     ExchangeConnectionError,
-    ExchangeRateLimitError,
     ExchangeError,
+    ExchangeRateLimitError,
 )
 
-_FIXED_DT = datetime(2025, 1, 1, tzinfo=timezone.utc)
+_FIXED_DT = datetime(2025, 1, 1, tzinfo=UTC)
 
 
 class ChaosExchangeAdapter:
@@ -94,14 +93,20 @@ class ChaosExchangeAdapter:
     def _raise_failure(self) -> None:
         mode = self._failure_mode
         if mode == "timeout":
-            raise ExchangeConnectionError(f"Simulated timeout on {self._name}", self._name)
+            raise ExchangeConnectionError(
+                f"Simulated timeout on {self._name}", self._name
+            )
         elif mode == "500":
             raise ExchangeError(f"Simulated 500 error on {self._name}", self._name)
         elif mode == "rate_limit":
-            raise ExchangeRateLimitError(f"Simulated rate limit on {self._name}", self._name)
+            raise ExchangeRateLimitError(
+                f"Simulated rate limit on {self._name}", self._name
+            )
         elif mode == "connection_drop":
             self._connected = False
-            raise ExchangeConnectionError(f"Simulated connection drop on {self._name}", self._name)
+            raise ExchangeConnectionError(
+                f"Simulated connection drop on {self._name}", self._name
+            )
         else:
             raise ExchangeError(f"Simulated failure: {mode}", self._name)
 
@@ -150,16 +155,18 @@ class ChaosExchangeAdapter:
         side: str,
         order_type: str,
         quantity: Decimal,
-        price: Optional[Decimal] = None,
-        stop_price: Optional[Decimal] = None,
-        client_order_id: Optional[str] = None,
+        price: Decimal | None = None,
+        stop_price: Decimal | None = None,
+        client_order_id: str | None = None,
         **kwargs: Any,
     ) -> OrderResult:
         self._call_count += 1
         await self._maybe_delay()
 
         if self._should_fail():
-            self._log_event("place_order_failed", {"symbol": symbol, "mode": self._failure_mode})
+            self._log_event(
+                "place_order_failed", {"symbol": symbol, "mode": self._failure_mode}
+            )
             self._raise_failure()
 
         order_id = str(random.randint(100000, 999999))
@@ -238,17 +245,17 @@ class ChaosExchangeAdapter:
         self,
         symbol: str,
         order_id: str,
-        new_price: Optional[Decimal] = None,
-        new_quantity: Optional[Decimal] = None,
+        new_price: Decimal | None = None,
+        new_quantity: Decimal | None = None,
     ) -> OrderResult:
         if order_id in self._orders:
             return self._orders[order_id]
         raise ExchangeError(f"Order {order_id} not found", self._name)
 
-    async def get_balance(self, asset: Optional[str] = None) -> list[BalanceEntry]:
+    async def get_balance(self, asset: str | None = None) -> list[BalanceEntry]:
         return []
 
-    async def get_positions(self, symbol: Optional[str] = None) -> list[PositionEntry]:
+    async def get_positions(self, symbol: str | None = None) -> list[PositionEntry]:
         return []
 
     async def get_order(self, symbol: str, order_id: str) -> OrderResult:
@@ -258,9 +265,10 @@ class ChaosExchangeAdapter:
             return self._orders[order_id]
         raise ExchangeError(f"Order {order_id} not found", self._name)
 
-    async def get_open_orders(self, symbol: Optional[str] = None) -> list[OrderResult]:
+    async def get_open_orders(self, symbol: str | None = None) -> list[OrderResult]:
         return [
-            o for oid, o in self._orders.items()
+            o
+            for oid, o in self._orders.items()
             if oid not in self._cancelled and oid not in self._filled
         ]
 
@@ -291,12 +299,12 @@ class ChaosExchangeAdapter:
         return []
 
     async def get_order_history(
-        self, symbol: Optional[str] = None, limit: int = 100
+        self, symbol: str | None = None, limit: int = 100
     ) -> list[OrderResult]:
         return list(self._orders.values())
 
     async def get_trade_history(
-        self, symbol: Optional[str] = None, limit: int = 100
+        self, symbol: str | None = None, limit: int = 100
     ) -> list[TradeEntry]:
         return []
 

@@ -28,7 +28,9 @@ class ProfitCalculator:
     """Calculate floating profit for long and short positions."""
 
     @staticmethod
-    def validate(entry_price: Decimal, current_price: Decimal, quantity: Decimal) -> None:
+    def validate(
+        entry_price: Decimal, current_price: Decimal, quantity: Decimal
+    ) -> None:
         if entry_price <= 0:
             raise ValidationError(f"entry_price must be > 0, got {entry_price}")
         if current_price <= 0:
@@ -65,7 +67,11 @@ class ProfitCalculator:
             raise ValidationError(f"side must be 'long' or 'short', got '{side}'")
 
         investment = entry_price * quantity
-        profit_percentage = (floating_profit / investment) * Decimal("100") if investment > 0 else Decimal("0")
+        profit_percentage = (
+            (floating_profit / investment) * Decimal("100")
+            if investment > 0
+            else Decimal("0")
+        )
 
         return ProfitResult(
             floating_profit=floating_profit,

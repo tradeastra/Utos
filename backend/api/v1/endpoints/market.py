@@ -8,11 +8,10 @@ happens transparently inside the hub.
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, status
-from pydantic import BaseModel, ConfigDict
-
 from core.exceptions import SymbolNotSupported
+from fastapi import APIRouter, HTTPException, Query, status
 from market.hub.market_hub import MarketHub
+from pydantic import BaseModel, ConfigDict
 
 router = APIRouter()
 
@@ -108,7 +107,11 @@ def _ticker_to_response(t: Any) -> TickerResponse:
         ask=str(t.ask),
         last=str(t.last),
         volume=str(t.volume),
-        timestamp=t.timestamp.isoformat() if hasattr(t.timestamp, "isoformat") else str(t.timestamp),
+        timestamp=(
+            t.timestamp.isoformat()
+            if hasattr(t.timestamp, "isoformat")
+            else str(t.timestamp)
+        ),
     )
 
 
@@ -117,7 +120,11 @@ def _orderbook_to_response(ob: Any) -> OrderBookResponse:
         symbol=ob.symbol,
         bids=[[str(p), str(q)] for p, q in ob.bids],
         asks=[[str(p), str(q)] for p, q in ob.asks],
-        timestamp=ob.timestamp.isoformat() if hasattr(ob.timestamp, "isoformat") else str(ob.timestamp),
+        timestamp=(
+            ob.timestamp.isoformat()
+            if hasattr(ob.timestamp, "isoformat")
+            else str(ob.timestamp)
+        ),
     )
 
 
@@ -130,7 +137,11 @@ def _candle_to_response(c: Any) -> CandleResponse:
         low=str(c.low),
         close=str(c.close),
         volume=str(c.volume),
-        timestamp=c.timestamp.isoformat() if hasattr(c.timestamp, "isoformat") else str(c.timestamp),
+        timestamp=(
+            c.timestamp.isoformat()
+            if hasattr(c.timestamp, "isoformat")
+            else str(c.timestamp)
+        ),
     )
 
 
@@ -139,9 +150,14 @@ async def get_price(exchange: str, symbol: str) -> PriceResponse:
     hub = _get_hub()
     try:
         price = await hub.get_price(exchange, symbol)
-        return PriceResponse(exchange=exchange.lower(), symbol=symbol.upper(), price=str(price))
+        return PriceResponse(
+            exchange=exchange.lower(), symbol=symbol.upper(), price=str(price)
+        )
     except SymbolNotSupported:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Symbol {symbol} not found on {exchange}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Symbol {symbol} not found on {exchange}",
+        )
 
 
 @router.get("/ticker/{exchange}/{symbol}", response_model=TickerResponse)
@@ -151,7 +167,10 @@ async def get_ticker(exchange: str, symbol: str) -> TickerResponse:
         ticker = await hub.get_ticker(exchange, symbol)
         return _ticker_to_response(ticker)
     except SymbolNotSupported:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Symbol {symbol} not found on {exchange}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Symbol {symbol} not found on {exchange}",
+        )
 
 
 @router.get("/orderbook/{exchange}/{symbol}", response_model=OrderBookResponse)
@@ -161,14 +180,19 @@ async def get_orderbook(exchange: str, symbol: str) -> OrderBookResponse:
         ob = await hub.get_orderbook(exchange, symbol)
         return _orderbook_to_response(ob)
     except SymbolNotSupported:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Symbol {symbol} not found on {exchange}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Symbol {symbol} not found on {exchange}",
+        )
 
 
 @router.get("/candles/{exchange}/{symbol}", response_model=list[CandleResponse])
 async def get_candles(
     exchange: str,
     symbol: str,
-    interval: str = Query("1m", description="Candle interval (1m, 5m, 15m, 1h, 4h, 1d)"),
+    interval: str = Query(
+        "1m", description="Candle interval (1m, 5m, 15m, 1h, 4h, 1d)"
+    ),
     limit: int = Query(100, ge=1, le=1000, description="Maximum candles to return"),
 ) -> list[CandleResponse]:
     hub = _get_hub()
@@ -176,7 +200,10 @@ async def get_candles(
         candles = await hub.get_candles(exchange, symbol, interval)
         return [_candle_to_response(c) for c in candles[:limit]]
     except SymbolNotSupported:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Symbol {symbol} not found on {exchange}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Symbol {symbol} not found on {exchange}",
+        )
 
 
 @router.get("/symbols/{exchange}", response_model=SymbolsResponse)
@@ -213,6 +240,71 @@ async def get_metrics(exchange: str, symbol: str) -> MetricsResponse:
         message_rate=round(m.message_rate, 3),
         status=m.status.value,
     )
+
+
+class TestConnectionResponse(BaseModel):
+    exchange: str
+    is_testnet: bool
+    connected: bool
+    server_time: str | None = None
+    latency_ms: float | None = None
+    price_symbol: str | None = None
+    price: str | None = None
+    error: str | None = None
+
+
+@router.get("/test-connection/{exchange}", response_model=TestConnectionResponse)
+async def test_connection(exchange: str) -> TestConnectionResponse:
+    """Test connectivity to an exchange (health check + price fetch for BTCUSDT)."""
+    hub = _get_hub()
+    connector = hub._connectors.get(exchange.lower())
+    if connector is None:
+        return TestConnectionResponse(
+            exchange=exchange.lower(),
+            is_testnet=False,
+            connected=False,
+            error=f"Exchange {exchange} not registered in MarketHub",
+        )
+
+    import time as _time
+
+    adapter = connector.adapter
+    is_testnet = getattr(adapter, "rest_url", "").startswith("https://testnet")
+
+    try:
+        start = _time.time()
+        ok = await adapter.health_check()
+        latency = round((_time.time() - start) * 1000, 2)
+
+        if not ok:
+            return TestConnectionResponse(
+                exchange=exchange.lower(),
+                is_testnet=is_testnet,
+                connected=False,
+                error="Health check failed",
+            )
+
+        server_time = None
+        try:
+            price = await hub.get_price(exchange, "BTCUSDT")
+        except Exception:
+            price = None
+
+        return TestConnectionResponse(
+            exchange=exchange.lower(),
+            is_testnet=is_testnet,
+            connected=True,
+            latency_ms=latency,
+            price_symbol="BTCUSDT" if price else None,
+            price=str(price) if price else None,
+        )
+    except Exception as exc:
+        return TestConnectionResponse(
+            exchange=exchange.lower(),
+            is_testnet=is_testnet,
+            connected=False,
+            error=str(exc),
+        )
 
 
 @router.get("/snapshot", response_model=HubSnapshotResponse)

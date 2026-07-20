@@ -4,6 +4,9 @@ primary_region = 'sin'
 [build]
   dockerfile = 'docker/frontend.Dockerfile'
 
+[build.args]
+  NEXT_PUBLIC_API_URL = 'https://utos-staging-backend.fly.dev'
+
 [env]
   NODE_ENV = 'production'
   NEXT_PUBLIC_API_URL = 'https://utos-staging-backend.fly.dev'
@@ -25,7 +28,7 @@ primary_region = 'sin'
     timeout = '5s'
     grace_period = '15s'
     method = 'get'
-    path = '/'
+    path = '/dashboard'
     protocol = 'http'
 
 [[vm]]

@@ -18,11 +18,12 @@ The coordinator manages the recovery lifecycle:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from core.exceptions import RecoveryError
 from core.logging import get_logger
+
 from engine.recovery.connection import ConnectionRecovery
 from engine.recovery.persistence import RecoveryCheckpoint, RecoveryPersistence
 from engine.recovery.reconciler import ReconciliationResult, RuntimeReconciler
@@ -121,7 +122,7 @@ class RecoveryCoordinator:
             raise RecoveryError(f"Instance {instance_id} not registered for recovery")
 
         context = self._instances[instance_id]
-        started_at = datetime.now(timezone.utc)
+        started_at = datetime.now(UTC)
         self._metrics["recoveries_started"] += 1
 
         self._statuses[instance_id] = RecoveryStatus(
@@ -159,14 +160,16 @@ class RecoveryCoordinator:
                 instance_id,
                 RecoveryCheckpoint(
                     instance_id=instance_id,
-                    created_at=datetime.now(timezone.utc),
+                    created_at=datetime.now(UTC),
                     phase="connection",
                     data={"redis_ok": redis_ok, "postgres_ok": postgres_ok},
                 ),
             )
         except Exception as exc:
             report.errors.append(f"Connection recovery failed: {exc}")
-            logger.error(f"Connection recovery failed: {exc}", extra={"instance_id": instance_id})
+            logger.error(
+                f"Connection recovery failed: {exc}", extra={"instance_id": instance_id}
+            )
 
         # Layer 2: State Recovery
         try:
@@ -190,7 +193,7 @@ class RecoveryCoordinator:
                 instance_id,
                 RecoveryCheckpoint(
                     instance_id=instance_id,
-                    created_at=datetime.now(timezone.utc),
+                    created_at=datetime.now(UTC),
                     phase="state",
                     data={
                         "process_ok": process_ok,
@@ -202,7 +205,9 @@ class RecoveryCoordinator:
             )
         except Exception as exc:
             report.errors.append(f"State recovery failed: {exc}")
-            logger.error(f"State recovery failed: {exc}", extra={"instance_id": instance_id})
+            logger.error(
+                f"State recovery failed: {exc}", extra={"instance_id": instance_id}
+            )
 
         # Layer 3: Runtime Reconciliation
         try:
@@ -230,11 +235,15 @@ class RecoveryCoordinator:
                 instance_id,
                 RecoveryCheckpoint(
                     instance_id=instance_id,
-                    created_at=datetime.now(timezone.utc),
+                    created_at=datetime.now(UTC),
                     phase="reconciliation",
                     data={
                         "results": [
-                            {"component": r.component, "action": r.action, "count": r.count}
+                            {
+                                "component": r.component,
+                                "action": r.action,
+                                "count": r.count,
+                            }
                             for r in report.reconciliation_results
                         ],
                     },
@@ -242,10 +251,12 @@ class RecoveryCoordinator:
             )
         except Exception as exc:
             report.errors.append(f"Reconciliation failed: {exc}")
-            logger.error(f"Reconciliation failed: {exc}", extra={"instance_id": instance_id})
+            logger.error(
+                f"Reconciliation failed: {exc}", extra={"instance_id": instance_id}
+            )
 
         # Finalize
-        report.completed_at = datetime.now(timezone.utc)
+        report.completed_at = datetime.now(UTC)
 
         if not report.errors:
             self._statuses[instance_id] = RecoveryStatus(

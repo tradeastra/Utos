@@ -12,18 +12,16 @@ Verifies:
 - Recovery still works
 """
 
-import asyncio
 import os
 import tempfile
+from datetime import UTC, datetime
 from decimal import Decimal
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import MagicMock, patch
 
 import pytest
-
-from core.exceptions import StorageError, DatabaseError
+from core.exceptions import StorageError
 from engine.recovery.connection import ConnectionRecovery, QueuedOrder
-from engine.recovery.persistence import RecoveryPersistence, RecoveryCheckpoint
-from datetime import datetime, timezone
+from engine.recovery.persistence import RecoveryCheckpoint, RecoveryPersistence
 
 
 class TestDiskFull:
@@ -34,7 +32,7 @@ class TestDiskFull:
         """Backup should fail gracefully when disk is full."""
         checkpoint = RecoveryCheckpoint(
             instance_id="inst-1",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             phase="connection",
             data={"ok": True},
         )
@@ -89,7 +87,7 @@ class TestInodeExhaustion:
         """Checkpoint persistence should handle inode exhaustion."""
         checkpoint = RecoveryCheckpoint(
             instance_id="inst-1",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             phase="state",
             data={"ok": True},
         )
@@ -111,15 +109,17 @@ class TestInodeExhaustion:
 
         # Queue orders (in-memory, not disk)
         for i in range(10):
-            recovery.queue_order(QueuedOrder(
-                instance_id=f"inst-{i}",
-                account_id="acc-1",
-                exchange="binance",
-                symbol="BTCUSDT",
-                side="buy",
-                quantity=Decimal("0.1"),
-                price=Decimal("45000"),
-            ))
+            recovery.queue_order(
+                QueuedOrder(
+                    instance_id=f"inst-{i}",
+                    account_id="acc-1",
+                    exchange="binance",
+                    symbol="BTCUSDT",
+                    side="buy",
+                    quantity=Decimal("0.1"),
+                    price=Decimal("45000"),
+                )
+            )
 
         assert recovery.get_queue_size() == 10
 
@@ -136,7 +136,7 @@ class TestPermissionError:
         """Permission error during checkpoint save should not crash recovery."""
         checkpoint = RecoveryCheckpoint(
             instance_id="inst-1",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             phase="reconciliation",
             data={"ok": True},
         )

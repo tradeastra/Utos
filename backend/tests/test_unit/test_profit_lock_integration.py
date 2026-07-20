@@ -7,13 +7,12 @@ Also verifies independence from Grid Engine.
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
 import pytest
-
-from core.types import OrderResult, OrderSide, OrderStatus, OrderType
+from core.domain_types import OrderResult, OrderStatus
 from engine.execution import ExecutionEngine
 from engine.profit_lock.engine import ProfitLockEngine
 from engine.profit_lock.state import ProfitLockStatus
@@ -39,13 +38,15 @@ class FakeAdapter:
         stop_price: Decimal | None = None,
         client_order_id: str | None = None,
     ) -> OrderResult:
-        self.place_calls.append({
-            "symbol": symbol,
-            "side": side,
-            "order_type": order_type,
-            "quantity": quantity,
-            "price": price,
-        })
+        self.place_calls.append(
+            {
+                "symbol": symbol,
+                "side": side,
+                "order_type": order_type,
+                "quantity": quantity,
+                "price": price,
+            }
+        )
         self._counter += 1
         order_id = f"ex_{self._counter}"
         result = OrderResult(
@@ -59,8 +60,8 @@ class FakeAdapter:
             filled_quantity=Decimal("0"),
             average_fill_price=None,
             status=OrderStatus.OPEN.value,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
         self._orders[order_id] = result
         return result
@@ -73,6 +74,7 @@ class FakeAdapter:
         result = self._orders.get(order_id)
         if result is None:
             from core.exceptions import OrderNotFound
+
             raise OrderNotFound(order_id=order_id)
         return result
 
@@ -91,7 +93,9 @@ def fake_adapter() -> FakeAdapter:
 
 
 @pytest.fixture
-def execution_engine(account_id: uuid.UUID, fake_adapter: FakeAdapter) -> ExecutionEngine:
+def execution_engine(
+    account_id: uuid.UUID, fake_adapter: FakeAdapter
+) -> ExecutionEngine:
     e = ExecutionEngine()
     e.register_adapter(account_id, fake_adapter)
     return e
@@ -152,7 +156,9 @@ class TestProfitLockFullLifecycle:
 
         # 5. Order fills → locked
         order_id = state.lock_order_id
-        await profit_lock_engine.on_order_filled("inst-1", order_id, Decimal("109.25"), Decimal("2"))
+        await profit_lock_engine.on_order_filled(
+            "inst-1", order_id, Decimal("109.25"), Decimal("2")
+        )
         state = await profit_lock_engine.get_state("inst-1")
         assert state.status == ProfitLockStatus.LOCKED
         assert state.is_executed is True
@@ -234,28 +240,31 @@ class TestProfitLockIndependence:
     @pytest.mark.asyncio
     async def test_no_grid_engine_imports(self) -> None:
         """Verify profit_lock package does NOT import from grid engine."""
-        import engine.profit_lock.engine as ple_module
         import sys
 
+        import engine.profit_lock.engine as ple_module
+
         # Check that no grid engine modules are in sys.modules from profit_lock import
-        profit_lock_modules = [
-            k for k in sys.modules if k.startswith("engine.profit_lock")
-        ]
-        grid_modules_loaded = [
-            k for k in sys.modules if k.startswith("engine.grid")
-        ]
+        [k for k in sys.modules if k.startswith("engine.profit_lock")]
+        [k for k in sys.modules if k.startswith("engine.grid")]
         # Grid modules may be loaded from other tests, but profit_lock should not import them
         # Verify the engine module source doesn't import from engine.grid
         import inspect
+
         source = inspect.getsource(ple_module)
         # Check import lines only, not docstrings
         import_lines = [
-            line.strip() for line in source.split("\n")
+            line.strip()
+            for line in source.split("\n")
             if line.strip().startswith("import ") or line.strip().startswith("from ")
         ]
         for line in import_lines:
-            assert "engine.grid" not in line, f"Profit lock engine imports from grid: {line}"
-            assert "GridEngine" not in line, f"Profit lock engine imports GridEngine: {line}"
+            assert (
+                "engine.grid" not in line
+            ), f"Profit lock engine imports from grid: {line}"
+            assert (
+                "GridEngine" not in line
+            ), f"Profit lock engine imports GridEngine: {line}"
 
     @pytest.mark.asyncio
     async def test_no_exchange_adapter_access(
@@ -283,7 +292,9 @@ class TestProfitLockIndependence:
 
         state = await profit_lock_engine.get_state("inst-1")
         order_id = state.lock_order_id
-        await profit_lock_engine.on_order_filled("inst-1", order_id, Decimal("108"), Decimal("2"))
+        await profit_lock_engine.on_order_filled(
+            "inst-1", order_id, Decimal("108"), Decimal("2")
+        )
 
         # All place calls went through ExecutionEngine → adapter
         assert len(fake_adapter.place_calls) == 1

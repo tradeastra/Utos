@@ -2,12 +2,11 @@
 Exchange account repository — async CRUD for exchange_accounts table.
 """
 
-from typing import Optional
 import uuid
 
+from models.exchange_account import ExchangeAccount
 from sqlalchemy import select
 
-from models.exchange_account import ExchangeAccount
 from repositories.base import IRepository
 
 

@@ -35,16 +35,28 @@ class ProfitLockPolicy:
 
         Logic:
         1. If not enabled or not monitoring/triggered → no action
-        2. If profit % < trigger_percentage → no action (still monitoring)
-        3. If profit % >= trigger_percentage and not triggered → trigger lock
-        4. If triggered and price makes new high → update lock_price (trailing)
-        5. If triggered and price drops below lock_price → execute lock
+        2. If max_profit_cap > 0 and profit % >= max_profit_cap → execute lock immediately
+        3. If profit % < trigger_percentage → no action (still monitoring)
+        4. If profit % >= trigger_percentage and not triggered → trigger lock
+        5. If triggered and price makes new high → update lock_price (trailing)
+        6. If triggered and price drops below lock_price → execute lock
         """
         if not state.enabled:
             return PolicyDecision(action="none", reason="profit lock not enabled")
 
-        if state.status not in (ProfitLockStatus.MONITORING, ProfitLockStatus.TRIGGERED):
+        if state.status not in (
+            ProfitLockStatus.MONITORING,
+            ProfitLockStatus.TRIGGERED,
+        ):
             return PolicyDecision(action="none", reason=f"status is {state.status}")
+
+        # Check max profit cap — auto-execute if reached
+        if state.max_profit_percentage > 0 and profit.profit_percentage >= state.max_profit_percentage:
+            return PolicyDecision(
+                action="execute_lock",
+                new_lock_price=current_price,
+                reason=f"profit {profit.profit_percentage}% >= max cap {state.max_profit_percentage}%",
+            )
 
         # Update highest price if current price is higher
         if state.highest_price is None or current_price > state.highest_price:

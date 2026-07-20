@@ -7,14 +7,15 @@ from database (PostgreSQL) and persistence layers.
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
-from core.exceptions import RecoveryError
+from core.domain_types import GridState, PositionEntry
 from core.logging import get_logger
-from core.types import GridState, PositionEntry
+
+from engine.grid.persistence import GridPersistence
 from engine.profit_lock.persistence import ProfitPersistence
 from engine.profit_lock.state import ProfitLockState
-from engine.grid.persistence import GridPersistence
 from engine.risk.portfolio import PortfolioManager, Position
 
 logger = get_logger(__name__)
@@ -122,7 +123,9 @@ class StateRecovery:
         logger.info("Recovering profit lock state", extra={"instance_id": instance_id})
 
         if self._load_profit_lock_snapshot_fn is None:
-            logger.warning("No load_profit_lock_snapshot_fn set, skipping profit lock recovery")
+            logger.warning(
+                "No load_profit_lock_snapshot_fn set, skipping profit lock recovery"
+            )
             return None
 
         try:
@@ -158,15 +161,16 @@ class StateRecovery:
         logger.info("Recovering portfolio", extra={"instance_id": instance_id})
 
         if self._fetch_exchange_positions_fn is None:
-            logger.warning("No fetch_exchange_positions_fn set, skipping portfolio recovery")
+            logger.warning(
+                "No fetch_exchange_positions_fn set, skipping portfolio recovery"
+            )
             return []
 
         try:
             exchange_positions = self._fetch_exchange_positions_fn(instance_id)
             rebuilt: list[Position] = []
 
-            for i, ep in enumerate(exchange_positions):
-                pos_id = f"{instance_id}-recovered-{i}"
+            for _i, ep in enumerate(exchange_positions):
                 position = self._portfolio.register_position(
                     instance_id=instance_id,
                     account_id=f"recovered-{instance_id}",

@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from core.context import ProcessMemory
-from core.types import TradingInstanceStatus
+from core.domain_types import TradingInstanceStatus
 from exchanges.adapter import IExchangeAdapter
 
 
@@ -33,11 +33,11 @@ class TradingProcess:
         """Update both runtime status and process memory."""
         self.status = status
         self.memory.status = status.value
-        self.memory.last_updated = datetime.now(tz=timezone.utc)
+        self.memory.last_updated = datetime.now(tz=UTC)
 
     def update_memory(
         self,
-        memory: Optional[ProcessMemory] = None,
+        memory: ProcessMemory | None = None,
         **kwargs: Any,
     ) -> None:
         """Replace or patch the in-memory process state."""
@@ -46,7 +46,7 @@ class TradingProcess:
         for key, value in kwargs.items():
             if hasattr(self.memory, key):
                 setattr(self.memory, key, value)
-        self.memory.last_updated = datetime.now(tz=timezone.utc)
+        self.memory.last_updated = datetime.now(tz=UTC)
 
     def snapshot(self) -> dict[str, Any]:
         """Return a JSON-serializable snapshot for Redis and DB."""
@@ -69,7 +69,7 @@ class TradingProcess:
         snapshot: dict[str, Any],
         adapter: IExchangeAdapter,
         redis: Any,
-    ) -> "TradingProcess":
+    ) -> TradingProcess:
         """Rebuild a TradingProcess from a snapshot."""
         return cls(
             instance_id=uuid.UUID(snapshot["instance_id"]),

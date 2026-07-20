@@ -2,13 +2,12 @@
 Trading instance repository — async CRUD for trading_instances table.
 """
 
-from typing import Optional
 import uuid
 
+from core.domain_types import TradingInstanceStatus
+from models.trading_instance import TradingInstance
 from sqlalchemy import select
 
-from core.types import TradingInstanceStatus
-from models.trading_instance import TradingInstance
 from repositories.base import IRepository
 
 
@@ -21,7 +20,9 @@ class TradingInstanceRepository(IRepository[TradingInstance]):
         )
         return list(result.scalars().all())
 
-    async def get_by_status(self, status: TradingInstanceStatus) -> list[TradingInstance]:
+    async def get_by_status(
+        self, status: TradingInstanceStatus
+    ) -> list[TradingInstance]:
         result = await self._session.execute(
             select(TradingInstance).where(TradingInstance.status == status)
         )

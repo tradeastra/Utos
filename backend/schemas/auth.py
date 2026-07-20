@@ -4,7 +4,7 @@ Auth request / response schemas.
 
 import uuid
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, EmailStr, field_validator
 
@@ -12,7 +12,7 @@ from pydantic import BaseModel, EmailStr, field_validator
 class UserRegisterRequest(BaseModel):
     email: EmailStr
     password: str
-    full_name: Optional[str] = None
+    full_name: str | None = None
 
     @field_validator("password")
     @classmethod
@@ -45,7 +45,7 @@ class RefreshTokenRequest(BaseModel):
 class UserResponse(BaseModel):
     id: uuid.UUID
     email: str
-    full_name: Optional[str]
+    full_name: str | None
     is_active: bool
     is_verified: bool
     role: str
@@ -74,6 +74,7 @@ class MessageResponse(BaseModel):
 
 # ── Response envelope ─────────────────────────────────────────────────────────
 
+
 class Meta(BaseModel):
     timestamp: datetime
 
@@ -86,7 +87,7 @@ class DataResponse(BaseModel):
 class ErrorDetail(BaseModel):
     code: str
     message: str
-    details: Optional[Any] = None
+    details: Any | None = None
 
 
 class ErrorResponse(BaseModel):

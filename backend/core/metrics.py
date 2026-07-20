@@ -7,12 +7,12 @@ notification, and API.
 """
 
 from prometheus_client import (
+    CONTENT_TYPE_LATEST,
     Counter,
     Gauge,
     Histogram,
     Info,
     generate_latest,
-    CONTENT_TYPE_LATEST,
 )
 
 # ── Info ──────────────────────────────────────
@@ -213,11 +213,13 @@ utos_db_pool_checked_out = Gauge(
 
 def init_metrics() -> None:
     """Initialize metrics with default values."""
-    utos_info.info({
-        "version": "1.0.0",
-        "sprint": "16B",
-        "env": "production",
-    })
+    utos_info.info(
+        {
+            "version": "1.0.0",
+            "sprint": "16B",
+            "env": "production",
+        }
+    )
     utos_trading_instances_active.labels(status="running").set(0)
     utos_trading_instances_active.labels(status="paused").set(0)
     utos_trading_instances_active.labels(status="stopped").set(0)

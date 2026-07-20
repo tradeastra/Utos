@@ -8,14 +8,13 @@ Provides:
 - compatibility check
 """
 
-import asyncio
 import os
 import time
-from datetime import datetime, timezone
-from typing import Optional
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
 
-from core.config import settings, get_database_url
+from core.config import get_database_url
 from core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -24,6 +23,7 @@ logger = get_logger(__name__)
 @dataclass
 class MigrationValidationResult:
     """Result of a migration validation run."""
+
     timestamp: str
     current_revision: str
     target_revision: str
@@ -44,12 +44,14 @@ class MigrationValidator:
     def __init__(self):
         self.migrations_dir = os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "database", "migrations",
+            "database",
+            "migrations",
         )
 
-    def _get_alembic_config(self, url: Optional[str] = None):
+    def _get_alembic_config(self, url: str | None = None):
         """Build Alembic config for the current environment."""
         from alembic.config import Config
+
         cfg = Config()
         cfg.set_main_option("script_location", self.migrations_dir)
         cfg.set_main_option("sqlalchemy.url", url or get_database_url())
@@ -64,7 +66,7 @@ class MigrationValidator:
         Returns:
             Dict with generated SQL, statement count, and status.
         """
-        result = {
+        result: dict[str, Any] = {
             "target": target,
             "sql": "",
             "statement_count": 0,
@@ -73,9 +75,10 @@ class MigrationValidator:
         }
 
         try:
-            from alembic import command
             import io
             from contextlib import redirect_stdout
+
+            from alembic import command
 
             cfg = self._get_alembic_config()
 
@@ -109,7 +112,7 @@ class MigrationValidator:
         Returns:
             Dict with generated SQL, statement count, and status.
         """
-        result = {
+        result: dict[str, Any] = {
             "target": target,
             "sql": "",
             "statement_count": 0,
@@ -119,9 +122,10 @@ class MigrationValidator:
         }
 
         try:
-            from alembic import command
             import io
             from contextlib import redirect_stdout
+
+            from alembic import command
 
             cfg = self._get_alembic_config()
 
@@ -155,7 +159,7 @@ class MigrationValidator:
         Returns:
             Dict with duration and status.
         """
-        result = {
+        result: dict[str, Any] = {
             "target": target,
             "duration_ms": 0,
             "status": "started",
@@ -165,6 +169,7 @@ class MigrationValidator:
         start = time.perf_counter()
         try:
             from alembic import command
+
             cfg = self._get_alembic_config()
             command.upgrade(cfg, target)
             result["duration_ms"] = round((time.perf_counter() - start) * 1000, 2)
@@ -178,10 +183,11 @@ class MigrationValidator:
 
         return result
 
-    def get_current_revision(self) -> Optional[str]:
+    def get_current_revision(self) -> str | None:
         """Get current Alembic revision."""
         try:
             from database.migrations import get_current_revision
+
             return get_current_revision()
         except Exception as exc:
             logger.error(f"Failed to get current revision: {exc}")
@@ -197,18 +203,21 @@ class MigrationValidator:
 
         try:
             from database.base import Base
-            from models import (
-                User, ExchangeAccount, TradingInstance, Position,
-                Order, GridProfile, Strategy, Transaction,
-                Subscription, Affiliate, Notification, Balance,
-            )
 
             # Check all models are registered on Base.metadata
             expected_models = [
-                "users", "exchange_accounts", "trading_instances",
-                "positions", "orders", "grid_profiles", "strategies",
-                "transactions", "subscriptions", "affiliates",
-                "notifications", "balances",
+                "users",
+                "exchange_accounts",
+                "trading_instances",
+                "positions",
+                "orders",
+                "grid_profiles",
+                "strategies",
+                "transactions",
+                "subscriptions",
+                "affiliates",
+                "notifications",
+                "balances",
             ]
 
             registered_tables = set(Base.metadata.tables.keys())
@@ -232,7 +241,7 @@ class MigrationValidator:
         Returns:
             MigrationValidationResult with all checks.
         """
-        timestamp = datetime.now(tz=timezone.utc).isoformat()
+        timestamp = datetime.now(tz=UTC).isoformat()
         current_rev = self.get_current_revision() or "unknown"
         errors = []
         warnings = self.check_compatibility()

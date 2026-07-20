@@ -4,9 +4,9 @@ Position repository — async CRUD for positions table.
 
 import uuid
 
+from models.position import Position
 from sqlalchemy import select
 
-from models.position import Position
 from repositories.base import IRepository
 
 

@@ -65,7 +65,9 @@ class ErrorMapper:
         self, exception: Exception, message: str | None = None
     ) -> ExchangeConnectionError:
         """Map a network-level exception to an `ExchangeConnectionError`."""
-        default_message = message or f"Network error for {self.exchange_name}: {exception}"
+        default_message = (
+            message or f"Network error for {self.exchange_name}: {exception}"
+        )
         return ExchangeConnectionError(
             message=default_message,
             exchange_name=self.exchange_name,
@@ -77,7 +79,9 @@ class ErrorMapper:
         self, exception: Exception, message: str | None = None
     ) -> ExchangeError:
         """Map a WebSocket error to an `ExchangeError`."""
-        default_message = message or f"WebSocket error for {self.exchange_name}: {exception}"
+        default_message = (
+            message or f"WebSocket error for {self.exchange_name}: {exception}"
+        )
         return ExchangeError(
             message=default_message,
             exchange_name=self.exchange_name,

@@ -1,7 +1,6 @@
 """Unit tests for NotificationService."""
 
 import pytest
-
 from core.exceptions import NotificationError
 from engine.notification.channels import EmailChannel, TelegramChannel
 from engine.notification.service import NotificationService
@@ -35,7 +34,9 @@ class TestNotify:
         svc.register_channel(TelegramChannel())
         svc.set_recipient("user-1", "telegram", "@user1")
         nid = await svc.notify(
-            "user-1", "order_filled", "telegram",
+            "user-1",
+            "order_filled",
+            "telegram",
             {"symbol": "BTCUSDT", "side": "buy", "quantity": "1", "price": "50000"},
         )
         assert isinstance(nid, str)
@@ -56,7 +57,9 @@ class TestNotify:
         svc.set_recipient("user-1", "email", "user@example.com")
         svc.set_recipient("user-1", "telegram", "@user1")
         ids = await svc.notify_multi(
-            "user-1", "order_filled", ["email", "telegram"],
+            "user-1",
+            "order_filled",
+            ["email", "telegram"],
             {"symbol": "BTCUSDT", "side": "buy", "quantity": "1", "price": "50000"},
         )
         assert len(ids) == 2
@@ -67,7 +70,9 @@ class TestNotify:
         svc = NotificationService()
         svc.register_channel(TelegramChannel())
         ids = await svc.notify_multi(
-            "user-1", "order_filled", ["telegram", "email"],
+            "user-1",
+            "order_filled",
+            ["telegram", "email"],
             {"symbol": "BTCUSDT", "side": "buy", "quantity": "1", "price": "50000"},
         )
         assert len(ids) == 1
@@ -81,7 +86,9 @@ class TestProcessQueue:
         svc.register_channel(TelegramChannel())
         svc.set_recipient("user-1", "telegram", "@user1")
         await svc.notify(
-            "user-1", "order_filled", "telegram",
+            "user-1",
+            "order_filled",
+            "telegram",
             {"symbol": "BTCUSDT", "side": "buy", "quantity": "1", "price": "50000"},
         )
         results = await svc.process_queue()

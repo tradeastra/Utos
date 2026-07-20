@@ -12,38 +12,34 @@ Verifies:
 - Exposure consistent
 """
 
-import asyncio
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
-from unittest.mock import MagicMock, AsyncMock
 
 import pytest
-
-from core.types import (
+from core.domain_types import (
     GridLevel,
     GridLevelStatus,
     GridState,
     OrderResult,
-    OrderStatus,
-    PositionEntry,
     OrderSide,
+    OrderStatus,
     OrderType,
+    PositionEntry,
 )
 from engine.execution.models import OrderRequest
-from engine.grid.state import GridStatus, GridStateStore
+from engine.grid.state import GridStatus
 from engine.recovery.connection import ConnectionRecovery, QueuedOrder
-from engine.recovery.state import StateRecovery
-from engine.recovery.reconciler import RuntimeReconciler, ReconciliationResult
 from engine.recovery.coordinator import (
-    RecoveryCoordinator,
     InstanceContext,
-    RecoveryReport,
+    RecoveryCoordinator,
 )
 from engine.recovery.persistence import RecoveryPersistence
-from engine.risk.portfolio import PortfolioManager, Position
+from engine.recovery.reconciler import RuntimeReconciler
+from engine.recovery.state import StateRecovery
 from engine.risk.exposure import ExposureManager
-from engine.risk.manager import RiskManager, RiskLimits
+from engine.risk.manager import RiskLimits, RiskManager
+from engine.risk.portfolio import PortfolioManager, Position
 from tests.test_chaos.chaos_adapter import ChaosExchangeAdapter
 
 
@@ -53,16 +49,18 @@ class TestRecoveryNoDuplicateOrders:
     @pytest.mark.asyncio
     async def test_no_duplicate_after_recovery(self):
         """After recovery, no duplicate orders should exist in tracker."""
-        from engine.execution.tracker import OrderTracker
         from engine.execution.execution_engine import ExecutionEngine
         from engine.execution.executor import OrderExecutor
+        from engine.execution.tracker import OrderTracker
         from engine.execution.validator import OrderValidator
 
         adapter = ChaosExchangeAdapter()
         validator = OrderValidator()
         tracker = OrderTracker()
         executor = OrderExecutor(max_retries=3, base_delay=0.01)
-        engine = ExecutionEngine(validator=validator, executor=executor, tracker=tracker)
+        engine = ExecutionEngine(
+            validator=validator, executor=executor, tracker=tracker
+        )
 
         account_id = uuid.uuid4()
         engine.register_adapter(account_id, adapter)
@@ -99,15 +97,17 @@ class TestRecoveryNoDuplicateOrders:
         recovery = ConnectionRecovery(place_order_fn=place_order_fn)
 
         # Queue one order
-        recovery.queue_order(QueuedOrder(
-            instance_id="inst-1",
-            account_id="acc-1",
-            exchange="binance",
-            symbol="BTCUSDT",
-            side="buy",
-            quantity=Decimal("0.1"),
-            price=Decimal("45000"),
-        ))
+        recovery.queue_order(
+            QueuedOrder(
+                instance_id="inst-1",
+                account_id="acc-1",
+                exchange="binance",
+                symbol="BTCUSDT",
+                side="buy",
+                quantity=Decimal("0.1"),
+                price=Decimal("45000"),
+            )
+        )
 
         # Replay once
         await recovery.replay_queued_orders()
@@ -162,8 +162,8 @@ class TestRecoveryNoOrphanOrders:
                 price=Decimal("48000"),
                 filled_quantity=Decimal("0"),
                 average_fill_price=None,
-                created_at=datetime(2025, 1, 1, tzinfo=timezone.utc),
-                updated_at=datetime(2025, 1, 1, tzinfo=timezone.utc),
+                created_at=datetime(2025, 1, 1, tzinfo=UTC),
+                updated_at=datetime(2025, 1, 1, tzinfo=UTC),
             ),
         ]
 
@@ -231,7 +231,9 @@ class TestRecoveryPositionConsistency:
             ),
         ]
 
-        result = await reconciler.reconcile_portfolio("inst-1", local_positions, exchange_positions)
+        result = await reconciler.reconcile_portfolio(
+            "inst-1", local_positions, exchange_positions
+        )
 
         assert result.action == "restored"
         assert result.count == 1
@@ -256,7 +258,9 @@ class TestRecoveryPositionConsistency:
         local_positions = portfolio.get_positions()
         exchange_positions: list[PositionEntry] = []  # Exchange has no positions
 
-        result = await reconciler.reconcile_portfolio("inst-1", local_positions, exchange_positions)
+        result = await reconciler.reconcile_portfolio(
+            "inst-1", local_positions, exchange_positions
+        )
 
         assert result.action == "restored"
         assert result.count == 1
@@ -337,13 +341,16 @@ class TestRecoveryExposureConsistency:
         exposure_mgr = ExposureManager()
         risk_mgr = RiskManager(portfolio, exposure_mgr)
 
-        risk_mgr.set_risk_parameters("user1", RiskLimits(
-            max_position_size=Decimal("100000"),
-            max_capital_per_instance=Decimal("50000"),
-            max_exposure_per_symbol=Decimal("200000"),
-            max_exposure_per_exchange=Decimal("500000"),
-            max_open_positions=10,
-        ))
+        risk_mgr.set_risk_parameters(
+            "user1",
+            RiskLimits(
+                max_position_size=Decimal("100000"),
+                max_capital_per_instance=Decimal("50000"),
+                max_exposure_per_symbol=Decimal("200000"),
+                max_exposure_per_exchange=Decimal("500000"),
+                max_open_positions=10,
+            ),
+        )
 
         # Register recovered position
         portfolio.register_position(
@@ -403,14 +410,17 @@ class TestFullRecoveryFlow:
         )
 
         # Register instance
-        coordinator.register_instance("inst-1", InstanceContext(
-            instance_id="inst-1",
-            account_id="acc-1",
-            exchange="binance",
-            symbol="BTCUSDT",
-            has_grid=False,
-            has_profit_lock=False,
-        ))
+        coordinator.register_instance(
+            "inst-1",
+            InstanceContext(
+                instance_id="inst-1",
+                account_id="acc-1",
+                exchange="binance",
+                symbol="BTCUSDT",
+                has_grid=False,
+                has_profit_lock=False,
+            ),
+        )
 
         # Execute recovery
         report = await coordinator.recover_instance("inst-1")
@@ -445,14 +455,17 @@ class TestFullRecoveryFlow:
             persistence=persistence,
         )
 
-        coordinator.register_instance("inst-grid", InstanceContext(
-            instance_id="inst-grid",
-            account_id="acc-1",
-            exchange="binance",
-            symbol="BTCUSDT",
-            has_grid=True,
-            has_profit_lock=False,
-        ))
+        coordinator.register_instance(
+            "inst-grid",
+            InstanceContext(
+                instance_id="inst-grid",
+                account_id="acc-1",
+                exchange="binance",
+                symbol="BTCUSDT",
+                has_grid=True,
+                has_profit_lock=False,
+            ),
+        )
 
         report = await coordinator.recover_instance("inst-grid")
 
@@ -484,17 +497,20 @@ class TestFullRecoveryFlow:
 
         # Register multiple instances
         for i in range(5):
-            coordinator.register_instance(f"inst-{i}", InstanceContext(
-                instance_id=f"inst-{i}",
-                account_id="acc-1",
-                exchange="binance",
-                symbol="BTCUSDT",
-            ))
+            coordinator.register_instance(
+                f"inst-{i}",
+                InstanceContext(
+                    instance_id=f"inst-{i}",
+                    account_id="acc-1",
+                    exchange="binance",
+                    symbol="BTCUSDT",
+                ),
+            )
 
         # Recover all
         reports = await coordinator.recover_all()
 
         assert len(reports) == 5
-        for iid, report in reports.items():
+        for _iid, report in reports.items():
             assert report.connection_ok is True
             assert report.state_ok is True

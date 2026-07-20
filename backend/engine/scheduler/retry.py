@@ -7,9 +7,10 @@ After max_retries, moves to DeadLetterQueue.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Callable, Coroutine
+from datetime import UTC, datetime
+from typing import Any
 
 from core.logging import get_logger
 
@@ -22,7 +23,7 @@ class _RetryJob:
     coroutine: Callable[..., Any]
     retry_count: int = 0
     max_retries: int = 3
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     last_error: str | None = None
 
 
@@ -85,7 +86,11 @@ class RetryWorker:
                 "Job succeeded",
                 extra={"task_id": job.task_id, "attempt": job.retry_count + 1},
             )
-            return {"task_id": job.task_id, "status": "success", "attempts": job.retry_count + 1}
+            return {
+                "task_id": job.task_id,
+                "status": "success",
+                "attempts": job.retry_count + 1,
+            }
 
         except Exception as exc:
             job.last_error = str(exc)
@@ -140,4 +145,5 @@ class RetryWorker:
     @staticmethod
     def _is_async(func: Callable[..., Any]) -> bool:
         import asyncio
+
         return asyncio.iscoroutinefunction(func)

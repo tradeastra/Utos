@@ -4,17 +4,16 @@
 # ─────────────────────────────────────────────
 
 # ── Stage 1: Dependencies ─────────────────────
-FROM node:20-alpine@sha256:a8c5d3f4e1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8 AS deps
+FROM node:20-alpine AS deps
 
 WORKDIR /app
 
 COPY frontend/package.json frontend/package-lock.json* ./
 
-RUN npm ci --omit=dev && \
-    npm ci --include=dev
+RUN npm ci
 
 # ── Stage 2: Builder ──────────────────────────
-FROM node:20-alpine@sha256:a8c5d3f4e1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8 AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -24,10 +23,13 @@ COPY frontend/ ./
 ENV NEXT_TELEMETRY_DISABLED=1 \
     NODE_ENV=production
 
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+
 RUN npm run build
 
 # ── Stage 3: Runtime ──────────────────────────
-FROM node:20-alpine@sha256:a8c5d3f4e1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8 AS runtime
+FROM node:20-alpine AS runtime
 
 # Install curl for healthcheck
 RUN apk add --no-cache curl

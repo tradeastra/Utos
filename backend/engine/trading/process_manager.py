@@ -5,14 +5,16 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
-from datetime import datetime, timezone
-from typing import Any, Optional
-
-from fastapi import Depends
-from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import UTC, datetime
+from typing import Any
 
 from core.config import settings
 from core.context import ProcessMemory
+from core.domain_types import (
+    ExchangeAdapterConfig,
+    ExchangeCredentials,
+    TradingInstanceStatus,
+)
 from core.exceptions import (
     AuthenticationError,
     ConfigurationError,
@@ -25,20 +27,19 @@ from core.exceptions import (
     ValidationError,
 )
 from core.logging import get_logger
-from core.types import ExchangeAdapterConfig, ExchangeCredentials, TradingInstanceStatus
 from database.base import get_db
 from database.redis_client import get_redis, init_redis
 from exchanges.adapter import IExchangeAdapter
 from exchanges.credential_manager import CredentialManager
 from exchanges.factory import ExchangeFactory
+from fastapi import Depends
 from models.exchange_account import ExchangeAccount
-from models.grid_profile import GridProfile
-from models.strategy import Strategy
 from models.trading_instance import TradingInstance
 from repositories.exchange_account_repository import ExchangeAccountRepository
 from repositories.grid_profile_repository import GridProfileRepository
 from repositories.strategy_repository import StrategyRepository
 from repositories.trading_instance_repository import TradingInstanceRepository
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .process import TradingProcess
 from .state_machine import ProcessStateMachine
@@ -101,7 +102,7 @@ class _ProcessStateStore:
         client = await self._ensure_redis()
         if client is None:
             return True
-        lock_value = f"{worker_id}:{datetime.now(tz=timezone.utc).isoformat()}"
+        lock_value = f"{worker_id}:{datetime.now(tz=UTC).isoformat()}"
         acquired = await client.set(_lock_key(instance_id), lock_value, nx=True, ex=ttl)
         return bool(acquired)
 
@@ -286,7 +287,7 @@ class TradingProcessManager:
                 status=instance.status.value,
             )
 
-        lock_value = f"{self.worker_id}:{datetime.now(tz=timezone.utc).isoformat()}"
+        lock_value = f"{self.worker_id}:{datetime.now(tz=UTC).isoformat()}"
         return TradingProcess(
             instance_id=instance.id,
             user_id=instance.user_id,
@@ -343,10 +344,14 @@ class TradingProcessManager:
         )
         return instance
 
-    async def prepare(self, instance_id: uuid.UUID, user_id: uuid.UUID) -> TradingInstance:
+    async def prepare(
+        self, instance_id: uuid.UUID, user_id: uuid.UUID
+    ) -> TradingInstance:
         instance = await self._get_instance(instance_id)
         await self._validate_ownership(instance, user_id)
-        ProcessStateMachine.validate_transition(instance.status, TradingInstanceStatus.READY)
+        ProcessStateMachine.validate_transition(
+            instance.status, TradingInstanceStatus.READY
+        )
 
         account = await self.account_repo.get_by_id(instance.exchange_account_id)
         if account is None:
@@ -362,10 +367,14 @@ class TradingProcessManager:
         await self._persist_instance(instance, status=TradingInstanceStatus.READY)
         return instance
 
-    async def start(self, instance_id: uuid.UUID, user_id: uuid.UUID) -> TradingInstance:
+    async def start(
+        self, instance_id: uuid.UUID, user_id: uuid.UUID
+    ) -> TradingInstance:
         instance = await self._get_instance(instance_id)
         await self._validate_ownership(instance, user_id)
-        ProcessStateMachine.validate_transition(instance.status, TradingInstanceStatus.RUNNING)
+        ProcessStateMachine.validate_transition(
+            instance.status, TradingInstanceStatus.RUNNING
+        )
 
         await self._check_duplicate_running(instance)
 
@@ -383,7 +392,7 @@ class TradingProcessManager:
         await self._persist_instance(
             instance,
             status=TradingInstanceStatus.RUNNING,
-            started_at=datetime.now(tz=timezone.utc),
+            started_at=datetime.now(tz=UTC),
             worker_id=self.worker_id,
             memory_snapshot=process.memory.to_dict(),
             memory_version=1,
@@ -391,10 +400,14 @@ class TradingProcessManager:
         await self._persist_state(process)
         return instance
 
-    async def pause(self, instance_id: uuid.UUID, user_id: uuid.UUID) -> TradingInstance:
+    async def pause(
+        self, instance_id: uuid.UUID, user_id: uuid.UUID
+    ) -> TradingInstance:
         instance = await self._get_instance(instance_id)
         await self._validate_ownership(instance, user_id)
-        ProcessStateMachine.validate_transition(instance.status, TradingInstanceStatus.PAUSED)
+        ProcessStateMachine.validate_transition(
+            instance.status, TradingInstanceStatus.PAUSED
+        )
 
         process = await self._get_process(instance.id)
         if process is None:
@@ -410,10 +423,14 @@ class TradingProcessManager:
         await self._persist_state(process)
         return instance
 
-    async def resume(self, instance_id: uuid.UUID, user_id: uuid.UUID) -> TradingInstance:
+    async def resume(
+        self, instance_id: uuid.UUID, user_id: uuid.UUID
+    ) -> TradingInstance:
         instance = await self._get_instance(instance_id)
         await self._validate_ownership(instance, user_id)
-        ProcessStateMachine.validate_transition(instance.status, TradingInstanceStatus.RUNNING)
+        ProcessStateMachine.validate_transition(
+            instance.status, TradingInstanceStatus.RUNNING
+        )
 
         if not await self.store.refresh_lock(instance.id, self.worker_id, ttl=60):
             raise InvalidStateTransition(
@@ -439,7 +456,9 @@ class TradingProcessManager:
     async def stop(self, instance_id: uuid.UUID, user_id: uuid.UUID) -> TradingInstance:
         instance = await self._get_instance(instance_id)
         await self._validate_ownership(instance, user_id)
-        ProcessStateMachine.validate_transition(instance.status, TradingInstanceStatus.STOPPING)
+        ProcessStateMachine.validate_transition(
+            instance.status, TradingInstanceStatus.STOPPING
+        )
 
         instance.status = TradingInstanceStatus.STOPPING
         await self.session.flush()
@@ -458,8 +477,10 @@ class TradingProcessManager:
         await self._persist_instance(
             instance,
             status=TradingInstanceStatus.STOPPED,
-            stopped_at=datetime.now(tz=timezone.utc),
-            memory_snapshot=process.memory.to_dict() if process else instance.memory_snapshot,
+            stopped_at=datetime.now(tz=UTC),
+            memory_snapshot=(
+                process.memory.to_dict() if process else instance.memory_snapshot
+            ),
         )
         await self.store.set_state(
             instance.id,
@@ -467,7 +488,7 @@ class TradingProcessManager:
                 "instance_id": str(instance.id),
                 "status": TradingInstanceStatus.STOPPED.value,
                 "worker_id": self.worker_id,
-                "updated_at": datetime.now(tz=timezone.utc).isoformat(),
+                "updated_at": datetime.now(tz=UTC).isoformat(),
             },
         )
         return instance
@@ -475,7 +496,11 @@ class TradingProcessManager:
     async def recover(self) -> list[TradingInstance]:
         """Recover RUNNING/PAUSED processes after application restart."""
         recovered: list[TradingInstance] = []
-        for status in (TradingInstanceStatus.RUNNING, TradingInstanceStatus.PAUSED, TradingInstanceStatus.RECOVERING):
+        for status in (
+            TradingInstanceStatus.RUNNING,
+            TradingInstanceStatus.PAUSED,
+            TradingInstanceStatus.RECOVERING,
+        ):
             instances = await self.instance_repo.get_by_status(status)
             for instance in instances:
                 try:
@@ -491,12 +516,20 @@ class TradingProcessManager:
         return recovered
 
     async def _recover_instance(self, instance: TradingInstance) -> None:
-        ProcessStateMachine.validate_transition(instance.status, TradingInstanceStatus.RECOVERING)
+        ProcessStateMachine.validate_transition(
+            instance.status, TradingInstanceStatus.RECOVERING
+        )
 
         previous_status = instance.status
         if not await self.store.acquire_lock(instance.id, self.worker_id, ttl=60):
-            current_lock = await self.store.redis.get(_lock_key(instance.id)) if self.store.redis else None
-            if current_lock and not current_lock.startswith(f"{self.worker_id}:".encode()):
+            current_lock = (
+                await self.store.redis.get(_lock_key(instance.id))
+                if self.store.redis
+                else None
+            )
+            if current_lock and not current_lock.startswith(
+                f"{self.worker_id}:".encode()
+            ):
                 await self._persist_instance(
                     instance,
                     status=TradingInstanceStatus.ERROR,
@@ -532,7 +565,10 @@ class TradingProcessManager:
             memory_snapshot=process.memory.to_dict(),
         )
 
-        if previous_status in (TradingInstanceStatus.RUNNING, TradingInstanceStatus.RECOVERING):
+        if previous_status in (
+            TradingInstanceStatus.RUNNING,
+            TradingInstanceStatus.RECOVERING,
+        ):
             process.set_status(TradingInstanceStatus.RUNNING)
             final_status = TradingInstanceStatus.RUNNING
         else:
@@ -547,7 +583,9 @@ class TradingProcessManager:
         await self._persist_state(process)
         await self._register(process)
 
-    async def get_status(self, instance_id: uuid.UUID, user_id: uuid.UUID) -> TradingInstance:
+    async def get_status(
+        self, instance_id: uuid.UUID, user_id: uuid.UUID
+    ) -> TradingInstance:
         instance = await self._get_instance(instance_id)
         await self._validate_ownership(instance, user_id)
         return instance

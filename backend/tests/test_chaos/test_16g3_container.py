@@ -16,17 +16,8 @@ Verifies:
 - health checks
 """
 
-import asyncio
-from unittest.mock import MagicMock, AsyncMock, patch
-
 import pytest
-
 from engine.recovery.connection import ConnectionRecovery
-from engine.recovery.coordinator import (
-    RecoveryCoordinator,
-    InstanceContext,
-    RecoveryReport,
-)
 
 
 class TestContainerKill:
@@ -151,7 +142,7 @@ class TestContainerHealthCheck:
 
         recovery = ConnectionRecovery(redis_health_check=health)
 
-        for i in range(5):
+        for _i in range(5):
             assert await recovery.recover_redis() is False
 
         assert await recovery.recover_redis() is True

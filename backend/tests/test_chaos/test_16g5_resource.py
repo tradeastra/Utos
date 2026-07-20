@@ -12,19 +12,15 @@ Verifies:
 """
 
 import asyncio
-import time
 import uuid
 from decimal import Decimal
 from unittest.mock import MagicMock
 
 import pytest
-
-from core.types import OrderSide, OrderType, OrderStatus
-from engine.execution.models import OrderRequest
+from core.domain_types import OrderSide, OrderStatus, OrderType
 from engine.execution.executor import OrderExecutor
+from engine.execution.models import OrderRequest
 from engine.execution.tracker import OrderTracker
-from engine.execution.execution_engine import ExecutionEngine
-from engine.execution.validator import OrderValidator
 from engine.recovery.connection import ConnectionRecovery, QueuedOrder
 from tests.test_chaos.chaos_adapter import ChaosExchangeAdapter
 
@@ -97,7 +93,7 @@ class TestMemoryPressure:
         tracker = OrderTracker()
 
         # Simulate many tracked orders
-        for i in range(1000):
+        for _i in range(1000):
             request = OrderRequest(
                 request_id=uuid.uuid4(),
                 exchange_account_id=uuid.uuid4(),
@@ -119,15 +115,17 @@ class TestMemoryPressure:
 
         # Queue many orders
         for i in range(500):
-            recovery.queue_order(QueuedOrder(
-                instance_id=f"inst-{i}",
-                account_id="acc-1",
-                exchange="binance",
-                symbol="BTCUSDT",
-                side="buy",
-                quantity=Decimal("0.1"),
-                price=Decimal("45000"),
-            ))
+            recovery.queue_order(
+                QueuedOrder(
+                    instance_id=f"inst-{i}",
+                    account_id="acc-1",
+                    exchange="binance",
+                    symbol="BTCUSDT",
+                    side="buy",
+                    quantity=Decimal("0.1"),
+                    price=Decimal("45000"),
+                )
+            )
 
         assert recovery.get_queue_size() == 500
 

@@ -1,7 +1,5 @@
 """Unit tests for DeadLetterQueue."""
 
-import pytest
-
 from engine.scheduler.dlq import DeadLetterEntry, DeadLetterQueue
 
 

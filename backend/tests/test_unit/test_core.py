@@ -3,7 +3,6 @@ Unit tests for core modules — Sprint 01 scope.
 """
 
 import pytest
-
 from core.exceptions import AuthenticationError, UTOSException, ValidationError
 from core.security import PasswordManager, TokenManager
 
@@ -12,7 +11,9 @@ class TestExceptions:
     """Test custom exceptions — Sprint 01."""
 
     def test_utos_exception(self):
-        exc = UTOSException(message="Test error", error_code="TEST_ERROR", details={"k": "v"})
+        exc = UTOSException(
+            message="Test error", error_code="TEST_ERROR", details={"k": "v"}
+        )
         assert exc.message == "Test error"
         assert exc.error_code == "TEST_ERROR"
         assert exc.details == {"k": "v"}
@@ -70,7 +71,10 @@ class TestTokenManager:
 
     def test_expired_token_raises_authentication_error(self):
         from datetime import timedelta
-        token = self.tm.create_access_token({"sub": "x"}, expires_delta=timedelta(seconds=-1))
+
+        token = self.tm.create_access_token(
+            {"sub": "x"}, expires_delta=timedelta(seconds=-1)
+        )
         with pytest.raises(AuthenticationError):
             self.tm.verify_token(token)
 

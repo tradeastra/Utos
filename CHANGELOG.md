@@ -152,6 +152,22 @@ Tags follow semantic versioning: `vMAJOR.MINOR.PATCH[-SPRINT]`.
 
 ---
 
+## v0.14.0 — SaaS Platform (2026-07-15)
+
+### Added
+- Sprint 14: SaaS Platform with 6 modules
+- AuthService — authentication and session management for SaaS tenants
+- RBACService — role-based access control with permission management
+- SubscriptionService — subscription lifecycle (create, upgrade, cancel, renew)
+- LicenseManager — license generation, validation, and revocation
+- BillingService — invoicing, payment tracking, and billing cycles
+- AffiliateService — affiliate registration, referral tracking, and commission calculation
+
+### Tests
+- 937 tests passing
+
+---
+
 ## v0.13.0 — Core Platform Complete (2026)
 
 ### Added

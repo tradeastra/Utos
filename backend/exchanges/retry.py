@@ -2,8 +2,7 @@
 Retry policy for exchange HTTP and WebSocket operations — Sprint 3.
 """
 
-from dataclasses import dataclass
-from typing import Any, Callable, Optional, Type
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -14,16 +13,14 @@ class RetryPolicy:
     base_delay: float = 1.0
     max_delay: float = 60.0
     exponential_base: float = 2.0
-    retryable_exceptions: Optional[tuple[Type[Exception], ...]] = None
-    retryable_status_codes: Optional[set[int]] = None
+    retryable_exceptions: tuple[type[Exception], ...] = field(
+        default_factory=lambda: (Exception,)
+    )
+    retryable_status_codes: set[int] = field(
+        default_factory=lambda: {429, 500, 502, 503, 504}
+    )
 
-    def __post_init__(self) -> None:
-        if self.retryable_exceptions is None:
-            self.retryable_exceptions = (Exception,)
-        if self.retryable_status_codes is None:
-            self.retryable_status_codes = {429, 500, 502, 503, 504}
-
-    def should_retry(self, attempt: int, exception: Optional[Exception] = None) -> bool:
+    def should_retry(self, attempt: int, exception: Exception | None = None) -> bool:
         """Return True if the operation should be retried."""
         if attempt >= self.max_retries:
             return False
@@ -37,16 +34,15 @@ class RetryPolicy:
 
     def delay_for(self, attempt: int) -> float:
         """Return the delay in seconds before the next attempt (1-indexed)."""
-        import math
 
         delay = self.base_delay * (self.exponential_base ** (attempt - 1))
         return min(delay, self.max_delay)
 
     def with_overrides(
         self,
-        max_retries: Optional[int] = None,
-        base_delay: Optional[float] = None,
-        max_delay: Optional[float] = None,
+        max_retries: int | None = None,
+        base_delay: float | None = None,
+        max_delay: float | None = None,
     ) -> "RetryPolicy":
         """Return a new RetryPolicy with overridden fields."""
         return RetryPolicy(

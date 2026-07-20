@@ -1,7 +1,6 @@
 """Unit tests for LicenseManager."""
 
 import pytest
-
 from core.exceptions import AuthorizationError
 from services.saas.license import LicenseManager, PlanLimits
 
@@ -104,7 +103,17 @@ class TestFeatureFlags:
 
     def test_enterprise_has_all_features(self) -> None:
         lm = LicenseManager(tier_resolver=lambda uid: "enterprise")
-        for flag in ["basic_grid", "profit_lock", "notifications", "automation", "advanced_risk", "priority_support", "custom_strategies", "dedicated_support", "white_label"]:
+        for flag in [
+            "basic_grid",
+            "profit_lock",
+            "notifications",
+            "automation",
+            "advanced_risk",
+            "priority_support",
+            "custom_strategies",
+            "dedicated_support",
+            "white_label",
+        ]:
             assert lm.has_feature("user-1", flag) is True
 
 

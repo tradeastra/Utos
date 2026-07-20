@@ -1,8 +1,8 @@
 """Unit tests for AffiliateService."""
 
-import pytest
 from decimal import Decimal
 
+import pytest
 from core.exceptions import ValidationError
 from services.saas.affiliate import AffiliateService
 
@@ -99,7 +99,9 @@ class TestCommission:
     async def test_record_commission(self) -> None:
         svc = AffiliateService()
         affiliate = await svc.register_affiliate("user-1", 10.0)
-        commission = await svc.record_commission(affiliate.id, Decimal("100.00"), "subscription")
+        commission = await svc.record_commission(
+            affiliate.id, Decimal("100.00"), "subscription"
+        )
         assert commission.amount > 0
         assert commission.source == "subscription"
         assert svc.get_metrics()["commissions_recorded"] == 1

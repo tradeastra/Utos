@@ -4,9 +4,9 @@ Integration tests for Sprint 14: SaaS Platform.
 Tests full flow: register → login → subscribe → license check → billing → affiliate.
 """
 
-import pytest
 from decimal import Decimal
 
+import pytest
 from services.saas import (
     AffiliateService,
     AuthService,
@@ -44,7 +44,9 @@ class TestFullSaaSFlow:
         await sub_svc.create_subscription(user_id, "pro")
         sub = await sub_svc.get_subscription(user_id)
 
-        license_mgr.set_tier_resolver(lambda uid: sub.tier if uid == user_id else "free")
+        license_mgr.set_tier_resolver(
+            lambda uid: sub.tier if uid == user_id else "free"
+        )
 
         assert license_mgr.check_instance_limit(user_id, 5) is True
         assert license_mgr.check_instance_limit(user_id, 10) is False
@@ -60,7 +62,9 @@ class TestFullSaaSFlow:
         await sub_svc.create_subscription(user_id, "pro")
         price = sub_svc.get_plan_price("pro")
 
-        invoice = await billing.create_invoice(user_id, Decimal(str(price)), "USD", "pro")
+        invoice = await billing.create_invoice(
+            user_id, Decimal(str(price)), "USD", "pro"
+        )
         result = await billing.process_payment(invoice.id, "manual")
         assert result.status == "success"
 
@@ -74,23 +78,31 @@ class TestFullSaaSFlow:
         sub_svc = SubscriptionService()
         billing = BillingService()
 
-        referrer = await auth.register("affiliate@example.com", "SecurePass1!", "Affiliate")
+        referrer = await auth.register(
+            "affiliate@example.com", "SecurePass1!", "Affiliate"
+        )
         referrer_id = referrer["id"]
 
         await affiliate_svc.register_affiliate(referrer_id, commission_rate=10.0)
         affiliate = affiliate_svc.get_affiliate(referrer_id)
 
-        referred = await auth.register("referred@example.com", "SecurePass1!", "Referred")
+        referred = await auth.register(
+            "referred@example.com", "SecurePass1!", "Referred"
+        )
         referred_id = referred["id"]
 
         await affiliate_svc.track_referral(affiliate.referral_code, referred_id)
 
         await sub_svc.create_subscription(referred_id, "pro")
         price = sub_svc.get_plan_price("pro")
-        invoice = await billing.create_invoice(referred_id, Decimal(str(price)), "USD", "pro")
+        invoice = await billing.create_invoice(
+            referred_id, Decimal(str(price)), "USD", "pro"
+        )
         await billing.process_payment(invoice.id, "manual")
 
-        commission = await affiliate_svc.record_commission(affiliate.id, Decimal(str(price)))
+        commission = await affiliate_svc.record_commission(
+            affiliate.id, Decimal(str(price))
+        )
         assert commission.amount > 0
 
         stats = await affiliate_svc.get_affiliate_stats(referrer_id)
@@ -127,5 +139,11 @@ class TestRBACWithSubscription:
     async def test_super_admin_has_all(self) -> None:
         rbac = RBACService()
         rbac.assign_role("admin-1", "super_admin")
-        for perm in ["trade:create", "user:manage", "billing:manage", "system:manage", "affiliate:manage"]:
+        for perm in [
+            "trade:create",
+            "user:manage",
+            "billing:manage",
+            "system:manage",
+            "affiliate:manage",
+        ]:
             assert rbac.has_permission("admin-1", perm) is True

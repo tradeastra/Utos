@@ -54,7 +54,11 @@ class TestAuthRegister:
     async def test_register_success(self, client: AsyncClient):
         r = await client.post(
             "/api/v1/auth/register",
-            json={"email": "register@example.com", "password": "Register1!", "full_name": "Reg User"},
+            json={
+                "email": "register@example.com",
+                "password": "Register1!",
+                "full_name": "Reg User",
+            },
         )
         assert r.status_code == 201
         body = r.json()
@@ -62,7 +66,11 @@ class TestAuthRegister:
         assert body["data"]["email"] == "register@example.com"
 
     async def test_register_duplicate_email_returns_409(self, client: AsyncClient):
-        payload = {"email": "dup@example.com", "password": "Duplicate1!", "full_name": "Dup"}
+        payload = {
+            "email": "dup@example.com",
+            "password": "Duplicate1!",
+            "full_name": "Dup",
+        }
         await client.post("/api/v1/auth/register", json=payload)
         r = await client.post("/api/v1/auth/register", json=payload)
         assert r.status_code == 409
@@ -87,7 +95,11 @@ class TestAuthLogin:
     async def test_login_success(self, client: AsyncClient):
         await client.post(
             "/api/v1/auth/register",
-            json={"email": "login@example.com", "password": "Login1234!", "full_name": "Login User"},
+            json={
+                "email": "login@example.com",
+                "password": "Login1234!",
+                "full_name": "Login User",
+            },
         )
         r = await client.post(
             "/api/v1/auth/login",
@@ -124,7 +136,11 @@ class TestAuthRefresh:
     async def test_refresh_success(self, client: AsyncClient):
         await client.post(
             "/api/v1/auth/register",
-            json={"email": "refresh@example.com", "password": "Refresh1234!", "full_name": "Ref"},
+            json={
+                "email": "refresh@example.com",
+                "password": "Refresh1234!",
+                "full_name": "Ref",
+            },
         )
         login = await client.post(
             "/api/v1/auth/login",
@@ -132,13 +148,17 @@ class TestAuthRefresh:
         )
         refresh_token = login.json()["data"]["refresh_token"]
 
-        r = await client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_token})
+        r = await client.post(
+            "/api/v1/auth/refresh", json={"refresh_token": refresh_token}
+        )
         assert r.status_code == 200
         body = r.json()
         assert "access_token" in body["data"]
 
     async def test_refresh_invalid_token_returns_401(self, client: AsyncClient):
-        r = await client.post("/api/v1/auth/refresh", json={"refresh_token": "not.a.real.token"})
+        r = await client.post(
+            "/api/v1/auth/refresh", json={"refresh_token": "not.a.real.token"}
+        )
         assert r.status_code == 401
 
 
@@ -151,7 +171,11 @@ class TestUsersMe:
     async def test_get_me_returns_profile(self, client: AsyncClient):
         await client.post(
             "/api/v1/auth/register",
-            json={"email": "me@example.com", "password": "Profile1234!", "full_name": "Me User"},
+            json={
+                "email": "me@example.com",
+                "password": "Profile1234!",
+                "full_name": "Me User",
+            },
         )
         login = await client.post(
             "/api/v1/auth/login",
@@ -159,7 +183,9 @@ class TestUsersMe:
         )
         token = login.json()["data"]["access_token"]
 
-        r = await client.get("/api/v1/users/me", headers={"Authorization": f"Bearer {token}"})
+        r = await client.get(
+            "/api/v1/users/me", headers={"Authorization": f"Bearer {token}"}
+        )
         assert r.status_code == 200
         body = r.json()
         assert body["data"]["email"] == "me@example.com"

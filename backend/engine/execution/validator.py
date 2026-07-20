@@ -5,7 +5,8 @@ Order validation for the Execution Engine.
 from decimal import Decimal
 
 from adapters.base import IExchangeAdapter
-from core.types import OrderType
+from core.domain_types import OrderType
+
 from engine.execution.exceptions import OrderValidationError
 from engine.execution.models import OrderRequest
 
@@ -37,9 +38,7 @@ class OrderValidator:
             raise OrderValidationError(message="symbol is required")
 
         if request.side not in ("buy", "sell"):
-            raise OrderValidationError(
-                message=f"Invalid order side: {request.side}"
-            )
+            raise OrderValidationError(message=f"Invalid order side: {request.side}")
 
         if not request.order_type:
             raise OrderValidationError(message="order_type is required")
@@ -54,21 +53,21 @@ class OrderValidator:
             )
 
         if request.quantity is None or request.quantity <= Decimal("0"):
+            raise OrderValidationError(message="quantity must be greater than zero")
+
+        if request.order_type in (OrderType.LIMIT, OrderType.STOP_LIMIT) and (
+            request.price is None or request.price <= Decimal("0")
+        ):
             raise OrderValidationError(
-                message="quantity must be greater than zero"
+                message="price is required for limit and stop_limit orders"
             )
 
-        if request.order_type in (OrderType.LIMIT, OrderType.STOP_LIMIT):
-            if request.price is None or request.price <= Decimal("0"):
-                raise OrderValidationError(
-                    message="price is required for limit and stop_limit orders"
-                )
-
-        if request.order_type == OrderType.STOP_LIMIT:
-            if request.stop_price is None or request.stop_price <= Decimal("0"):
-                raise OrderValidationError(
-                    message="stop_price is required for stop_limit orders"
-                )
+        if request.order_type == OrderType.STOP_LIMIT and (
+            request.stop_price is None or request.stop_price <= Decimal("0")
+        ):
+            raise OrderValidationError(
+                message="stop_price is required for stop_limit orders"
+            )
 
         if request.order_type == OrderType.MARKET and request.price is not None:
             raise OrderValidationError(

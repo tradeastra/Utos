@@ -10,8 +10,8 @@ consumer leaves.
 from __future__ import annotations
 
 import uuid
-from collections import defaultdict
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 
 class SubscriptionManager:
@@ -36,7 +36,9 @@ class SubscriptionManager:
         # consumer sub id -> logical key
         self._consumer_map: dict[str, tuple[str, str, str]] = {}
 
-    def _logical_key(self, exchange: str, symbol: str, channel: str) -> tuple[str, str, str]:
+    def _logical_key(
+        self, exchange: str, symbol: str, channel: str
+    ) -> tuple[str, str, str]:
         return exchange.lower(), symbol.upper(), channel.lower()
 
     async def subscribe(
@@ -84,7 +86,9 @@ class SubscriptionManager:
             del self._logical[logical]
             await self._unsubscribe_fn(ws_sub_id)
 
-    def active_count(self, exchange: str | None = None, symbol: str | None = None) -> int:
+    def active_count(
+        self, exchange: str | None = None, symbol: str | None = None
+    ) -> int:
         """Return number of active logical streams, optionally filtered."""
         if exchange is None and symbol is None:
             return len(self._logical)
@@ -107,7 +111,9 @@ class SubscriptionManager:
     def is_active(self, exchange: str, symbol: str, channel: str) -> bool:
         return self._logical_key(exchange, symbol, channel) in self._logical
 
-    async def fan_out(self, exchange: str, symbol: str, channel: str, data: Any) -> None:
+    async def fan_out(
+        self, exchange: str, symbol: str, channel: str, data: Any
+    ) -> None:
         """Deliver data to all consumer callbacks for a logical stream."""
         logical = self._logical_key(exchange, symbol, channel)
         entry = self._logical.get(logical)

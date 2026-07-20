@@ -8,9 +8,8 @@ Does NOT import engine modules (Architecture Freeze).
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Callable
+from dataclasses import dataclass
+from typing import Any
 
 from core.config import settings
 from core.exceptions import AuthenticationError, ValidationError
@@ -78,7 +77,11 @@ class AuthService:
             )
             self._metrics["registrations"] += 1
             logger.info("User registered", extra={"user_id": str(user.id)})
-            return {"id": str(user.id), "email": user.email, "full_name": user.full_name}
+            return {
+                "id": str(user.id),
+                "email": user.email,
+                "full_name": user.full_name,
+            }
 
         self._metrics["registrations"] += 1
         return {"id": str(uuid.uuid4()), "email": email.lower(), "full_name": full_name}
@@ -169,8 +172,11 @@ class AuthService:
 
     async def enable_mfa(self, user_id: str) -> str:
         import secrets as _secrets
+
         secret = _secrets.token_hex(20)
-        self._mfa_states[user_id] = MFAState(enabled=True, secret=secret, verified=False)
+        self._mfa_states[user_id] = MFAState(
+            enabled=True, secret=secret, verified=False
+        )
         self._metrics["mfa_enables"] += 1
         logger.info("MFA enabled", extra={"user_id": user_id})
         return secret

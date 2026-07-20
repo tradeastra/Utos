@@ -8,8 +8,9 @@ Does NOT send notifications directly.
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass, field
-from typing import Any, Callable
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 
 from core.logging import get_logger
 
@@ -117,13 +118,15 @@ class AutomationRules:
                 if rule.condition(data):
                     rule.trigger_count += 1
                     self._metrics["rules_triggered"] += 1
-                    actions.append(AutomationAction(
-                        rule_id=rule.id,
-                        user_id=rule.action_user_id,
-                        channel=rule.action_channel,
-                        template=rule.action_template,
-                        context=data,
-                    ))
+                    actions.append(
+                        AutomationAction(
+                            rule_id=rule.id,
+                            user_id=rule.action_user_id,
+                            channel=rule.action_channel,
+                            template=rule.action_template,
+                            context=data,
+                        )
+                    )
                     logger.info(
                         "Automation rule triggered",
                         extra={"rule_id": rule.id, "rule_name": rule.name},
@@ -143,7 +146,9 @@ class AutomationRules:
         return self._rules.get(rule_id)
 
     def get_rules_for_event(self, event_type: str) -> list[AutomationRule]:
-        return [r for r in self._rules.values() if r.event_type == event_type and r.enabled]
+        return [
+            r for r in self._rules.values() if r.event_type == event_type and r.enabled
+        ]
 
     def get_metrics(self) -> dict[str, int]:
         return dict(self._metrics)

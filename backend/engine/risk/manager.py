@@ -15,13 +15,12 @@ Risk rules:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any
 
-from core.exceptions import RiskError
+from core.domain_types import RiskAssessment, RiskCheckResult, RiskLevel
 from core.logging import get_logger
-from core.types import RiskAssessment, RiskCheckResult, RiskLevel
+
 from engine.risk.exposure import ExposureManager
 from engine.risk.portfolio import PortfolioManager
 
@@ -51,17 +50,22 @@ class RiskManager:
         self._exposure = exposure
         self._limits: dict[str, RiskLimits] = {}
         self._prices: dict[str, Decimal] = {}  # symbol -> latest price
-        self._instance_capital: dict[str, Decimal] = {}  # instance_id -> allocated capital
+        self._instance_capital: dict[str, Decimal] = (
+            {}
+        )  # instance_id -> allocated capital
         self._metrics: dict[str, dict[str, int]] = {}
 
     def set_risk_parameters(self, user_id: str, limits: RiskLimits) -> None:
         self._limits[user_id] = limits
-        self._metrics.setdefault(user_id, {
-            "orders_checked": 0,
-            "orders_allowed": 0,
-            "orders_denied": 0,
-            "price_updates": 0,
-        })
+        self._metrics.setdefault(
+            user_id,
+            {
+                "orders_checked": 0,
+                "orders_allowed": 0,
+                "orders_denied": 0,
+                "price_updates": 0,
+            },
+        )
         logger.info("Risk parameters set", extra={"user_id": user_id})
 
     def get_risk_parameters(self, user_id: str) -> RiskLimits:
@@ -99,12 +103,15 @@ class RiskManager:
         Does NOT raise on denied orders — returns allowed=False instead.
         """
         limits = self.get_risk_parameters(user_id)
-        metrics = self._metrics.setdefault(user_id, {
-            "orders_checked": 0,
-            "orders_allowed": 0,
-            "orders_denied": 0,
-            "price_updates": 0,
-        })
+        metrics = self._metrics.setdefault(
+            user_id,
+            {
+                "orders_checked": 0,
+                "orders_allowed": 0,
+                "orders_denied": 0,
+                "price_updates": 0,
+            },
+        )
         metrics["orders_checked"] += 1
 
         order_notional = quantity * price
@@ -135,7 +142,9 @@ class RiskManager:
         current_prices = {**self._prices, symbol: price}
 
         # Rule 3: max exposure per symbol
-        symbol_exposure = self._exposure.get_exposure_by_symbol(all_positions, current_prices)
+        symbol_exposure = self._exposure.get_exposure_by_symbol(
+            all_positions, current_prices
+        )
         current_symbol_exposure = symbol_exposure.get(symbol, Decimal("0"))
         new_symbol_exposure = current_symbol_exposure + order_notional
         if new_symbol_exposure > limits.max_exposure_per_symbol:
@@ -148,7 +157,9 @@ class RiskManager:
             )
 
         # Rule 4: max exposure per exchange
-        exchange_exposure = self._exposure.get_exposure_by_exchange(all_positions, current_prices)
+        exchange_exposure = self._exposure.get_exposure_by_exchange(
+            all_positions, current_prices
+        )
         current_exchange_exposure = exchange_exposure.get(exchange, Decimal("0"))
         new_exchange_exposure = current_exchange_exposure + order_notional
         if new_exchange_exposure > limits.max_exposure_per_exchange:
@@ -207,9 +218,12 @@ class RiskManager:
         )
 
     def get_metrics(self, user_id: str) -> dict[str, int]:
-        return self._metrics.get(user_id, {
-            "orders_checked": 0,
-            "orders_allowed": 0,
-            "orders_denied": 0,
-            "price_updates": 0,
-        })
+        return self._metrics.get(
+            user_id,
+            {
+                "orders_checked": 0,
+                "orders_allowed": 0,
+                "orders_denied": 0,
+                "price_updates": 0,
+            },
+        )

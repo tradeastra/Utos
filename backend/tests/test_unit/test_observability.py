@@ -3,20 +3,20 @@ Tests for Sprint 16B: Observability — metrics, middleware, and tracing.
 """
 
 import pytest
-from httpx import AsyncClient
-
 from core.metrics import (
-    init_metrics,
     get_metrics,
+    init_metrics,
     utos_http_requests_total,
-    utos_trading_instances_active,
 )
-from core.middleware import CorrelationIdMiddleware, CORRELATION_ID_HEADER
+from core.middleware import CORRELATION_ID_HEADER
+from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
 class TestMetricsEndpoint:
-    async def test_metrics_endpoint_returns_prometheus_format(self, client: AsyncClient):
+    async def test_metrics_endpoint_returns_prometheus_format(
+        self, client: AsyncClient
+    ):
         r = await client.get("/metrics")
         assert r.status_code == 200
         body = r.text
@@ -51,7 +51,11 @@ class TestCorrelationIdMiddleware:
 @pytest.mark.asyncio
 class TestMetricsMiddleware:
     async def test_request_increments_counter(self, client: AsyncClient):
-        utos_http_requests_total.clear() if hasattr(utos_http_requests_total, 'clear') else None
+        (
+            utos_http_requests_total.clear()
+            if hasattr(utos_http_requests_total, "clear")
+            else None
+        )
         await client.get("/health")
         # The counter should have been incremented
         body = get_metrics().decode("utf-8")
@@ -74,7 +78,7 @@ class TestMetricsModule:
 
     def test_metrics_have_utos_prefix(self):
         body = get_metrics().decode("utf-8")
-        lines = [l for l in body.split("\n") if l.startswith("utos_")]
+        lines = [line for line in body.split("\n") if line.startswith("utos_")]
         assert len(lines) > 0
         for line in lines:
             assert line.startswith("utos_")

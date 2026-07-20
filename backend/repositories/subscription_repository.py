@@ -4,9 +4,9 @@ Subscription repository — async CRUD for subscriptions table.
 
 import uuid
 
+from models.subscription import Subscription
 from sqlalchemy import select
 
-from models.subscription import Subscription
 from repositories.base import IRepository
 
 

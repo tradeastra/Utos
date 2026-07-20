@@ -1,7 +1,6 @@
 """Unit tests for RBACService."""
 
 import pytest
-
 from services.saas.rbac import RBACService
 
 

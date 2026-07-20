@@ -2,19 +2,17 @@
 Unit tests for OrderExecutor.
 """
 
-import asyncio
 from decimal import Decimal
 from typing import Any
 
 import pytest
-
+from core.domain_types import OrderResult, OrderStatus
 from core.exceptions import (
     ExchangeConnectionError,
     ExchangeRateLimitError,
     InsufficientBalanceError,
     TimeoutError,
 )
-from core.types import OrderResult, OrderStatus
 from engine.execution.exceptions import OrderExecutionError
 from engine.execution.executor import OrderExecutor
 from engine.execution.models import OrderRequest, OrderSide, OrderType
@@ -43,13 +41,15 @@ class FakeAdapter:
         stop_price: Decimal | None = None,
         client_order_id: str | None = None,
     ) -> OrderResult:
-        self.place_calls.append({
-            "symbol": symbol,
-            "side": side,
-            "order_type": order_type,
-            "quantity": quantity,
-            "price": price,
-        })
+        self.place_calls.append(
+            {
+                "symbol": symbol,
+                "side": side,
+                "order_type": order_type,
+                "quantity": quantity,
+                "price": price,
+            }
+        )
 
         if self.fail_count > 0:
             self.fail_count -= 1
@@ -138,14 +138,18 @@ def request_obj() -> OrderRequest:
 
 class TestOrderExecutor:
     @pytest.mark.asyncio
-    async def test_execute_success(self, executor: OrderExecutor, request_obj: OrderRequest) -> None:
+    async def test_execute_success(
+        self, executor: OrderExecutor, request_obj: OrderRequest
+    ) -> None:
         adapter = FakeAdapter()
         result = await executor.execute(request_obj, adapter)
         assert result.exchange_order_id == "ex_123"
         assert len(adapter.place_calls) == 1
 
     @pytest.mark.asyncio
-    async def test_execute_retries_on_connection_error(self, executor: OrderExecutor, request_obj: OrderRequest) -> None:
+    async def test_execute_retries_on_connection_error(
+        self, executor: OrderExecutor, request_obj: OrderRequest
+    ) -> None:
         adapter = FakeAdapter()
         adapter.fail_count = 2
         adapter.transient_error = ExchangeConnectionError(
@@ -156,7 +160,9 @@ class TestOrderExecutor:
         assert len(adapter.place_calls) == 3
 
     @pytest.mark.asyncio
-    async def test_execute_retries_on_rate_limit(self, executor: OrderExecutor, request_obj: OrderRequest) -> None:
+    async def test_execute_retries_on_rate_limit(
+        self, executor: OrderExecutor, request_obj: OrderRequest
+    ) -> None:
         adapter = FakeAdapter()
         adapter.fail_count = 1
         adapter.transient_error = ExchangeRateLimitError(
@@ -167,7 +173,9 @@ class TestOrderExecutor:
         assert len(adapter.place_calls) == 2
 
     @pytest.mark.asyncio
-    async def test_execute_retries_on_timeout(self, executor: OrderExecutor, request_obj: OrderRequest) -> None:
+    async def test_execute_retries_on_timeout(
+        self, executor: OrderExecutor, request_obj: OrderRequest
+    ) -> None:
         adapter = FakeAdapter()
         adapter.fail_count = 2
         adapter.transient_error = TimeoutError(message="timeout")
@@ -176,7 +184,9 @@ class TestOrderExecutor:
         assert len(adapter.place_calls) == 3
 
     @pytest.mark.asyncio
-    async def test_execute_does_not_retry_insufficient_balance(self, executor: OrderExecutor, request_obj: OrderRequest) -> None:
+    async def test_execute_does_not_retry_insufficient_balance(
+        self, executor: OrderExecutor, request_obj: OrderRequest
+    ) -> None:
         adapter = FakeAdapter()
         adapter.non_transient_error = InsufficientBalanceError(
             message="not enough balance"
@@ -186,7 +196,9 @@ class TestOrderExecutor:
         assert len(adapter.place_calls) == 1
 
     @pytest.mark.asyncio
-    async def test_execute_gives_up_after_max_retries(self, executor: OrderExecutor, request_obj: OrderRequest) -> None:
+    async def test_execute_gives_up_after_max_retries(
+        self, executor: OrderExecutor, request_obj: OrderRequest
+    ) -> None:
         adapter = FakeAdapter()
         adapter.fail_count = 5
         adapter.transient_error = ExchangeConnectionError(

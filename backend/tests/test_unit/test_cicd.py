@@ -4,9 +4,9 @@ and deployment configuration validation.
 """
 
 import os
-import json
-import pytest
 from pathlib import Path
+
+import pytest
 from httpx import AsyncClient
 
 

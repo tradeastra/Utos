@@ -4,14 +4,13 @@ This module provides endpoints for managing trading processes.
 A TradingProcess is the runtime wrapper around a TradingInstance row.
 """
 
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
+from decimal import Decimal
+from typing import Any, NoReturn
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, ConfigDict, Field
-
 from api.v1.endpoints.users import get_current_user_from_token
+from core.domain_types import TradingInstanceStatus
 from core.exceptions import (
     AuthenticationError,
     AuthorizationError,
@@ -19,9 +18,10 @@ from core.exceptions import (
     TradingInstanceNotFound,
     ValidationError,
 )
-from core.types import TradingInstanceStatus
 from engine.trading.process_manager import TradingProcessManager, get_process_manager
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from models.user import User
+from pydantic import BaseModel, ConfigDict, Field
 
 router = APIRouter()
 
@@ -34,7 +34,7 @@ class TradingInstanceCreate(BaseModel):
     grid_profile_id: str = Field(..., description="Grid profile ID")
     symbol: str = Field(..., description="Trading symbol (e.g., BTCUSDT)")
     start_price: float | None = Field(None, description="Starting price")
-    total_investment: float = Field(..., gt=0, description="Total investment amount")
+    total_investment: float | None = Field(None, description="Total investment — auto-calculated from grid profile if omitted")
     base_currency: str = Field("", description="Base currency")
     quote_currency: str = Field("", description="Quote currency")
 
@@ -85,9 +85,19 @@ def _to_response(instance: Any) -> dict[str, Any]:
         "grid_profile_id": str(instance.grid_profile_id),
         "symbol": instance.symbol,
         "status": instance.status,
-        "start_price": float(instance.start_price) if instance.start_price is not None else None,
-        "current_price": float(instance.current_price) if instance.current_price is not None else None,
-        "total_investment": float(instance.total_investment) if instance.total_investment is not None else 0.0,
+        "start_price": (
+            float(instance.start_price) if instance.start_price is not None else None
+        ),
+        "current_price": (
+            float(instance.current_price)
+            if instance.current_price is not None
+            else None
+        ),
+        "total_investment": (
+            float(instance.total_investment)
+            if instance.total_investment is not None
+            else 0.0
+        ),
         "base_currency": instance.base_currency or "",
         "quote_currency": instance.quote_currency or "",
         "profit_lock_enabled": bool(instance.profit_lock_enabled),
@@ -103,20 +113,24 @@ def _to_response(instance: Any) -> dict[str, Any]:
     }
 
 
-def _handle_manager_exception(exc: Exception) -> None:
+def _handle_manager_exception(exc: Exception) -> NoReturn:
     """Map domain exceptions to FastAPI HTTPException."""
     if isinstance(exc, TradingInstanceNotFound):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     if isinstance(exc, AuthenticationError):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     if isinstance(exc, AuthorizationError):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
     if isinstance(exc, (InvalidStateTransition, ValidationError)):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
-    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)
+    )
 
 
-@router.post("", response_model=TradingInstanceResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "", response_model=TradingInstanceResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_trading_instance(
     data: TradingInstanceCreate,
     current_user: User = Depends(get_current_user_from_token),
@@ -124,6 +138,24 @@ async def create_trading_instance(
 ) -> dict[str, Any]:
     """Create a new trading process (CREATED)."""
     try:
+        total_inv = data.total_investment
+        if total_inv is None:
+            from repositories.grid_profile_repository import GridProfileRepository
+            from database.base import get_db
+
+            async for session in get_db():
+                repo = GridProfileRepository(session)
+                profile = await repo.get_by_id(UUID(data.grid_profile_id))
+                if profile:
+                    total_inv = float(profile.grid_count) * float(profile.investment_per_grid)
+                break
+
+            if total_inv is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Could not determine total investment from grid profile",
+                )
+
         instance = await manager.create_process(
             user_id=current_user.id,
             exchange_account_id=UUID(data.exchange_account_id),
@@ -131,7 +163,7 @@ async def create_trading_instance(
             grid_profile_id=UUID(data.grid_profile_id),
             symbol=data.symbol.upper(),
             start_price=data.start_price,
-            total_investment=data.total_investment,
+            total_investment=total_inv,
             base_currency=data.base_currency,
             quote_currency=data.quote_currency,
         )
@@ -251,8 +283,146 @@ async def delete_trading_instance(
         instance = await manager.get_status(UUID(instance_id), current_user.id)
         if instance.status == TradingInstanceStatus.RUNNING:
             raise ValidationError("Cannot delete a running process; stop it first")
-        instance.deleted_at = datetime.now(tz=timezone.utc)
+        instance.deleted_at = datetime.now(tz=UTC)
         manager.session.add(instance)
         await manager.session.flush()
+    except Exception as exc:
+        _handle_manager_exception(exc)
+
+
+@router.get("/{instance_id}/grid", response_model=dict)
+async def get_grid_state(
+    instance_id: str,
+    current_user: User = Depends(get_current_user_from_token),
+    manager: TradingProcessManager = Depends(get_process_manager),
+) -> dict[str, Any]:
+    """Get grid state and levels for a trading instance."""
+    try:
+        instance = await manager.get_status(UUID(instance_id), current_user.id)
+
+        from main import grid_engine
+
+        if grid_engine is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Grid engine not initialized",
+            )
+
+        try:
+            state = await grid_engine.get_grid_state(str(instance.id))
+            levels = await grid_engine.get_grid_levels(str(instance.id))
+        except Exception:
+            return {
+                "instance_id": str(instance.id),
+                "status": "no_grid",
+                "symbol": instance.symbol,
+                "current_price": float(instance.current_price) if instance.current_price else None,
+                "upper_price": 0,
+                "lower_price": 0,
+                "grid_count": 0,
+                "grid_spacing": 0,
+                "investment_per_grid": 0,
+                "total_cycles": 0,
+                "total_profit": 0,
+                "levels": [],
+            }
+
+        return {
+            "instance_id": str(instance.id),
+            "status": state.status,
+            "symbol": state.symbol,
+            "current_price": float(instance.current_price) if instance.current_price else None,
+            "upper_price": float(state.upper_price) if hasattr(state, "upper_price") else 0,
+            "lower_price": float(state.lower_price) if hasattr(state, "lower_price") else 0,
+            "grid_count": len(levels),
+            "grid_spacing": float(state.grid_spacing) if hasattr(state, "grid_spacing") and state.grid_spacing else 0,
+            "investment_per_grid": float(levels[0].quantity) if levels else 0,
+            "total_cycles": state.total_cycles if hasattr(state, "total_cycles") else 0,
+            "total_profit": float(state.total_profit) if hasattr(state, "total_profit") else 0,
+            "levels": [
+                {
+                    "index": lv.level,
+                    "price": float(lv.buy_price) if hasattr(lv, "buy_price") else 0,
+                    "buy_price": float(lv.buy_price) if hasattr(lv, "buy_price") else 0,
+                    "sell_price": float(lv.sell_price) if hasattr(lv, "sell_price") else 0,
+                    "side": "buy" if lv.status.value in ("waiting", "open") else "sell",
+                    "status": lv.status.value if hasattr(lv.status, "value") else str(lv.status),
+                    "quantity": float(lv.quantity),
+                    "order_id": lv.buy_order_id or lv.sell_order_id,
+                }
+                for lv in levels
+            ],
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        _handle_manager_exception(exc)
+
+
+class TrailingProfitConfig(BaseModel):
+    """Configuration for trailing profit lock."""
+    trigger_percentage: float = Field(..., gt=0, description="Profit % to trigger trailing (e.g. 2.0)")
+    trail_percentage: float = Field(..., gt=0, lt=100, description="Trail % below highest price (e.g. 1.5)")
+    max_profit_percentage: float = Field(0, ge=0, description="Max profit % cap — auto-sell when reached. 0 = no cap (ride trend indefinitely)")
+
+
+@router.post("/{instance_id}/trailing-profit", response_model=dict)
+async def configure_trailing_profit(
+    instance_id: str,
+    config: TrailingProfitConfig,
+    current_user: User = Depends(get_current_user_from_token),
+    manager: TradingProcessManager = Depends(get_process_manager),
+) -> dict[str, Any]:
+    """Configure trailing profit for a trading instance.
+
+    Requires 'trailing_profit' feature — available via starter+ subscription
+    or by purchasing the trailing profit add-on.
+    """
+    try:
+        instance = await manager.get_status(UUID(instance_id), current_user.id)
+
+        from database.base import get_db as _get_db
+        from repositories.user_addon_repository import UserAddOnRepository
+        from services.saas.license import _DEFAULT_LIMITS
+
+        tier = current_user.subscription_tier.value if hasattr(current_user.subscription_tier, "value") else str(current_user.subscription_tier)
+        limits = _DEFAULT_LIMITS.get(tier, _DEFAULT_LIMITS["free"])
+
+        has_via_tier = "trailing_profit" in limits.feature_flags
+
+        addon_repo = UserAddOnRepository(manager.session)
+        addon = await addon_repo.get_by_user_and_key(current_user.id, "trailing_profit")
+        has_via_addon = addon is not None and addon.is_active
+
+        if not has_via_tier and not has_via_addon:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Trailing Profit requires a Starter+ plan or the Trailing Profit add-on. Purchase it from the Add-ons page.",
+            )
+
+        from main import grid_engine
+
+        if grid_engine is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Grid engine not initialized",
+            )
+
+        grid_engine.configure_trailing_profit(
+            instance_id=str(instance.id),
+            trigger_percentage=Decimal(str(config.trigger_percentage)),
+            trail_percentage=Decimal(str(config.trail_percentage)),
+            max_profit_percentage=Decimal(str(config.max_profit_percentage)),
+        )
+
+        return {
+            "instance_id": str(instance.id),
+            "trigger_percentage": config.trigger_percentage,
+            "trail_percentage": config.trail_percentage,
+            "max_profit_percentage": config.max_profit_percentage,
+            "status": "configured",
+        }
+    except HTTPException:
+        raise
     except Exception as exc:
         _handle_manager_exception(exc)

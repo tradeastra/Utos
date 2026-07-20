@@ -6,7 +6,6 @@ import uuid
 from decimal import Decimal
 
 import pytest
-
 from core.exceptions import InvalidStateTransition, ProfitLockError
 from engine.profit_lock.state import (
     ProfitLockMetrics,
@@ -61,7 +60,9 @@ class TestProfitLockStateMachine:
             ProfitLockStatus.EXECUTING,
             ProfitLockStatus.LOCKED,
         ]:
-            ProfitLockStateMachine.validate_transition(status, ProfitLockStatus.DISABLED)
+            ProfitLockStateMachine.validate_transition(
+                status, ProfitLockStatus.DISABLED
+            )
 
     def test_invalid_transition_raises(self) -> None:
         with pytest.raises(InvalidStateTransition):

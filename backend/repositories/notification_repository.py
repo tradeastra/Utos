@@ -4,9 +4,9 @@ Notification repository — async CRUD for notifications table.
 
 import uuid
 
+from models.notification import Notification
 from sqlalchemy import select
 
-from models.notification import Notification
 from repositories.base import IRepository
 
 
@@ -36,6 +36,7 @@ class NotificationRepository(IRepository[Notification]):
         if notification:
             notification.is_read = True
             from sqlalchemy.sql import func
+
             notification.read_at = func.now()
             await self._session.flush()
             await self._session.refresh(notification)

@@ -4,14 +4,13 @@ reconnect survival, and multi-exchange scenarios.
 """
 
 import asyncio
-from datetime import datetime, timezone
+from collections.abc import Callable
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, Callable
+from typing import Any
 
 import pytest
-
-from core.types import TickerData
-from market.cache.market_cache import MarketCache
+from core.domain_types import TickerData
 from market.hub.market_hub import MarketHub
 from market.symbol_registry import SymbolRegistry
 
@@ -55,7 +54,9 @@ class StreamingFakeAdapter:
     async def is_account_connected(self) -> bool:
         return True
 
-    async def subscribe_market(self, symbol: str, channel: str, callback: Callable) -> str:
+    async def subscribe_market(
+        self, symbol: str, channel: str, callback: Callable
+    ) -> str:
         self._sub_counter += 1
         sub_id = f"{self._name}_sub_{self._sub_counter}"
         self._callbacks[sub_id] = callback
@@ -66,37 +67,49 @@ class StreamingFakeAdapter:
 
     async def get_ticker(self, symbol: str) -> TickerData:
         return TickerData(
-            symbol=symbol, bid=Decimal("50000"), ask=Decimal("50001"),
-            last=Decimal("50000.50"), volume=Decimal("1000"),
-            timestamp=datetime.now(timezone.utc),
+            symbol=symbol,
+            bid=Decimal("50000"),
+            ask=Decimal("50001"),
+            last=Decimal("50000.50"),
+            volume=Decimal("1000"),
+            timestamp=datetime.now(UTC),
         )
 
     async def get_order_book(self, symbol: str, depth: int = 20) -> Any:
-        from core.types import OrderBook
+        from core.domain_types import OrderBook
+
         return OrderBook(
             symbol=symbol,
             bids=[(Decimal("50000"), Decimal("1"))],
             asks=[(Decimal("50001"), Decimal("1"))],
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         )
 
     async def get_candles(self, symbol: str, interval: str, limit: int = 100) -> list:
-        from core.types import Candle
-        return [Candle(
-            symbol=symbol, interval=interval,
-            open=Decimal("50000"), high=Decimal("50100"),
-            low=Decimal("49900"), close=Decimal("50050"),
-            volume=Decimal("100"),
-            timestamp=datetime.now(timezone.utc),
-        )]
+        from core.domain_types import Candle
+
+        return [
+            Candle(
+                symbol=symbol,
+                interval=interval,
+                open=Decimal("50000"),
+                high=Decimal("50100"),
+                low=Decimal("49900"),
+                close=Decimal("50050"),
+                volume=Decimal("100"),
+                timestamp=datetime.now(UTC),
+            )
+        ]
 
     async def get_exchange_info(self) -> Any:
-        from core.types import ExchangeInfo
+        from core.domain_types import ExchangeInfo
+
         return ExchangeInfo(
             name=self._name,
             supported_symbols=["BTCUSDT", "ETHUSDT"],
-            rate_limits={}, fee_structure={},
-            server_time=datetime.now(timezone.utc),
+            rate_limits={},
+            fee_structure={},
+            server_time=datetime.now(UTC),
         )
 
     async def health_check(self) -> bool:
@@ -165,9 +178,12 @@ class TestMarketHubIntegration:
         assert hub.consumer_count() == 3
 
         ticker = TickerData(
-            symbol="BTCUSDT", bid=Decimal("50000"), ask=Decimal("50001"),
-            last=Decimal("50000.50"), volume=Decimal("1000"),
-            timestamp=datetime.now(timezone.utc),
+            symbol="BTCUSDT",
+            bid=Decimal("50000"),
+            ask=Decimal("50001"),
+            last=Decimal("50000.50"),
+            volume=Decimal("1000"),
+            timestamp=datetime.now(UTC),
         )
         await binance_adapter.emit(ticker)
 
@@ -185,9 +201,12 @@ class TestMarketHubIntegration:
     ) -> None:
         """Cache data should survive a connector reconnect cycle."""
         ticker = TickerData(
-            symbol="BTCUSDT", bid=Decimal("50000"), ask=Decimal("50001"),
-            last=Decimal("50000.50"), volume=Decimal("1000"),
-            timestamp=datetime.now(timezone.utc),
+            symbol="BTCUSDT",
+            bid=Decimal("50000"),
+            ask=Decimal("50001"),
+            last=Decimal("50000.50"),
+            volume=Decimal("1000"),
+            timestamp=datetime.now(UTC),
         )
         hub.cache.update_ticker("binance", "BTCUSDT", ticker)
 
@@ -199,7 +218,10 @@ class TestMarketHubIntegration:
 
     @pytest.mark.asyncio
     async def test_multi_exchange_isolation(
-        self, hub: MarketHub, binance_adapter: StreamingFakeAdapter, bybit_adapter: StreamingFakeAdapter
+        self,
+        hub: MarketHub,
+        binance_adapter: StreamingFakeAdapter,
+        bybit_adapter: StreamingFakeAdapter,
     ) -> None:
         """Subscriptions on different exchanges are fully isolated."""
         binance_received: list[Any] = []
@@ -217,9 +239,12 @@ class TestMarketHubIntegration:
         assert hub.active_websocket_subscriptions() == 2
 
         ticker = TickerData(
-            symbol="BTCUSDT", bid=Decimal("50000"), ask=Decimal("50001"),
-            last=Decimal("50000.50"), volume=Decimal("1000"),
-            timestamp=datetime.now(timezone.utc),
+            symbol="BTCUSDT",
+            bid=Decimal("50000"),
+            ask=Decimal("50001"),
+            last=Decimal("50000.50"),
+            volume=Decimal("1000"),
+            timestamp=datetime.now(UTC),
         )
         await binance_adapter.emit(ticker)
         await asyncio.sleep(0.1)

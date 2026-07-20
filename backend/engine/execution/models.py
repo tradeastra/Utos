@@ -6,15 +6,15 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
-from core.types import OrderResult, OrderSide, OrderType
+from core.domain_types import OrderResult, OrderSide, OrderType
 
 
-class ExecutionOrderStatus(str, Enum):
+class ExecutionOrderStatus(StrEnum):
     """Internal lifecycle status managed by the Execution Engine."""
 
     PENDING = "pending"
@@ -73,4 +73,4 @@ class TrackedOrder:
 
     def touch(self) -> None:
         """Update the updated_at timestamp to now."""
-        self.updated_at = datetime.now(timezone.utc)
+        self.updated_at = datetime.now(UTC)

@@ -4,13 +4,11 @@ Integration tests for ExecutionEngine end-to-end flows.
 
 import asyncio
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
 
 import pytest
-
-from core.types import OrderResult, OrderSide, OrderStatus, OrderType
+from core.domain_types import OrderResult, OrderSide, OrderStatus, OrderType
 from engine.execution import ExecutionEngine, ExecutionOrderStatus
 from engine.execution.exceptions import OrderValidationError
 from engine.execution.models import OrderRequest
@@ -43,6 +41,7 @@ class SimulatedAdapter:
         if self._reject_next:
             self._reject_next = False
             from core.exceptions import ExchangeError
+
             raise ExchangeError(message="rejected", exchange_name=self.exchange_name)
 
         order_id = self._new_id()
@@ -57,8 +56,8 @@ class SimulatedAdapter:
             filled_quantity=Decimal("0"),
             average_fill_price=None,
             status=OrderStatus.OPEN.value,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
         self._orders[order_id] = result
         return result
@@ -69,6 +68,7 @@ class SimulatedAdapter:
             return False
         if result.status == OrderStatus.FILLED.value:
             from core.exceptions import OrderAlreadyFilled
+
             raise OrderAlreadyFilled(order_id=order_id)
         cancelled = OrderResult(
             order_id=result.order_id,
@@ -82,7 +82,7 @@ class SimulatedAdapter:
             average_fill_price=result.average_fill_price,
             status=OrderStatus.CANCELLED.value,
             created_at=result.created_at,
-            updated_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(UTC),
         )
         self._orders[order_id] = cancelled
         return True
@@ -91,6 +91,7 @@ class SimulatedAdapter:
         result = self._orders.get(order_id)
         if result is None:
             from core.exceptions import OrderNotFound as CoreOrderNotFound
+
             raise CoreOrderNotFound(order_id=order_id)
         return result
 
@@ -121,7 +122,7 @@ class SimulatedAdapter:
             average_fill_price=result.price,
             status=OrderStatus.FILLED.value,
             created_at=result.created_at,
-            updated_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(UTC),
         )
         self._orders[order_id] = filled
 
@@ -154,7 +155,7 @@ class SimulatedAdapter:
             average_fill_price=avg_price,
             status=status,
             created_at=result.created_at,
-            updated_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(UTC),
         )
         self._orders[order_id] = updated
 
@@ -183,12 +184,15 @@ def make_request(account_id: uuid.UUID):
             quantity=Decimal("0.1"),
             price=Decimal("50000"),
         )
+
     return _make
 
 
 class TestExecutionIntegration:
     @pytest.mark.asyncio
-    async def test_place_cancel_full_lifecycle(self, engine: ExecutionEngine, make_request, account_id: uuid.UUID) -> None:
+    async def test_place_cancel_full_lifecycle(
+        self, engine: ExecutionEngine, make_request, account_id: uuid.UUID
+    ) -> None:
         request = make_request()
         placed = await engine.place_order(request)
         assert placed.status == OrderStatus.OPEN.value
@@ -200,7 +204,9 @@ class TestExecutionIntegration:
         assert tracked.status == ExecutionOrderStatus.CANCELLED
 
     @pytest.mark.asyncio
-    async def test_place_sync_fill(self, engine: ExecutionEngine, make_request, account_id: uuid.UUID) -> None:
+    async def test_place_sync_fill(
+        self, engine: ExecutionEngine, make_request, account_id: uuid.UUID
+    ) -> None:
         request = make_request()
         placed = await engine.place_order(request)
         adapter = engine._adapters[account_id]
@@ -213,7 +219,9 @@ class TestExecutionIntegration:
         assert engine.list_active_orders(account_id) == []
 
     @pytest.mark.asyncio
-    async def test_cancel_all_orders(self, engine: ExecutionEngine, make_request, account_id: uuid.UUID) -> None:
+    async def test_cancel_all_orders(
+        self, engine: ExecutionEngine, make_request, account_id: uuid.UUID
+    ) -> None:
         request1 = make_request()
         request2 = make_request()
         await engine.place_order(request1)
@@ -225,17 +233,22 @@ class TestExecutionIntegration:
         assert len(active) == 0
 
     @pytest.mark.asyncio
-    async def test_rejected_order_does_not_retry(self, engine: ExecutionEngine, make_request, account_id: uuid.UUID) -> None:
+    async def test_rejected_order_does_not_retry(
+        self, engine: ExecutionEngine, make_request, account_id: uuid.UUID
+    ) -> None:
         adapter = engine._adapters[account_id]
         adapter.reject_next()
         request = make_request()
         from engine.execution.exceptions import OrderExecutionError
+
         with pytest.raises(OrderExecutionError):
             await engine.place_order(request)
         assert len(adapter._orders) == 0
 
     @pytest.mark.asyncio
-    async def test_idempotency_after_failure(self, engine: ExecutionEngine, make_request, account_id: uuid.UUID) -> None:
+    async def test_idempotency_after_failure(
+        self, engine: ExecutionEngine, make_request, account_id: uuid.UUID
+    ) -> None:
         """Duplicate request_id after failure should return the failed cached result."""
         request_id = uuid.uuid4()
         request = make_request(request_id)
@@ -243,6 +256,7 @@ class TestExecutionIntegration:
         adapter.reject_next()
 
         from engine.execution.exceptions import OrderExecutionError
+
         with pytest.raises(OrderExecutionError):
             await engine.place_order(request)
 
@@ -253,7 +267,9 @@ class TestExecutionIntegration:
         assert len(adapter._orders) == 0
 
     @pytest.mark.asyncio
-    async def test_cancel_filled_order_fails(self, engine: ExecutionEngine, make_request, account_id: uuid.UUID) -> None:
+    async def test_cancel_filled_order_fails(
+        self, engine: ExecutionEngine, make_request, account_id: uuid.UUID
+    ) -> None:
         request = make_request()
         placed = await engine.place_order(request)
         adapter = engine._adapters[account_id]
@@ -265,7 +281,9 @@ class TestExecutionIntegration:
         assert result is not None
 
     @pytest.mark.asyncio
-    async def test_multiple_orders_isolated_by_account(self, engine: ExecutionEngine, make_request, account_id: uuid.UUID) -> None:
+    async def test_multiple_orders_isolated_by_account(
+        self, engine: ExecutionEngine, make_request, account_id: uuid.UUID
+    ) -> None:
         other_account = uuid.uuid4()
         engine.register_adapter(other_account, SimulatedAdapter("bybit"))
 
@@ -280,7 +298,9 @@ class TestExecutionIntegration:
         assert len(engine.list_active_orders()) == 3
 
     @pytest.mark.asyncio
-    async def test_validation_rejects_invalid_order(self, engine: ExecutionEngine, make_request, account_id: uuid.UUID) -> None:
+    async def test_validation_rejects_invalid_order(
+        self, engine: ExecutionEngine, make_request, account_id: uuid.UUID
+    ) -> None:
         request = make_request()
         request.quantity = Decimal("-1")
         with pytest.raises(OrderValidationError):
@@ -359,7 +379,9 @@ class TestPartialFillScenario:
         adapter = engine._adapters[account_id]
 
         # OPEN → PARTIALLY_FILLED (0.03 @ 49900)
-        adapter.partial_fill(placed.exchange_order_id, Decimal("0.03"), Decimal("49900"))
+        adapter.partial_fill(
+            placed.exchange_order_id, Decimal("0.03"), Decimal("49900")
+        )
         synced1 = await engine.sync_order(account_id, placed.order_id)
         assert synced1.status == OrderStatus.PARTIALLY_FILLED.value
         assert synced1.filled_quantity == Decimal("0.03")
@@ -368,7 +390,9 @@ class TestPartialFillScenario:
         assert tracked.status == ExecutionOrderStatus.PARTIALLY_FILLED
 
         # PARTIALLY_FILLED → PARTIALLY_FILLED (0.04 @ 50100)
-        adapter.partial_fill(placed.exchange_order_id, Decimal("0.04"), Decimal("50100"))
+        adapter.partial_fill(
+            placed.exchange_order_id, Decimal("0.04"), Decimal("50100")
+        )
         synced2 = await engine.sync_order(account_id, placed.order_id)
         assert synced2.status == OrderStatus.PARTIALLY_FILLED.value
         assert synced2.filled_quantity == Decimal("0.07")
@@ -376,7 +400,9 @@ class TestPartialFillScenario:
         assert tracked.status == ExecutionOrderStatus.PARTIALLY_FILLED
 
         # PARTIALLY_FILLED → FILLED (0.03 @ 50050)
-        adapter.partial_fill(placed.exchange_order_id, Decimal("0.03"), Decimal("50050"))
+        adapter.partial_fill(
+            placed.exchange_order_id, Decimal("0.03"), Decimal("50050")
+        )
         synced3 = await engine.sync_order(account_id, placed.order_id)
         assert synced3.status == OrderStatus.FILLED.value
         assert synced3.filled_quantity == Decimal("0.1")
@@ -471,7 +497,9 @@ class TestCancelRaceScenario:
 
         async def delayed_partial_fill() -> None:
             await asyncio.sleep(0.01)
-            adapter.partial_fill(placed.exchange_order_id, Decimal("0.03"), Decimal("49900"))
+            adapter.partial_fill(
+                placed.exchange_order_id, Decimal("0.03"), Decimal("49900")
+            )
 
         cancel_result, _ = await asyncio.gather(
             e.cancel_order(account_id, placed.order_id),

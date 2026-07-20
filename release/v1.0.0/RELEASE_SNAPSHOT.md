@@ -3,6 +3,8 @@
 **Captured:** 2026-07-17T03:46:01Z  
 **Status:** Engineering complete, pending operational validation
 
+> **Note:** This document captures the engineering baseline commit (`ee568df`). The canonical release commit is `60e5107` (tagged `v1.0.0`). See `ERRATA_COMMIT_IDENTITY.md` for details.
+
 ---
 
 ## Identity

@@ -1,7 +1,6 @@
 """Unit tests for RetryWorker."""
 
 import pytest
-
 from engine.scheduler.retry import RetryWorker
 
 

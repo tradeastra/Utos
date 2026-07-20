@@ -11,26 +11,26 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from core.config import get_database_url
 from database.base import Base
 from models import (  # noqa: F401 — ensure all models are registered
-    User,
-    ExchangeAccount,
-    TradingInstance,
-    Position,
-    Order,
-    GridProfile,
-    Strategy,
-    Transaction,
-    Subscription,
     Affiliate,
-    Notification,
     Balance,
+    ExchangeAccount,
+    GridProfile,
+    Notification,
+    Order,
+    Position,
+    Strategy,
+    Subscription,
+    TradingInstance,
+    Transaction,
+    User,
 )
 
 target_metadata = Base.metadata

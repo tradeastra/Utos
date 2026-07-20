@@ -5,11 +5,10 @@ GridStateStore — in-memory store of GridState per instance_id.
 
 from __future__ import annotations
 
-from decimal import Decimal
 from typing import Any
 
+from core.domain_types import GridLevel, GridLevelStatus, GridState
 from core.exceptions import GridError, InvalidStateTransition
-from core.types import GridLevel, GridLevelStatus, GridState
 
 
 class GridStatus:
@@ -114,9 +113,7 @@ class GridStateStore:
     def remove(self, instance_id: str) -> GridState | None:
         return self._grids.pop(instance_id, None)
 
-    def transition_grid(
-        self, instance_id: str, to_status: str
-    ) -> GridState:
+    def transition_grid(self, instance_id: str, to_status: str) -> GridState:
         state = self._grids.get(instance_id)
         if state is None:
             raise GridError(f"Grid not found for instance {instance_id}")
@@ -150,9 +147,7 @@ class GridStateStore:
                 return lv
         return None
 
-    def update_level(
-        self, instance_id: str, level: int, **kwargs: Any
-    ) -> GridLevel:
+    def update_level(self, instance_id: str, level: int, **kwargs: Any) -> GridLevel:
         lv = self.get_level(instance_id, level)
         if lv is None:
             raise GridError(f"Grid level {level} not found for instance {instance_id}")

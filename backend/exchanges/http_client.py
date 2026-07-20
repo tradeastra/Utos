@@ -6,12 +6,12 @@ any exchange-specific logic.
 """
 
 import asyncio
-from typing import Any, Optional
+from typing import Any
 
 import httpx
-
-from core.logging import get_logger
 from core.exceptions import TimeoutError
+from core.logging import get_logger
+
 from exchanges.errors import ErrorMapper
 from exchanges.rate_limiter import RateLimiter
 from exchanges.retry import RetryPolicy
@@ -26,10 +26,10 @@ class HttpClient:
         self,
         base_url: str = "",
         timeout: float = 30.0,
-        retry_policy: Optional[RetryPolicy] = None,
-        rate_limiter: Optional[RateLimiter] = None,
+        retry_policy: RetryPolicy | None = None,
+        rate_limiter: RateLimiter | None = None,
         exchange_name: str = "",
-        client: Optional[httpx.AsyncClient] = None,
+        client: httpx.AsyncClient | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
@@ -66,14 +66,17 @@ class HttpClient:
         method = method.upper()
         url = self._url(path)
         attempt = 0
-        last_exception: Optional[Exception] = None
+        last_exception: Exception | None = None
 
         while True:
             attempt += 1
             try:
                 client = self._get_client()
                 response = await client.request(
-                    method, url, timeout=httpx.Timeout(self.timeout, connect=10.0), **kwargs
+                    method,
+                    url,
+                    timeout=httpx.Timeout(self.timeout, connect=10.0),
+                    **kwargs,
                 )
 
                 if response.status_code < 500:
@@ -101,7 +104,9 @@ class HttpClient:
                     ) from exc
 
                 delay = self.retry_policy.delay_for(attempt)
-                logger.warning(f"{self.exchange_name} HTTP timeout, retrying in {delay}s: {url}")
+                logger.warning(
+                    f"{self.exchange_name} HTTP timeout, retrying in {delay}s: {url}"
+                )
                 await asyncio.sleep(delay)
 
             except (httpx.NetworkError, httpx.ConnectError) as exc:
@@ -110,7 +115,9 @@ class HttpClient:
                     raise self.error_mapper.map_network_error(exc) from exc
 
                 delay = self.retry_policy.delay_for(attempt)
-                logger.warning(f"{self.exchange_name} HTTP network error, retrying in {delay}s: {url}")
+                logger.warning(
+                    f"{self.exchange_name} HTTP network error, retrying in {delay}s: {url}"
+                )
                 await asyncio.sleep(delay)
 
         raise self.error_mapper.map_network_error(

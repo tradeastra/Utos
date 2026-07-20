@@ -4,13 +4,11 @@ Transaction model — matches DATABASE.md §2.8.
 
 import uuid
 
+from core.domain_types import TransactionType
+from database.base import GUID, Base
 from sqlalchemy import DateTime, Enum, ForeignKey, Index, Numeric, String, Text
-from database.base import GUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-
-from core.types import TransactionType
-from database.base import Base
 
 
 class Transaction(Base):
@@ -18,14 +16,12 @@ class Transaction(Base):
 
     __tablename__ = "transactions"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        GUID(), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
         GUID(), ForeignKey("users.id"), nullable=False
     )
     type: Mapped[TransactionType] = mapped_column(
-        Enum(TransactionType, name="transaction_type"), nullable=False
+        Enum(TransactionType, name="transaction_type", values_callable=lambda x: [e.value for e in x]), nullable=False
     )
     amount: Mapped[float] = mapped_column(Numeric(20, 8), nullable=False)
     currency: Mapped[str] = mapped_column(String(10), nullable=False)

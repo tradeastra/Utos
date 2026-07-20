@@ -11,28 +11,19 @@ Simulates mock exchange:
 This is the most critical chaos test — directly impacts trading integrity.
 """
 
-import asyncio
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
-from unittest.mock import MagicMock
 
 import pytest
-
-from core.exceptions import ExchangeConnectionError, ExchangeError
-from core.types import OrderSide, OrderType, OrderStatus, OrderResult
-from engine.execution.models import OrderRequest, TrackedOrder, ExecutionOrderStatus
-from engine.execution.executor import OrderExecutor
-from engine.execution.tracker import OrderTracker
+from core.domain_types import OrderResult, OrderSide, OrderStatus, OrderType
+from core.exceptions import ExchangeConnectionError
 from engine.execution.execution_engine import ExecutionEngine
+from engine.execution.executor import OrderExecutor
+from engine.execution.models import OrderRequest
+from engine.execution.tracker import OrderTracker
 from engine.execution.validator import OrderValidator
-from engine.recovery.connection import ConnectionRecovery, QueuedOrder
 from engine.recovery.reconciler import RuntimeReconciler
-from engine.recovery.state import StateRecovery
-from engine.recovery.coordinator import (
-    RecoveryCoordinator,
-    InstanceContext,
-)
 from tests.test_chaos.chaos_adapter import ChaosExchangeAdapter
 
 
@@ -56,6 +47,7 @@ class TestExchangeTimeout:
         )
 
         from engine.execution.exceptions import OrderExecutionError
+
         with pytest.raises(OrderExecutionError):
             await executor.execute(request, adapter)
 
@@ -100,7 +92,9 @@ class TestDuplicateACK:
         validator = OrderValidator()
         tracker = OrderTracker()
         executor = OrderExecutor(max_retries=3, base_delay=0.01)
-        engine = ExecutionEngine(validator=validator, executor=executor, tracker=tracker)
+        engine = ExecutionEngine(
+            validator=validator, executor=executor, tracker=tracker
+        )
 
         account_id = uuid.uuid4()
         engine.register_adapter(account_id, adapter)
@@ -130,7 +124,9 @@ class TestDuplicateACK:
         validator = OrderValidator()
         tracker = OrderTracker()
         executor = OrderExecutor(max_retries=3, base_delay=0.01)
-        engine = ExecutionEngine(validator=validator, executor=executor, tracker=tracker)
+        engine = ExecutionEngine(
+            validator=validator, executor=executor, tracker=tracker
+        )
 
         account_id = uuid.uuid4()
         engine.register_adapter(account_id, adapter)
@@ -163,7 +159,7 @@ class TestPartialFillAfterCancel:
         adapter = ChaosExchangeAdapter(partial_fill_after_cancel=True)
 
         # Place order
-        account_id = uuid.uuid4()
+        uuid.uuid4()
         result = await adapter.place_order(
             symbol="BTCUSDT",
             side="buy",
@@ -215,7 +211,9 @@ class TestDelayedFill:
         validator = OrderValidator()
         tracker = OrderTracker()
         executor = OrderExecutor(max_retries=3, base_delay=0.01)
-        engine = ExecutionEngine(validator=validator, executor=executor, tracker=tracker)
+        engine = ExecutionEngine(
+            validator=validator, executor=executor, tracker=tracker
+        )
 
         account_id = uuid.uuid4()
         engine.register_adapter(account_id, adapter)
@@ -269,7 +267,7 @@ class TestOutOfOrderWebSocketEvents:
         reconciler = RuntimeReconciler()
 
         # Create a simple grid state with levels
-        from core.types import GridLevel, GridLevelStatus, GridState
+        from core.domain_types import GridLevel, GridLevelStatus, GridState
         from engine.grid.state import GridStatus
 
         levels = [
@@ -316,8 +314,8 @@ class TestOutOfOrderWebSocketEvents:
                 price=Decimal("49000"),
                 filled_quantity=Decimal("0.1"),
                 average_fill_price=Decimal("49000"),
-                created_at=datetime(2025, 1, 1, tzinfo=timezone.utc),
-                updated_at=datetime(2025, 1, 1, 0, 1, tzinfo=timezone.utc),
+                created_at=datetime(2025, 1, 1, tzinfo=UTC),
+                updated_at=datetime(2025, 1, 1, 0, 1, tzinfo=UTC),
             ),
         ]
 
@@ -349,7 +347,9 @@ class TestExchangeChaosRecovery:
         validator = OrderValidator()
         tracker = OrderTracker()
         executor = OrderExecutor(max_retries=5, base_delay=0.01)
-        engine = ExecutionEngine(validator=validator, executor=executor, tracker=tracker)
+        engine = ExecutionEngine(
+            validator=validator, executor=executor, tracker=tracker
+        )
 
         account_id = uuid.uuid4()
         engine.register_adapter(account_id, adapter)
@@ -392,7 +392,9 @@ class TestExchangeChaosRecovery:
         validator = OrderValidator()
         tracker = OrderTracker()
         executor = OrderExecutor(max_retries=3, base_delay=0.01)
-        engine = ExecutionEngine(validator=validator, executor=executor, tracker=tracker)
+        engine = ExecutionEngine(
+            validator=validator, executor=executor, tracker=tracker
+        )
 
         account_id = uuid.uuid4()
         engine.register_adapter(account_id, adapter)

@@ -10,24 +10,20 @@ Collects database health metrics:
 """
 
 import hashlib
-from datetime import datetime, timezone
-from typing import Optional
-
-from sqlalchemy import text
+from datetime import UTC, datetime
 
 from core.backup import backup_manager
-from core.config import settings
 from core.logging import get_logger
 from core.metrics import (
-    utos_db_connections_active,
     utos_db_backup_age_hours,
-    utos_db_backup_size_bytes,
+    utos_db_connections_active,
+    utos_db_migration_version,
+    utos_db_pool_checked_out,
+    utos_db_pool_size,
     utos_db_replication_lag_seconds,
     utos_db_slow_query_count,
-    utos_db_migration_version,
-    utos_db_pool_size,
-    utos_db_pool_checked_out,
 )
+from sqlalchemy import text
 
 logger = get_logger(__name__)
 
@@ -68,6 +64,7 @@ class DatabaseHealthService:
         """Count slow queries from pg_stat_statements (if available)."""
         try:
             from database.base import get_engine
+
             engine = get_engine()
             async with engine.connect() as conn:
                 result = await conn.execute(
@@ -88,6 +85,7 @@ class DatabaseHealthService:
         """Get replication lag in seconds (0 if not a replica)."""
         try:
             from database.base import get_engine
+
             engine = get_engine()
             async with engine.connect() as conn:
                 result = await conn.execute(
@@ -110,6 +108,7 @@ class DatabaseHealthService:
         """Get current Alembic migration version and update metric."""
         try:
             from database.migrations import get_current_revision
+
             rev = get_current_revision()
             if rev:
                 # Hash the revision string to a numeric value for Prometheus Gauge
@@ -122,7 +121,7 @@ class DatabaseHealthService:
             utos_db_migration_version.set(0)
             return "unknown"
 
-    async def collect_backup_age(self) -> Optional[float]:
+    async def collect_backup_age(self) -> float | None:
         """Get age of latest backup in hours and update metric."""
         try:
             age = backup_manager.get_backup_age_hours()
@@ -144,7 +143,7 @@ class DatabaseHealthService:
         backup_age = await self.collect_backup_age()
 
         return {
-            "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+            "timestamp": datetime.now(tz=UTC).isoformat(),
             "pool": pool_stats,
             "slow_queries": slow_queries,
             "replication_lag_seconds": replication_lag,

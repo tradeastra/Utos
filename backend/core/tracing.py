@@ -7,14 +7,12 @@ key flows (order placement, grid cycle, recovery sequence).
 Traces are exported to Jaeger or Grafana Tempo via OTLP.
 """
 
-from typing import Optional
-
 from core.config import settings
 from core.logging import get_logger
 
 logger = get_logger(__name__)
 
-_tracer: Optional[object] = None
+_tracer: object | None = None
 _telemetry_initialized = False
 
 
@@ -37,21 +35,29 @@ def init_telemetry(app=None) -> None:
 
     try:
         from opentelemetry import trace
+        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
+            OTLPSpanExporter,
+        )
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+        from opentelemetry.sdk.resources import Resource
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import BatchSpanProcessor
-        from opentelemetry.sdk.resources import Resource
-        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
-        resource = Resource.create({
-            "service.name": "utos-backend",
-            "service.version": settings.VERSION,
-            "deployment.environment": settings.APP_ENV,
-        })
+        resource = Resource.create(
+            {
+                "service.name": "utos-backend",
+                "service.version": settings.VERSION,
+                "deployment.environment": settings.APP_ENV,
+            }
+        )
 
         provider = TracerProvider(resource=resource)
 
-        otlp_endpoint = settings.OTEL_EXPORTER_OTLP_ENDPOINT if hasattr(settings, "OTEL_EXPORTER_OTLP_ENDPOINT") else "http://localhost:4317"
+        otlp_endpoint = (
+            settings.OTEL_EXPORTER_OTLP_ENDPOINT
+            if hasattr(settings, "OTEL_EXPORTER_OTLP_ENDPOINT")
+            else "http://localhost:4317"
+        )
 
         exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=True)
         processor = BatchSpanProcessor(exporter)
@@ -62,7 +68,10 @@ def init_telemetry(app=None) -> None:
 
         if app is not None:
             FastAPIInstrumentor.instrument_app(app)
-            logger.info("OpenTelemetry FastAPI instrumentation enabled", extra={"otlp_endpoint": otlp_endpoint})
+            logger.info(
+                "OpenTelemetry FastAPI instrumentation enabled",
+                extra={"otlp_endpoint": otlp_endpoint},
+            )
         else:
             logger.info("OpenTelemetry tracer initialized (no app to instrument)")
 
@@ -80,6 +89,7 @@ def get_tracer():
     """Return the configured tracer, or None if not initialized."""
     if _tracer is None:
         from opentelemetry import trace
+
         return trace.get_tracer("utos")
     return _tracer
 
@@ -93,6 +103,7 @@ def shutdown_telemetry() -> None:
 
     try:
         from opentelemetry import trace
+
         provider = trace.get_tracer_provider()
         if hasattr(provider, "shutdown"):
             provider.shutdown()

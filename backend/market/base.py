@@ -10,16 +10,17 @@ from Binance, Hyperliquid, Bybit, or any other adapter.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from enum import Enum
-from typing import Any, Callable
+from enum import StrEnum
+from typing import Any
 
-from core.types import Candle, OrderBook, TickerData
+from core.domain_types import Candle, OrderBook, TickerData
 
 
-class MarketStatus(str, Enum):
+class MarketStatus(StrEnum):
     """Quality-of-service status for a single market stream."""
 
     CONNECTED = "connected"

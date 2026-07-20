@@ -15,9 +15,10 @@ import time
 import uuid
 from decimal import Decimal
 
+from core.domain_types import OrderSide, OrderType
 from core.exceptions import ProfitLockError, ValidationError
 from core.logging import get_logger
-from core.types import OrderSide, OrderType
+
 from engine.execution.execution_engine import ExecutionEngine
 from engine.execution.models import OrderRequest
 from engine.profit_lock.calculator import ProfitCalculator
@@ -61,14 +62,26 @@ class ProfitLockEngine:
         side: str,
         trigger_percentage: Decimal,
         trail_percentage: Decimal,
+        max_profit_percentage: Decimal = Decimal("0"),
     ) -> bool:
-        """Enable profit lock for a trading instance."""
+        """Enable profit lock for a trading instance.
+
+        Args:
+            max_profit_percentage: If > 0, auto-sell when profit reaches this %.
+                                   0 means no cap (ride trend indefinitely).
+        """
         if trigger_percentage <= 0:
-            raise ValidationError(f"trigger_percentage must be > 0, got {trigger_percentage}")
+            raise ValidationError(
+                f"trigger_percentage must be > 0, got {trigger_percentage}"
+            )
         if trail_percentage <= 0:
-            raise ValidationError(f"trail_percentage must be > 0, got {trail_percentage}")
+            raise ValidationError(
+                f"trail_percentage must be > 0, got {trail_percentage}"
+            )
         if trail_percentage >= 100:
-            raise ValidationError(f"trail_percentage must be < 100, got {trail_percentage}")
+            raise ValidationError(
+                f"trail_percentage must be < 100, got {trail_percentage}"
+            )
 
         state = ProfitLockState(
             instance_id=instance_id,
@@ -76,6 +89,7 @@ class ProfitLockEngine:
             enabled=True,
             trigger_percentage=trigger_percentage,
             trail_percentage=trail_percentage,
+            max_profit_percentage=max_profit_percentage,
             entry_price=entry_price,
             quantity=quantity,
             side=side,
@@ -128,7 +142,10 @@ class ProfitLockEngine:
         state = self._store.get(instance_id)
         if state is None or not state.enabled:
             return
-        if state.status not in (ProfitLockStatus.MONITORING, ProfitLockStatus.TRIGGERED):
+        if state.status not in (
+            ProfitLockStatus.MONITORING,
+            ProfitLockStatus.TRIGGERED,
+        ):
             return
 
         metrics = self._store.get_metrics(instance_id)
@@ -152,9 +169,13 @@ class ProfitLockEngine:
             return
 
         if decision.action == "trigger_lock":
-            await self._handle_trigger(instance_id, current_price, decision.new_lock_price)
+            await self._handle_trigger(
+                instance_id, current_price, decision.new_lock_price
+            )
         elif decision.action == "update_lock":
-            await self._handle_update(instance_id, current_price, decision.new_lock_price)
+            await self._handle_update(
+                instance_id, current_price, decision.new_lock_price
+            )
         elif decision.action == "execute_lock":
             await self._handle_execute(instance_id, decision.new_lock_price)
 

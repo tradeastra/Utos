@@ -8,9 +8,10 @@ Processes notifications sequentially. Failed notifications are retried
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Callable
+from datetime import UTC, datetime
+from typing import Any
 
 from core.logging import get_logger
 
@@ -28,7 +29,7 @@ class QueuedNotification:
     data: dict[str, Any] = field(default_factory=dict)
     retry_count: int = 0
     max_retries: int = 3
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 @dataclass
@@ -102,9 +103,14 @@ class NotificationQueue:
 
         return results
 
-    async def _process_one(self, notification: QueuedNotification) -> NotificationResult:
+    async def _process_one(
+        self, notification: QueuedNotification
+    ) -> NotificationResult:
         if self._send_fn is None:
-            logger.warning("No send function configured", extra={"notification_id": notification.id})
+            logger.warning(
+                "No send function configured",
+                extra={"notification_id": notification.id},
+            )
             return NotificationResult(
                 notification_id=notification.id,
                 channel=notification.channel,
@@ -124,7 +130,7 @@ class NotificationQueue:
                     notification_id=notification.id,
                     channel=notification.channel,
                     status="success",
-                    sent_at=datetime.now(timezone.utc),
+                    sent_at=datetime.now(UTC),
                 )
 
             raise RuntimeError("Send returned False")
@@ -138,7 +144,10 @@ class NotificationQueue:
                 self._metrics["retried"] += 1
                 logger.warning(
                     f"Notification failed, will retry: {error_msg}",
-                    extra={"notification_id": notification.id, "attempt": notification.retry_count},
+                    extra={
+                        "notification_id": notification.id,
+                        "attempt": notification.retry_count,
+                    },
                 )
                 return NotificationResult(
                     notification_id=notification.id,
@@ -175,4 +184,5 @@ class NotificationQueue:
     @staticmethod
     def _is_async(func: Callable[..., Any]) -> bool:
         import asyncio
+
         return asyncio.iscoroutinefunction(func)

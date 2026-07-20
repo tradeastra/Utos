@@ -41,10 +41,13 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <Card className="w-[400px]">
-        <CardHeader>
-          <CardTitle>UTOS Login</CardTitle>
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-violet-50 via-background to-background px-4 dark:from-violet-950/20 dark:via-background dark:to-background">
+      <Card glass className="w-full max-w-md animate-scale-in">
+        <CardHeader className="text-center">
+          <div className="mb-2 text-3xl font-bold tracking-tight">
+            <span className="text-violet-500">U</span>TOS
+          </div>
+          <CardTitle>Welcome back</CardTitle>
           <CardDescription>Sign in to your trading account</CardDescription>
         </CardHeader>
         <CardContent>
@@ -69,13 +72,17 @@ export default function LoginPage() {
                 required
               />
             </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" className="w-full" disabled={loading}>
+            {error && (
+              <p className="rounded-xl bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-400">
+                {error}
+              </p>
+            )}
+            <Button type="submit" size="lg" className="w-full" disabled={loading}>
               {loading ? 'Signing in...' : 'Sign In'}
             </Button>
             <p className="text-center text-sm text-muted-foreground">
               No account?{' '}
-              <a href="/register" className="text-primary underline">Register</a>
+              <a href="/register" className="font-medium text-violet-500 hover:underline">Register</a>
             </p>
           </form>
         </CardContent>

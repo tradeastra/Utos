@@ -11,27 +11,24 @@ Benchmarks:
 
 import uuid
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
-import pytest
-
-from core.types import GridLevel, GridLevelStatus, GridState, OrderSide, OrderType
+from core.domain_types import GridState, OrderSide, OrderType
+from engine.execution.models import OrderRequest
+from engine.execution.tracker import OrderTracker
+from engine.execution.validator import OrderValidator
 from engine.grid.calculator import GridCalculator
 from engine.grid.planner import GridPlanner
-from engine.grid.state import GridStateStore, GridStateMachine, GridStatus
+from engine.grid.state import GridStateStore, GridStatus
 from engine.profit_lock.calculator import ProfitCalculator, ProfitResult
 from engine.profit_lock.policy import ProfitLockPolicy
-from engine.profit_lock.state import ProfitLockState, ProfitLockStatus, ProfitLockStore
-from engine.risk.manager import RiskManager, RiskLimits
-from engine.risk.portfolio import PortfolioManager
+from engine.profit_lock.state import ProfitLockState, ProfitLockStatus
 from engine.risk.exposure import ExposureManager
-from engine.execution.models import OrderRequest
-from engine.execution.validator import OrderValidator
-from engine.execution.tracker import OrderTracker
-from engine.execution.execution_engine import ExecutionEngine
-
+from engine.risk.manager import RiskLimits, RiskManager
+from engine.risk.portfolio import PortfolioManager
 
 # ── Grid Calculator Benchmark ────────────────
+
 
 class TestGridCalculatorBenchmark:
     def test_calculate_levels_10(self, benchmark):
@@ -81,6 +78,7 @@ class TestGridCalculatorBenchmark:
 
 # ── Grid Planner Benchmark ───────────────────
 
+
 class TestGridPlannerBenchmark:
     def test_plan_initial_10_grids(self, benchmark):
         store = GridStateStore()
@@ -128,6 +126,7 @@ class TestGridPlannerBenchmark:
 
 
 # ── ProfitLock Policy Benchmark ──────────────
+
 
 class TestProfitLockPolicyBenchmark:
     def test_evaluate_monitoring(self, benchmark):
@@ -204,6 +203,7 @@ class TestProfitLockPolicyBenchmark:
 
 # ── ProfitLock Calculator Benchmark ──────────
 
+
 class TestProfitCalculatorBenchmark:
     def test_calculate_long(self, benchmark):
         calc = ProfitCalculator()
@@ -228,18 +228,22 @@ class TestProfitCalculatorBenchmark:
 
 # ── Risk Manager Benchmark ───────────────────
 
+
 class TestRiskManagerBenchmark:
     def test_check_order_risk_allowed(self, benchmark):
         portfolio = PortfolioManager()
         exposure = ExposureManager()
         rm = RiskManager(portfolio, exposure)
-        rm.set_risk_parameters("user1", RiskLimits(
-            max_position_size=Decimal("100000"),
-            max_capital_per_instance=Decimal("50000"),
-            max_exposure_per_symbol=Decimal("200000"),
-            max_exposure_per_exchange=Decimal("500000"),
-            max_open_positions=10,
-        ))
+        rm.set_risk_parameters(
+            "user1",
+            RiskLimits(
+                max_position_size=Decimal("100000"),
+                max_capital_per_instance=Decimal("50000"),
+                max_exposure_per_symbol=Decimal("200000"),
+                max_exposure_per_exchange=Decimal("500000"),
+                max_open_positions=10,
+            ),
+        )
         rm.on_price_update("user1", "BTCUSDT", Decimal("45000"))
 
         benchmark(
@@ -258,13 +262,16 @@ class TestRiskManagerBenchmark:
         portfolio = PortfolioManager()
         exposure = ExposureManager()
         rm = RiskManager(portfolio, exposure)
-        rm.set_risk_parameters("user1", RiskLimits(
-            max_position_size=Decimal("100"),
-            max_capital_per_instance=Decimal("50000"),
-            max_exposure_per_symbol=Decimal("200000"),
-            max_exposure_per_exchange=Decimal("500000"),
-            max_open_positions=10,
-        ))
+        rm.set_risk_parameters(
+            "user1",
+            RiskLimits(
+                max_position_size=Decimal("100"),
+                max_capital_per_instance=Decimal("50000"),
+                max_exposure_per_symbol=Decimal("200000"),
+                max_exposure_per_exchange=Decimal("500000"),
+                max_open_positions=10,
+            ),
+        )
 
         benchmark(
             rm.check_order_risk,
@@ -282,18 +289,22 @@ class TestRiskManagerBenchmark:
         portfolio = PortfolioManager()
         exposure = ExposureManager()
         rm = RiskManager(portfolio, exposure)
-        rm.set_risk_parameters("user1", RiskLimits(
-            max_position_size=Decimal("100000"),
-            max_capital_per_instance=Decimal("50000"),
-            max_exposure_per_symbol=Decimal("200000"),
-            max_exposure_per_exchange=Decimal("500000"),
-            max_open_positions=10,
-        ))
+        rm.set_risk_parameters(
+            "user1",
+            RiskLimits(
+                max_position_size=Decimal("100000"),
+                max_capital_per_instance=Decimal("50000"),
+                max_exposure_per_symbol=Decimal("200000"),
+                max_exposure_per_exchange=Decimal("500000"),
+                max_open_positions=10,
+            ),
+        )
 
         benchmark(rm.check_portfolio_risk, "user1")
 
 
 # ── Execution Engine Benchmark ───────────────
+
 
 class TestExecutionEngineBenchmark:
     def test_order_validation(self, benchmark):
@@ -324,7 +335,7 @@ class TestExecutionEngineBenchmark:
         tracker = OrderTracker()
         request_id = uuid.uuid4()
         # Pre-populate
-        request = OrderRequest(
+        OrderRequest(
             request_id=request_id,
             exchange_account_id=uuid.uuid4(),
             symbol="BTCUSDT",
@@ -347,4 +358,5 @@ class TestExecutionEngineBenchmark:
                 quantity=Decimal("0.1"),
                 price=Decimal("45000"),
             )
+
         benchmark(create_order)

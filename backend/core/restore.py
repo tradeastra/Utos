@@ -9,14 +9,13 @@ Provides:
 
 import asyncio
 import gzip
-import json
 import os
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
-from core.backup import BackupManager, BackupMetadata
+from core.backup import BackupManager
 from core.config import settings
 from core.logging import get_logger
 
@@ -29,11 +28,12 @@ class RestoreManager:
     def __init__(self, backup_manager: BackupManager):
         self.backup_mgr = backup_manager
 
-    def _parse_db_url(self) -> dict:
+    def _parse_db_url(self) -> dict[str, Any]:
         """Parse DATABASE_URL into connection parameters."""
         url = settings.DATABASE_URL
         url = url.replace("postgresql+asyncpg://", "postgresql://")
         from urllib.parse import urlparse
+
         parsed = urlparse(url)
         return {
             "host": parsed.hostname or "localhost",
@@ -43,7 +43,9 @@ class RestoreManager:
             "dbname": parsed.path.lstrip("/") or "utos",
         }
 
-    async def restore_backup(self, backup_id: str, target_db: Optional[str] = None) -> dict:
+    async def restore_backup(
+        self, backup_id: str, target_db: str | None = None
+    ) -> dict:
         """Restore a database from a compressed backup.
 
         Args:
@@ -54,10 +56,10 @@ class RestoreManager:
             Dict with restore status, duration, and validation results.
         """
         start = time.perf_counter()
-        result = {
+        result: dict[str, Any] = {
             "backup_id": backup_id,
             "status": "started",
-            "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+            "timestamp": datetime.now(tz=UTC).isoformat(),
             "duration_seconds": 0,
             "checksum_verified": False,
             "schema_valid": False,
@@ -76,7 +78,9 @@ class RestoreManager:
 
         if metadata.status != "completed":
             result["status"] = "failed"
-            result["errors"].append(f"Backup was not completed successfully: {metadata.status}")
+            result["errors"].append(
+                f"Backup was not completed successfully: {metadata.status}"
+            )
             result["duration_seconds"] = round(time.perf_counter() - start, 2)
             return result
 
@@ -84,7 +88,9 @@ class RestoreManager:
         result["checksum_verified"] = self.backup_mgr.verify_checksum(backup_id)
         if not result["checksum_verified"]:
             result["status"] = "failed"
-            result["errors"].append("Checksum verification failed — backup may be corrupted")
+            result["errors"].append(
+                "Checksum verification failed — backup may be corrupted"
+            )
             result["duration_seconds"] = round(time.perf_counter() - start, 2)
             return result
 
@@ -113,14 +119,19 @@ class RestoreManager:
             # Restore via psql
             cmd = [
                 "psql",
-                "-h", params["host"],
-                "-p", str(params["port"]),
-                "-U", params["user"],
-                "-d", target,
+                "-h",
+                params["host"],
+                "-p",
+                str(params["port"]),
+                "-U",
+                params["user"],
+                "-d",
+                target,
                 "--quiet",
                 "--no-owner",
                 "--no-privileges",
-                "-v", "ON_ERROR_STOP=1",
+                "-v",
+                "ON_ERROR_STOP=1",
             ]
 
             process = await asyncio.create_subprocess_exec(
@@ -149,7 +160,9 @@ class RestoreManager:
             # Count tables
             result["table_count"] = await self._count_tables(target, env, params)
 
-            result["status"] = "completed" if result["schema_valid"] else "completed_with_warnings"
+            result["status"] = (
+                "completed" if result["schema_valid"] else "completed_with_warnings"
+            )
             result["duration_seconds"] = round(time.perf_counter() - start, 2)
 
             logger.info(
@@ -186,10 +199,14 @@ class RestoreManager:
         try:
             cmd = [
                 "psql",
-                "-h", params["host"],
-                "-p", str(params["port"]),
-                "-U", params["user"],
-                "-d", db_name,
+                "-h",
+                params["host"],
+                "-p",
+                str(params["port"]),
+                "-U",
+                params["user"],
+                "-d",
+                db_name,
                 "-t",
                 "-A",
                 "-c",
@@ -223,10 +240,14 @@ class RestoreManager:
         try:
             cmd = [
                 "psql",
-                "-h", params["host"],
-                "-p", str(params["port"]),
-                "-U", params["user"],
-                "-d", db_name,
+                "-h",
+                params["host"],
+                "-p",
+                str(params["port"]),
+                "-U",
+                params["user"],
+                "-d",
+                db_name,
                 "-t",
                 "-A",
                 "-c",
@@ -244,7 +265,7 @@ class RestoreManager:
         except Exception:  # noqa: BLE001
             return 0
 
-    async def verify_data_integrity(self, db_name: Optional[str] = None) -> dict:
+    async def verify_data_integrity(self, db_name: str | None = None) -> dict:
         """Verify data integrity after restore.
 
         Checks:
@@ -257,8 +278,8 @@ class RestoreManager:
         env = os.environ.copy()
         env["PGPASSWORD"] = params["password"]
 
-        result = {
-            "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+        result: dict[str, Any] = {
+            "timestamp": datetime.now(tz=UTC).isoformat(),
             "database": target,
             "checks": {},
             "all_passed": True,
@@ -268,21 +289,32 @@ class RestoreManager:
             ("users_count", "SELECT count(*) FROM users;"),
             ("orders_count", "SELECT count(*) FROM orders;"),
             ("trading_instances_count", "SELECT count(*) FROM trading_instances;"),
-            ("fk_constraints_valid", "SELECT count(*) FROM pg_constraint WHERE contype='f';"),
-            ("indexes_valid", "SELECT count(*) FROM pg_indexes WHERE schemaname='public';"),
+            (
+                "fk_constraints_valid",
+                "SELECT count(*) FROM pg_constraint WHERE contype='f';",
+            ),
+            (
+                "indexes_valid",
+                "SELECT count(*) FROM pg_indexes WHERE schemaname='public';",
+            ),
         ]
 
         for check_name, query in checks:
             try:
                 cmd = [
                     "psql",
-                    "-h", params["host"],
-                    "-p", str(params["port"]),
-                    "-U", params["user"],
-                    "-d", target,
+                    "-h",
+                    params["host"],
+                    "-p",
+                    str(params["port"]),
+                    "-U",
+                    params["user"],
+                    "-d",
+                    target,
                     "-t",
                     "-A",
-                    "-c", query,
+                    "-c",
+                    query,
                 ]
 
                 process = await asyncio.create_subprocess_exec(
@@ -309,4 +341,6 @@ class RestoreManager:
 
 
 # Singleton
-restore_manager = RestoreManager(backup_manager=__import__("core.backup", fromlist=["backup_manager"]).backup_manager)
+restore_manager = RestoreManager(
+    backup_manager=__import__("core.backup", fromlist=["backup_manager"]).backup_manager
+)

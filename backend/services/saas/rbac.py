@@ -7,8 +7,7 @@ for testing; production uses database-backed role assignments.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
 
 from core.logging import get_logger
 
@@ -17,17 +16,38 @@ logger = get_logger(__name__)
 # Default permissions per role
 _DEFAULT_ROLES: dict[str, list[str]] = {
     "user": ["trade:read", "account:read"],
-    "trader": ["trade:create", "trade:read", "trade:delete", "grid:manage", "account:read"],
+    "trader": [
+        "trade:create",
+        "trade:read",
+        "trade:delete",
+        "grid:manage",
+        "account:read",
+    ],
     "admin": [
-        "trade:create", "trade:read", "trade:delete", "grid:manage",
-        "risk:manage", "account:read", "account:manage",
-        "user:read", "billing:read",
+        "trade:create",
+        "trade:read",
+        "trade:delete",
+        "grid:manage",
+        "risk:manage",
+        "account:read",
+        "account:manage",
+        "user:read",
+        "billing:read",
     ],
     "super_admin": [
-        "trade:create", "trade:read", "trade:delete", "grid:manage",
-        "risk:manage", "account:read", "account:manage",
-        "user:read", "user:manage", "billing:read", "billing:manage",
-        "system:manage", "affiliate:manage",
+        "trade:create",
+        "trade:read",
+        "trade:delete",
+        "grid:manage",
+        "risk:manage",
+        "account:read",
+        "account:manage",
+        "user:read",
+        "user:manage",
+        "billing:read",
+        "billing:manage",
+        "system:manage",
+        "affiliate:manage",
     ],
 }
 
@@ -55,7 +75,9 @@ class RBACService:
         }
         self._register_defaults()
 
-    def define_role(self, role_name: str, permissions: list[str], description: str = "") -> None:
+    def define_role(
+        self, role_name: str, permissions: list[str], description: str = ""
+    ) -> None:
         self._roles[role_name] = Role(
             name=role_name,
             permissions=list(permissions),

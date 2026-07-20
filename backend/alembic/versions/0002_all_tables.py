@@ -5,16 +5,17 @@ Revises: 0001
 Create Date: 2026-07-09 00:00:00.000000
 
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "0002"
-down_revision: Union[str, None] = "0001"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0001"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -27,34 +28,75 @@ def upgrade() -> None:
 
     # --- Enum types ---
     user_role = sa.Enum("user", "admin", name="user_role")
-    subscription_tier = sa.Enum("free", "basic", "pro", "enterprise", name="subscription_tier")
-    exchange_name = sa.Enum("binance", "bybit", "okx", "kraken", "kucoin", name="exchange_name")
+    subscription_tier = sa.Enum(
+        "free", "basic", "pro", "enterprise", name="subscription_tier"
+    )
+    exchange_name = sa.Enum(
+        "binance", "bybit", "okx", "kraken", "kucoin", name="exchange_name"
+    )
     trading_instance_status = sa.Enum(
-        "created", "ready", "running", "paused", "stopping", "stopped",
-        "error", "recovering", "recovered", name="trading_instance_status",
+        "created",
+        "ready",
+        "running",
+        "paused",
+        "stopping",
+        "stopped",
+        "error",
+        "recovering",
+        "recovered",
+        name="trading_instance_status",
     )
     strategy_type = sa.Enum(
-        "smart_grid", "adaptive_grid", "infinity_grid", "dca", name="strategy_type",
+        "smart_grid",
+        "adaptive_grid",
+        "infinity_grid",
+        "dca",
+        name="strategy_type",
     )
     grid_strategy_type = sa.Enum(
-        "smart_grid", "adaptive_grid", "infinity_grid", "dca", name="grid_strategy_type",
+        "smart_grid",
+        "adaptive_grid",
+        "infinity_grid",
+        "dca",
+        name="grid_strategy_type",
     )
     order_side = sa.Enum("buy", "sell", name="order_side")
     order_type = sa.Enum("limit", "market", "stop_limit", name="order_type")
     order_status = sa.Enum(
-        "pending", "open", "partially_filled", "filled", "cancelled",
-        "rejected", "expired", name="order_status",
+        "pending",
+        "open",
+        "partially_filled",
+        "filled",
+        "cancelled",
+        "rejected",
+        "expired",
+        name="order_status",
     )
     position_side = sa.Enum("long", "short", name="position_side")
     transaction_type = sa.Enum(
-        "deposit", "withdrawal", "fee", "subscription", "refund", name="transaction_type",
+        "deposit",
+        "withdrawal",
+        "fee",
+        "subscription",
+        "refund",
+        name="transaction_type",
     )
     notification_type = sa.Enum(
-        "order_filled", "order_failed", "grid_completed", "profit_lock",
-        "error", "system", "subscription", name="notification_type",
+        "order_filled",
+        "order_failed",
+        "grid_completed",
+        "profit_lock",
+        "error",
+        "system",
+        "subscription",
+        name="notification_type",
     )
     subscription_tier_enum = sa.Enum(
-        "free", "basic", "pro", "enterprise", name="subscription_tier_enum",
+        "free",
+        "basic",
+        "pro",
+        "enterprise",
+        name="subscription_tier_enum",
     )
 
     # --- users ---
@@ -68,13 +110,28 @@ def upgrade() -> None:
         sa.Column("is_active", sa.Boolean(), server_default="true", nullable=False),
         sa.Column("is_verified", sa.Boolean(), server_default="false", nullable=False),
         sa.Column("role", user_role, server_default="user", nullable=False),
-        sa.Column("subscription_tier", subscription_tier, server_default="free", nullable=False),
+        sa.Column(
+            "subscription_tier",
+            subscription_tier,
+            server_default="free",
+            nullable=False,
+        ),
         sa.Column("referral_code", sa.String(20), nullable=True),
         sa.Column("referred_by", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("last_login_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("email", name="uq_users_email"),
         sa.UniqueConstraint("referral_code", name="uq_users_referral_code"),
@@ -94,8 +151,18 @@ def upgrade() -> None:
         sa.Column("min_investment", sa.Numeric(20, 8), nullable=False),
         sa.Column("max_investment", sa.Numeric(20, 8), nullable=True),
         sa.Column("is_active", sa.Boolean(), server_default="true", nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("name", name="uq_strategies_name"),
     )
@@ -112,13 +179,27 @@ def upgrade() -> None:
         sa.Column("grid_count", sa.Integer(), nullable=False),
         sa.Column("grid_spacing", sa.Numeric(20, 8), nullable=True),
         sa.Column("investment_per_grid", sa.Numeric(20, 8), nullable=False),
-        sa.Column("take_profit_enabled", sa.Boolean(), server_default="false", nullable=False),
+        sa.Column(
+            "take_profit_enabled", sa.Boolean(), server_default="false", nullable=False
+        ),
         sa.Column("take_profit_percentage", sa.Numeric(5, 2), nullable=True),
-        sa.Column("stop_loss_enabled", sa.Boolean(), server_default="false", nullable=False),
+        sa.Column(
+            "stop_loss_enabled", sa.Boolean(), server_default="false", nullable=False
+        ),
         sa.Column("stop_loss_percentage", sa.Numeric(5, 2), nullable=True),
         sa.Column("is_default", sa.Boolean(), server_default="false", nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
     )
@@ -136,15 +217,32 @@ def upgrade() -> None:
         sa.Column("is_testnet", sa.Boolean(), server_default="false", nullable=False),
         sa.Column("is_active", sa.Boolean(), server_default="true", nullable=False),
         sa.Column("last_synced_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("connection_status", sa.String(20), server_default="disconnected", nullable=False),
+        sa.Column(
+            "connection_status",
+            sa.String(20),
+            server_default="disconnected",
+            nullable=False,
+        ),
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
     )
     op.create_index("idx_exchange_accounts_user_id", "exchange_accounts", ["user_id"])
-    op.create_index("idx_exchange_accounts_exchange_name", "exchange_accounts", ["exchange_name"])
+    op.create_index(
+        "idx_exchange_accounts_exchange_name", "exchange_accounts", ["exchange_name"]
+    )
 
     # --- trading_instances ---
     op.create_table(
@@ -155,16 +253,25 @@ def upgrade() -> None:
         sa.Column("strategy_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("grid_profile_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("symbol", sa.String(20), nullable=False),
-        sa.Column("status", trading_instance_status, server_default="created", nullable=False),
+        sa.Column(
+            "status", trading_instance_status, server_default="created", nullable=False
+        ),
         sa.Column("start_price", sa.Numeric(20, 8), nullable=False),
         sa.Column("current_price", sa.Numeric(20, 8), nullable=True),
         sa.Column("total_investment", sa.Numeric(20, 8), nullable=False),
         sa.Column("base_currency", sa.String(10), nullable=False),
         sa.Column("quote_currency", sa.String(10), nullable=False),
-        sa.Column("profit_lock_enabled", sa.Boolean(), server_default="false", nullable=False),
+        sa.Column(
+            "profit_lock_enabled", sa.Boolean(), server_default="false", nullable=False
+        ),
         sa.Column("profit_lock_trigger_percentage", sa.Numeric(5, 2), nullable=True),
         sa.Column("profit_lock_trail_percentage", sa.Numeric(5, 2), nullable=True),
-        sa.Column("portfolio_lock_enabled", sa.Boolean(), server_default="false", nullable=False),
+        sa.Column(
+            "portfolio_lock_enabled",
+            sa.Boolean(),
+            server_default="false",
+            nullable=False,
+        ),
         sa.Column("portfolio_lock_trigger_percentage", sa.Numeric(5, 2), nullable=True),
         sa.Column("portfolio_lock_trail_percentage", sa.Numeric(5, 2), nullable=True),
         sa.Column("worker_id", sa.String(100), nullable=True),
@@ -174,8 +281,18 @@ def upgrade() -> None:
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("stopped_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
         sa.ForeignKeyConstraint(["exchange_account_id"], ["exchange_accounts.id"]),
@@ -183,8 +300,14 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["grid_profile_id"], ["grid_profiles.id"]),
     )
     op.create_index("idx_trading_instances_user_id", "trading_instances", ["user_id"])
-    op.create_index("idx_trading_instances_exchange_account_id", "trading_instances", ["exchange_account_id"])
-    op.create_index("idx_trading_instances_strategy_id", "trading_instances", ["strategy_id"])
+    op.create_index(
+        "idx_trading_instances_exchange_account_id",
+        "trading_instances",
+        ["exchange_account_id"],
+    )
+    op.create_index(
+        "idx_trading_instances_strategy_id", "trading_instances", ["strategy_id"]
+    )
     op.create_index("idx_trading_instances_status", "trading_instances", ["status"])
     op.create_index("idx_trading_instances_symbol", "trading_instances", ["symbol"])
 
@@ -199,14 +322,30 @@ def upgrade() -> None:
         sa.Column("current_price", sa.Numeric(20, 8), nullable=True),
         sa.Column("quantity", sa.Numeric(20, 8), nullable=False),
         sa.Column("value", sa.Numeric(20, 8), nullable=False),
-        sa.Column("unrealized_pnl", sa.Numeric(20, 8), server_default="0", nullable=False),
-        sa.Column("realized_pnl", sa.Numeric(20, 8), server_default="0", nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "unrealized_pnl", sa.Numeric(20, 8), server_default="0", nullable=False
+        ),
+        sa.Column(
+            "realized_pnl", sa.Numeric(20, 8), server_default="0", nullable=False
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.ForeignKeyConstraint(["trading_instance_id"], ["trading_instances.id"]),
     )
-    op.create_index("idx_positions_trading_instance_id", "positions", ["trading_instance_id"])
+    op.create_index(
+        "idx_positions_trading_instance_id", "positions", ["trading_instance_id"]
+    )
     op.create_index("idx_positions_symbol", "positions", ["symbol"])
 
     # --- orders ---
@@ -223,15 +362,29 @@ def upgrade() -> None:
         sa.Column("quantity", sa.Numeric(20, 8), nullable=False),
         sa.Column("price", sa.Numeric(20, 8), nullable=True),
         sa.Column("stop_price", sa.Numeric(20, 8), nullable=True),
-        sa.Column("filled_quantity", sa.Numeric(20, 8), server_default="0", nullable=False),
+        sa.Column(
+            "filled_quantity", sa.Numeric(20, 8), server_default="0", nullable=False
+        ),
         sa.Column("average_fill_price", sa.Numeric(20, 8), nullable=True),
         sa.Column("status", order_status, server_default="pending", nullable=False),
         sa.Column("error_message", sa.Text(), nullable=True),
         sa.Column("grid_level", sa.Integer(), nullable=True),
         sa.Column("purpose", sa.String(30), server_default="grid", nullable=False),
-        sa.Column("is_profit_lock", sa.Boolean(), server_default="false", nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "is_profit_lock", sa.Boolean(), server_default="false", nullable=False
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("filled_at", sa.DateTime(timezone=True), nullable=True),
         sa.PrimaryKeyConstraint("id"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
@@ -256,8 +409,18 @@ def upgrade() -> None:
         sa.Column("status", sa.String(20), server_default="pending", nullable=False),
         sa.Column("reference_id", sa.String(100), nullable=True),
         sa.Column("description", sa.Text(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.PrimaryKeyConstraint("id"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
@@ -276,8 +439,18 @@ def upgrade() -> None:
         sa.Column("end_date", sa.Date(), nullable=False),
         sa.Column("is_active", sa.Boolean(), server_default="true", nullable=False),
         sa.Column("auto_renew", sa.Boolean(), server_default="false", nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
         sa.UniqueConstraint("user_id", name="uq_subscriptions_user_id"),
@@ -290,11 +463,23 @@ def upgrade() -> None:
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("commission_rate", sa.Numeric(5, 2), nullable=False),
-        sa.Column("total_earnings", sa.Numeric(20, 8), server_default="0", nullable=False),
+        sa.Column(
+            "total_earnings", sa.Numeric(20, 8), server_default="0", nullable=False
+        ),
         sa.Column("total_referrals", sa.Integer(), server_default="0", nullable=False),
         sa.Column("is_active", sa.Boolean(), server_default="true", nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
         sa.UniqueConstraint("user_id", name="uq_affiliates_user_id"),
@@ -311,7 +496,12 @@ def upgrade() -> None:
         sa.Column("data", postgresql.JSONB(), nullable=True),
         sa.Column("is_read", sa.Boolean(), server_default="false", nullable=False),
         sa.Column("read_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
     )
@@ -328,14 +518,35 @@ def upgrade() -> None:
         sa.Column("available", sa.Numeric(20, 8), nullable=False),
         sa.Column("locked", sa.Numeric(20, 8), server_default="0", nullable=False),
         sa.Column("total", sa.Numeric(20, 8), nullable=False),
-        sa.Column("last_updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "last_updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.ForeignKeyConstraint(["exchange_account_id"], ["exchange_accounts.id"]),
-        sa.UniqueConstraint("exchange_account_id", "currency", name="uq_balances_exchange_account_currency"),
+        sa.UniqueConstraint(
+            "exchange_account_id",
+            "currency",
+            name="uq_balances_exchange_account_currency",
+        ),
     )
-    op.create_index("idx_balances_exchange_account_id", "balances", ["exchange_account_id"])
+    op.create_index(
+        "idx_balances_exchange_account_id", "balances", ["exchange_account_id"]
+    )
 
 
 def downgrade() -> None:
@@ -372,7 +583,9 @@ def downgrade() -> None:
     op.drop_index("idx_trading_instances_symbol", table_name="trading_instances")
     op.drop_index("idx_trading_instances_status", table_name="trading_instances")
     op.drop_index("idx_trading_instances_strategy_id", table_name="trading_instances")
-    op.drop_index("idx_trading_instances_exchange_account_id", table_name="trading_instances")
+    op.drop_index(
+        "idx_trading_instances_exchange_account_id", table_name="trading_instances"
+    )
     op.drop_index("idx_trading_instances_user_id", table_name="trading_instances")
     op.drop_table("trading_instances")
 
@@ -392,9 +605,18 @@ def downgrade() -> None:
 
     # Drop enum types
     for enum_name in [
-        "notification_type", "transaction_type", "position_side", "order_status",
-        "order_type", "order_side", "grid_strategy_type", "strategy_type",
-        "trading_instance_status", "exchange_name", "subscription_tier_enum",
-        "subscription_tier", "user_role",
+        "notification_type",
+        "transaction_type",
+        "position_side",
+        "order_status",
+        "order_type",
+        "order_side",
+        "grid_strategy_type",
+        "strategy_type",
+        "trading_instance_status",
+        "exchange_name",
+        "subscription_tier_enum",
+        "subscription_tier",
+        "user_role",
     ]:
         op.execute(f"DROP TYPE IF EXISTS {enum_name}")

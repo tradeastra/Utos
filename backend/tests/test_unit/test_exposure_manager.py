@@ -10,9 +10,15 @@ from engine.risk.portfolio import PortfolioManager
 
 def _setup_positions() -> PortfolioManager:
     pm = PortfolioManager()
-    pm.register_position("inst-1", "acc-1", "binance", "BTCUSDT", "long", Decimal("100"), Decimal("2"))
-    pm.register_position("inst-2", "acc-1", "binance", "ETHUSDT", "long", Decimal("50"), Decimal("4"))
-    pm.register_position("inst-3", "acc-2", "bybit", "BTCUSDT", "short", Decimal("100"), Decimal("1"))
+    pm.register_position(
+        "inst-1", "acc-1", "binance", "BTCUSDT", "long", Decimal("100"), Decimal("2")
+    )
+    pm.register_position(
+        "inst-2", "acc-1", "binance", "ETHUSDT", "long", Decimal("50"), Decimal("4")
+    )
+    pm.register_position(
+        "inst-3", "acc-2", "bybit", "BTCUSDT", "short", Decimal("100"), Decimal("1")
+    )
     return pm
 
 
@@ -64,14 +70,30 @@ class TestNetExposure:
 
     def test_net_exposure_all_long(self) -> None:
         pm = PortfolioManager()
-        pm.register_position("inst-1", "acc-1", "binance", "BTCUSDT", "long", Decimal("100"), Decimal("2"))
+        pm.register_position(
+            "inst-1",
+            "acc-1",
+            "binance",
+            "BTCUSDT",
+            "long",
+            Decimal("100"),
+            Decimal("2"),
+        )
         prices = {"BTCUSDT": Decimal("110")}
         net = ExposureManager.get_net_exposure(pm.get_positions(), prices)
         assert net == Decimal("220")
 
     def test_net_exposure_all_short(self) -> None:
         pm = PortfolioManager()
-        pm.register_position("inst-1", "acc-1", "binance", "BTCUSDT", "short", Decimal("100"), Decimal("2"))
+        pm.register_position(
+            "inst-1",
+            "acc-1",
+            "binance",
+            "BTCUSDT",
+            "short",
+            Decimal("100"),
+            Decimal("2"),
+        )
         prices = {"BTCUSDT": Decimal("110")}
         net = ExposureManager.get_net_exposure(pm.get_positions(), prices)
         assert net == Decimal("-220")
@@ -100,7 +122,15 @@ class TestCalculateExposure:
 
     def test_fallback_to_entry_price(self) -> None:
         pm = PortfolioManager()
-        pm.register_position("inst-1", "acc-1", "binance", "BTCUSDT", "long", Decimal("100"), Decimal("2"))
+        pm.register_position(
+            "inst-1",
+            "acc-1",
+            "binance",
+            "BTCUSDT",
+            "long",
+            Decimal("100"),
+            Decimal("2"),
+        )
         # No price in dict → falls back to entry_price
         report = ExposureManager.calculate_exposure(pm.get_positions(), {})
         assert report.total_exposure == Decimal("200")  # 100*2

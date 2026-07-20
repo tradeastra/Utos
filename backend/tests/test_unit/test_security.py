@@ -4,9 +4,8 @@ and production secret validation.
 """
 
 import pytest
+from core.middleware import DEFAULT_API_LIMIT, RATE_LIMITS, SECURITY_HEADERS
 from httpx import AsyncClient
-
-from core.middleware import SECURITY_HEADERS, RATE_LIMITS, DEFAULT_API_LIMIT
 
 
 @pytest.mark.asyncio
@@ -64,30 +63,38 @@ class TestRateLimiting:
 class TestProductionSecretValidation:
     def test_development_allows_default_secret(self):
         from core.config import Settings
+
         # In development, default SECRET_KEY is allowed
         s = Settings(APP_ENV="development", TESTING=True)
         assert s.SECRET_KEY == "change-me-to-a-long-random-string-at-least-32-chars"
 
     def test_production_rejects_default_secret(self):
-        from pydantic import ValidationError
         from core.config import Settings
+        from pydantic import ValidationError
+
         with pytest.raises((ValidationError, ValueError)):
-            Settings(APP_ENV="production", SECRET_KEY="change-me-to-a-long-random-string-at-least-32-chars")
+            Settings(
+                APP_ENV="production",
+                SECRET_KEY="change-me-to-a-long-random-string-at-least-32-chars",
+            )
 
     def test_production_rejects_short_secret(self):
-        from pydantic import ValidationError
         from core.config import Settings
+        from pydantic import ValidationError
+
         with pytest.raises((ValidationError, ValueError)):
             Settings(APP_ENV="production", SECRET_KEY="short")
 
     def test_production_rejects_debug_true(self):
-        from pydantic import ValidationError
         from core.config import Settings
+        from pydantic import ValidationError
+
         with pytest.raises((ValidationError, ValueError)):
             Settings(APP_ENV="production", SECRET_KEY="a" * 32, DEBUG=True)
 
     def test_production_accepts_valid_config(self):
         from core.config import Settings
+
         s = Settings(APP_ENV="production", SECRET_KEY="a" * 32, DEBUG=False)
         assert s.APP_ENV == "production"
         assert s.DEBUG is False

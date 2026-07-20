@@ -1,7 +1,6 @@
 """Unit tests for notification channels."""
 
 import pytest
-
 from engine.notification.channels import (
     DiscordChannel,
     EmailChannel,
@@ -22,9 +21,11 @@ class TestEmailChannel:
     @pytest.mark.asyncio
     async def test_send_with_callback(self) -> None:
         sent: list[tuple] = []
+
         def send_fn(recipient: str, title: str, msg: str, data: dict) -> bool:
             sent.append((recipient, title, msg))
             return True
+
         ch = EmailChannel(send_fn=send_fn)
         result = await ch.send("user@example.com", "Test", "Hello", {"key": "val"})
         assert result is True
@@ -35,6 +36,7 @@ class TestEmailChannel:
     async def test_send_callback_exception(self) -> None:
         def boom(recipient: str, title: str, msg: str, data: dict) -> bool:
             raise RuntimeError("SMTP down")
+
         ch = EmailChannel(send_fn=boom)
         result = await ch.send("user@example.com", "Test", "Hello")
         assert result is False
@@ -55,7 +57,12 @@ class TestTelegramChannel:
     @pytest.mark.asyncio
     async def test_send_with_callback(self) -> None:
         sent: list[tuple] = []
-        ch = TelegramChannel(send_fn=lambda r, t, m, d: sent.append((r, t, m)) or True)
+
+        def send_fn(recipient: str, title: str, msg: str, data: dict) -> bool:
+            sent.append((recipient, title, msg))
+            return True
+
+        ch = TelegramChannel(send_fn=send_fn)
         await ch.send("@user", "Test", "Hello")
         assert len(sent) == 1
 

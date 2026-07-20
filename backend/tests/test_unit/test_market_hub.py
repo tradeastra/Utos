@@ -2,15 +2,14 @@
 Unit tests for MarketHub.
 """
 
-from datetime import datetime, timezone
+from collections.abc import Callable
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, Callable
+from typing import Any
 
 import pytest
-
-from core.types import Candle, OrderBook, TickerData
+from core.domain_types import Candle, OrderBook, TickerData
 from market.base import MarketStatus
-from market.cache.market_cache import MarketCache
 from market.hub.market_hub import MarketHub
 from market.symbol_registry import SymbolRegistry
 
@@ -54,7 +53,9 @@ class FakeAdapter:
     async def is_account_connected(self) -> bool:
         return True
 
-    async def subscribe_market(self, symbol: str, channel: str, callback: Callable) -> str:
+    async def subscribe_market(
+        self, symbol: str, channel: str, callback: Callable
+    ) -> str:
         self._sub_counter += 1
         sub_id = f"{self._name}_sub_{self._sub_counter}"
         self._callbacks[sub_id] = callback
@@ -70,7 +71,7 @@ class FakeAdapter:
             ask=Decimal("50001"),
             last=Decimal("50000.50"),
             volume=Decimal("1000"),
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         )
 
     async def get_order_book(self, symbol: str, depth: int = 20) -> OrderBook:
@@ -78,28 +79,34 @@ class FakeAdapter:
             symbol=symbol,
             bids=[(Decimal("50000"), Decimal("1.5"))],
             asks=[(Decimal("50001"), Decimal("1.0"))],
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         )
 
-    async def get_candles(self, symbol: str, interval: str, limit: int = 100) -> list[Candle]:
+    async def get_candles(
+        self, symbol: str, interval: str, limit: int = 100
+    ) -> list[Candle]:
         return [
             Candle(
-                symbol=symbol, interval=interval,
-                open=Decimal("50000"), high=Decimal("50100"),
-                low=Decimal("49900"), close=Decimal("50050"),
+                symbol=symbol,
+                interval=interval,
+                open=Decimal("50000"),
+                high=Decimal("50100"),
+                low=Decimal("49900"),
+                close=Decimal("50050"),
                 volume=Decimal("100"),
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
             )
         ]
 
     async def get_exchange_info(self) -> Any:
-        from core.types import ExchangeInfo
+        from core.domain_types import ExchangeInfo
+
         return ExchangeInfo(
             name=self._name,
             supported_symbols=["BTCUSDT", "ETHUSDT"],
             rate_limits={},
             fee_structure={},
-            server_time=datetime.now(timezone.utc),
+            server_time=datetime.now(UTC),
         )
 
     async def health_check(self) -> bool:
@@ -109,6 +116,7 @@ class FakeAdapter:
         """Simulate a WebSocket ticker update."""
         for callback in self._callbacks.values():
             import asyncio
+
             asyncio.get_event_loop().create_task(callback(ticker))
 
 
@@ -131,7 +139,9 @@ def registry() -> SymbolRegistry:
 
 
 @pytest.fixture
-async def hub(registry: SymbolRegistry, binance_adapter: FakeAdapter, bybit_adapter: FakeAdapter) -> MarketHub:
+async def hub(
+    registry: SymbolRegistry, binance_adapter: FakeAdapter, bybit_adapter: FakeAdapter
+) -> MarketHub:
     h = MarketHub(symbol_registry=registry)
     h.register_adapter("binance", binance_adapter)
     h.register_adapter("bybit", bybit_adapter)
@@ -146,7 +156,9 @@ async def _noop(data: Any) -> None:
 
 class TestMarketHub:
     @pytest.mark.asyncio
-    async def test_register_adapter(self, registry: SymbolRegistry, binance_adapter: FakeAdapter) -> None:
+    async def test_register_adapter(
+        self, registry: SymbolRegistry, binance_adapter: FakeAdapter
+    ) -> None:
         h = MarketHub(symbol_registry=registry)
         h.register_adapter("binance", binance_adapter)
         assert "binance" in h.exchanges()
@@ -181,7 +193,7 @@ class TestMarketHub:
             ask=Decimal("50001"),
             last=Decimal("50000.50"),
             volume=Decimal("1000"),
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         )
         hub.cache.update_ticker("binance", "BTCUSDT", ticker)
         result = await hub.get_ticker("binance", "BTCUSDT")
@@ -204,7 +216,7 @@ class TestMarketHub:
             ask=Decimal("50001"),
             last=Decimal("50000.50"),
             volume=Decimal("1000"),
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         )
         hub.cache.update_ticker("binance", "BTCUSDT", ticker)
         price = await hub.get_price("binance", "BTCUSDT")
@@ -257,11 +269,14 @@ class TestMarketHub:
     @pytest.mark.asyncio
     async def test_subscribe_unsupported_symbol(self, hub: MarketHub) -> None:
         from core.exceptions import SymbolNotSupported
+
         with pytest.raises(SymbolNotSupported):
             await hub.subscribe("binance", "DOGEUSDT", "ticker", _noop)
 
     @pytest.mark.asyncio
-    async def test_subscribe_before_start_raises(self, registry: SymbolRegistry, binance_adapter: FakeAdapter) -> None:
+    async def test_subscribe_before_start_raises(
+        self, registry: SymbolRegistry, binance_adapter: FakeAdapter
+    ) -> None:
         h = MarketHub(symbol_registry=registry)
         h.register_adapter("binance", binance_adapter)
         with pytest.raises(RuntimeError):
@@ -276,7 +291,7 @@ class TestMarketHub:
             ask=Decimal("50001"),
             last=Decimal("50000.50"),
             volume=Decimal("1000"),
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         )
         hub.cache.update_ticker("binance", "BTCUSDT", ticker)
         connector = hub._connectors["binance"]
@@ -285,15 +300,24 @@ class TestMarketHub:
         assert result.last == Decimal("50000.50")
 
     @pytest.mark.asyncio
-    async def test_stop_clears_cache(self, registry: SymbolRegistry, binance_adapter: FakeAdapter) -> None:
+    async def test_stop_clears_cache(
+        self, registry: SymbolRegistry, binance_adapter: FakeAdapter
+    ) -> None:
         h = MarketHub(symbol_registry=registry)
         h.register_adapter("binance", binance_adapter)
         await h.start()
-        h.cache.update_ticker("binance", "BTCUSDT", TickerData(
-            symbol="BTCUSDT", bid=Decimal("1"), ask=Decimal("1"),
-            last=Decimal("1"), volume=Decimal("1"),
-            timestamp=datetime.now(timezone.utc),
-        ))
+        h.cache.update_ticker(
+            "binance",
+            "BTCUSDT",
+            TickerData(
+                symbol="BTCUSDT",
+                bid=Decimal("1"),
+                ask=Decimal("1"),
+                last=Decimal("1"),
+                volume=Decimal("1"),
+                timestamp=datetime.now(UTC),
+            ),
+        )
         assert h.cache.entry_count() == 1
         await h.stop()
         assert h.cache.entry_count() == 0

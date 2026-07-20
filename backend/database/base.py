@@ -8,8 +8,11 @@ from collections.abc import AsyncGenerator
 from typing import Any
 
 import sqlalchemy as sa
+from core.config import get_database_url
+from core.logging import get_logger
 from sqlalchemy import String, TypeDecorator
-from sqlalchemy.dialects.postgresql import JSONB, UUID as PgUUID
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -17,9 +20,6 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 from sqlalchemy.orm import DeclarativeBase
-
-from core.config import get_database_url
-from core.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -52,6 +52,7 @@ class GUID(TypeDecorator):
         if not isinstance(value, str):
             return value
         import uuid
+
         return uuid.UUID(value)
 
 
@@ -75,6 +76,7 @@ class JSONBCompat(TypeDecorator):
         if dialect.name == "postgresql":
             return value
         import json
+
         return json.dumps(value)
 
     def process_result_value(self, value: Any, dialect: Any) -> Any:
@@ -84,6 +86,7 @@ class JSONBCompat(TypeDecorator):
             return value
         if isinstance(value, str):
             import json
+
             return json.loads(value)
         return value
 

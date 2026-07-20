@@ -4,13 +4,12 @@ Subscription model — matches DATABASE.md §2.9.
 
 import uuid
 
-from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, Index, String
-from database.base import GUID
+from database.base import GUID, Base
+from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from models.user import SubscriptionTier
-from database.base import Base
 
 
 class Subscription(Base):
@@ -18,14 +17,12 @@ class Subscription(Base):
 
     __tablename__ = "subscriptions"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        GUID(), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
         GUID(), ForeignKey("users.id"), unique=True, nullable=False
     )
     tier: Mapped[SubscriptionTier] = mapped_column(
-        Enum(SubscriptionTier, name="subscription_tier_enum"),
+        Enum(SubscriptionTier, name="subscription_tier_enum", values_callable=lambda x: [e.value for e in x]),
         nullable=False,
     )
     start_date: Mapped[DateTime] = mapped_column(Date, nullable=False)
