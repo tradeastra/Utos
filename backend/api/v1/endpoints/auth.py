@@ -2,27 +2,23 @@
 Authentication endpoints — register, login, refresh, logout.
 """
 
-from datetime import datetime, timezone
-
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import UTC, datetime
 
 from core.config import settings
 from core.exceptions import AuthenticationError
 from core.logging import get_logger
 from core.security import PasswordManager, TokenManager
 from database.base import get_db
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from repositories.user_repository import UserRepository
 from schemas.auth import (
-    AccessTokenResponse,
-    MessageResponse,
     RefreshTokenRequest,
-    TokenResponse,
     UserLoginRequest,
     UserRegisterRequest,
     UserResponse,
 )
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -33,7 +29,7 @@ token_manager = TokenManager()
 
 
 def _now_iso() -> str:
-    return datetime.now(tz=timezone.utc).isoformat()
+    return datetime.now(tz=UTC).isoformat()
 
 
 @router.post("/register", response_model=dict, status_code=status.HTTP_201_CREATED)
@@ -55,7 +51,9 @@ async def register(
             },
         )
     hashed = password_manager.hash_password(body.password)
-    user = await repo.create(email=body.email, password_hash=hashed, full_name=body.full_name)
+    user = await repo.create(
+        email=body.email, password_hash=hashed, full_name=body.full_name
+    )
     logger.info("User registered", extra={"user_id": str(user.id)})
     return {
         "data": UserResponse.model_validate(user).model_dump(),
@@ -71,7 +69,9 @@ async def login(
     """Authenticate and return JWT tokens."""
     repo = UserRepository(db)
     user = await repo.get_by_email(body.email)
-    if not user or not password_manager.verify_password(body.password, user.password_hash):
+    if not user or not password_manager.verify_password(
+        body.password, user.password_hash
+    ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={
@@ -85,7 +85,13 @@ async def login(
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={"error": {"code": "ACCOUNT_DISABLED", "message": "Account is disabled", "details": None}},
+            detail={
+                "error": {
+                    "code": "ACCOUNT_DISABLED",
+                    "message": "Account is disabled",
+                    "details": None,
+                }
+            },
         )
     payload = {"sub": str(user.id), "email": user.email}
     access_token = token_manager.create_access_token(payload)
@@ -110,7 +116,9 @@ async def refresh_token(body: RefreshTokenRequest) -> dict:
     except AuthenticationError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={"error": {"code": "INVALID_TOKEN", "message": str(exc), "details": None}},
+            detail={
+                "error": {"code": "INVALID_TOKEN", "message": str(exc), "details": None}
+            },
         ) from exc
     new_token = token_manager.create_access_token(
         {"sub": payload["sub"], "email": payload.get("email")}

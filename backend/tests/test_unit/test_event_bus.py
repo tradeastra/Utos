@@ -1,7 +1,6 @@
 """Unit tests for EventBus."""
 
 import pytest
-
 from engine.scheduler.bus import EventBus
 
 

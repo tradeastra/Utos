@@ -6,7 +6,6 @@ retry → DLQ pipeline, and heartbeat monitoring.
 """
 
 import pytest
-
 from engine.scheduler.bus import EventBus
 from engine.scheduler.dlq import DeadLetterQueue
 from engine.scheduler.heartbeat import HeartbeatMonitor
@@ -31,13 +30,16 @@ class TestEventFlowAcrossEngines:
         bus.subscribe("ORDER_FILLED", lambda e: portfolio_received.append(e))
         bus.subscribe("ORDER_FILLED", lambda e: risk_received.append(e))
 
-        await bus.publish("ORDER_FILLED", {
-            "order_id": "ord-1",
-            "symbol": "BTCUSDT",
-            "side": "buy",
-            "quantity": "1.5",
-            "price": "50000",
-        })
+        await bus.publish(
+            "ORDER_FILLED",
+            {
+                "order_id": "ord-1",
+                "symbol": "BTCUSDT",
+                "side": "buy",
+                "quantity": "1.5",
+                "price": "50000",
+            },
+        )
 
         assert len(grid_received) == 1
         assert len(profit_lock_received) == 1
@@ -99,7 +101,7 @@ class TestRetryDLQPipeline:
         def dlq_cb(job, reason: str) -> None:
             dlq_entries.append((job.task_id, reason))
 
-        dlq = DeadLetterQueue()
+        DeadLetterQueue()
         rw = RetryWorker(max_retries=2, backoff_base=0, dlq_callback=dlq_cb)
 
         def always_fails() -> None:
@@ -117,7 +119,7 @@ class TestRetryDLQPipeline:
 
     @pytest.mark.asyncio
     async def test_retry_succeeds_before_dlq(self) -> None:
-        dlq = DeadLetterQueue()
+        DeadLetterQueue()
         dlq_count: list[int] = []
 
         def dlq_cb(job, reason: str) -> None:
@@ -185,9 +187,10 @@ class TestFullSchedulerFlow:
     async def test_event_triggered_task_with_retry(self) -> None:
         bus = EventBus()
         js = JobScheduler()
-        dlq = DeadLetterQueue()
+        DeadLetterQueue()
 
         dlq_entries: list[tuple] = []
+
         def dlq_cb(job, reason: str) -> None:
             dlq_entries.append((job.task_id, reason))
 

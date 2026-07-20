@@ -10,9 +10,15 @@ from engine.risk.portfolio import PortfolioManager
 
 def _setup_positions() -> PortfolioManager:
     pm = PortfolioManager()
-    pm.register_position("inst-1", "acc-1", "binance", "BTCUSDT", "long", Decimal("100"), Decimal("2"))
-    pm.register_position("inst-2", "acc-1", "binance", "BTCUSDT", "long", Decimal("110"), Decimal("1"))
-    pm.register_position("inst-3", "acc-2", "bybit", "ETHUSDT", "short", Decimal("50"), Decimal("4"))
+    pm.register_position(
+        "inst-1", "acc-1", "binance", "BTCUSDT", "long", Decimal("100"), Decimal("2")
+    )
+    pm.register_position(
+        "inst-2", "acc-1", "binance", "BTCUSDT", "long", Decimal("110"), Decimal("1")
+    )
+    pm.register_position(
+        "inst-3", "acc-2", "bybit", "ETHUSDT", "short", Decimal("50"), Decimal("4")
+    )
     return pm
 
 

@@ -4,52 +4,35 @@ Repository unit tests for Sprint 2.
 Tests CRUD operations for all 12 repositories using the test database.
 """
 
-import uuid
-from datetime import date, datetime, timezone
+from datetime import date
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import select
-
-from models import (
-    User,
-    ExchangeAccount,
-    TradingInstance,
-    Position,
-    Order,
-    GridProfile,
-    Strategy,
-    Transaction,
-    Subscription,
-    Affiliate,
-    Notification,
-    Balance,
+from core.domain_types import (
+    OrderSide,
+    OrderStatus,
+    OrderType,
+    PositionSide,
+    StrategyType,
+    TradingInstanceStatus,
+    TransactionType,
 )
 from models.exchange_account import ExchangeName
 from models.notification import NotificationType
-from models.user import SubscriptionTier, UserRole
-from core.types import (
-    TradingInstanceStatus,
-    StrategyType,
-    OrderSide,
-    OrderType,
-    OrderStatus,
-    PositionSide,
-    TransactionType,
-)
+from models.user import SubscriptionTier
 from repositories import (
-    UserRepository,
-    ExchangeAccountRepository,
-    TradingInstanceRepository,
-    PositionRepository,
-    OrderRepository,
-    GridProfileRepository,
-    StrategyRepository,
-    TransactionRepository,
-    SubscriptionRepository,
     AffiliateRepository,
-    NotificationRepository,
     BalanceRepository,
+    ExchangeAccountRepository,
+    GridProfileRepository,
+    NotificationRepository,
+    OrderRepository,
+    PositionRepository,
+    StrategyRepository,
+    SubscriptionRepository,
+    TradingInstanceRepository,
+    TransactionRepository,
+    UserRepository,
 )
 
 

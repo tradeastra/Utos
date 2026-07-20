@@ -35,6 +35,7 @@ class ProfitLockState:
     enabled: bool = False
     trigger_percentage: Decimal = Decimal("0")
     trail_percentage: Decimal = Decimal("0")
+    max_profit_percentage: Decimal = Decimal("0")  # 0 = no cap
     entry_price: Decimal = Decimal("0")
     quantity: Decimal = Decimal("0")
     side: str = "long"
@@ -64,7 +65,9 @@ class ProfitLockMetrics:
         self.decisions_made += 1
         self._decision_times.append(duration_ms)
         if self._decision_times:
-            self.avg_decision_time_ms = sum(self._decision_times) / len(self._decision_times)
+            self.avg_decision_time_ms = sum(self._decision_times) / len(
+                self._decision_times
+            )
 
     def record_event(self) -> None:
         self.events_processed += 1

@@ -12,7 +12,15 @@ class TestUnrealizedPnl:
 
     def test_long_profit(self) -> None:
         pm = PortfolioManager()
-        pm.register_position("inst-1", "acc-1", "binance", "BTCUSDT", "long", Decimal("100"), Decimal("2"))
+        pm.register_position(
+            "inst-1",
+            "acc-1",
+            "binance",
+            "BTCUSDT",
+            "long",
+            Decimal("100"),
+            Decimal("2"),
+        )
         pnl = PortfolioMetrics.calculate_unrealized_pnl(
             pm.get_positions(), {"BTCUSDT": Decimal("110")}
         )
@@ -20,7 +28,15 @@ class TestUnrealizedPnl:
 
     def test_long_loss(self) -> None:
         pm = PortfolioManager()
-        pm.register_position("inst-1", "acc-1", "binance", "BTCUSDT", "long", Decimal("100"), Decimal("2"))
+        pm.register_position(
+            "inst-1",
+            "acc-1",
+            "binance",
+            "BTCUSDT",
+            "long",
+            Decimal("100"),
+            Decimal("2"),
+        )
         pnl = PortfolioMetrics.calculate_unrealized_pnl(
             pm.get_positions(), {"BTCUSDT": Decimal("90")}
         )
@@ -28,7 +44,15 @@ class TestUnrealizedPnl:
 
     def test_short_profit(self) -> None:
         pm = PortfolioManager()
-        pm.register_position("inst-1", "acc-1", "binance", "BTCUSDT", "short", Decimal("100"), Decimal("2"))
+        pm.register_position(
+            "inst-1",
+            "acc-1",
+            "binance",
+            "BTCUSDT",
+            "short",
+            Decimal("100"),
+            Decimal("2"),
+        )
         pnl = PortfolioMetrics.calculate_unrealized_pnl(
             pm.get_positions(), {"BTCUSDT": Decimal("90")}
         )
@@ -36,14 +60,32 @@ class TestUnrealizedPnl:
 
     def test_missing_price_skipped(self) -> None:
         pm = PortfolioManager()
-        pm.register_position("inst-1", "acc-1", "binance", "BTCUSDT", "long", Decimal("100"), Decimal("2"))
+        pm.register_position(
+            "inst-1",
+            "acc-1",
+            "binance",
+            "BTCUSDT",
+            "long",
+            Decimal("100"),
+            Decimal("2"),
+        )
         pnl = PortfolioMetrics.calculate_unrealized_pnl(pm.get_positions(), {})
         assert pnl == Decimal("0")
 
     def test_multiple_positions(self) -> None:
         pm = PortfolioManager()
-        pm.register_position("inst-1", "acc-1", "binance", "BTCUSDT", "long", Decimal("100"), Decimal("2"))
-        pm.register_position("inst-2", "acc-1", "binance", "ETHUSDT", "long", Decimal("50"), Decimal("4"))
+        pm.register_position(
+            "inst-1",
+            "acc-1",
+            "binance",
+            "BTCUSDT",
+            "long",
+            Decimal("100"),
+            Decimal("2"),
+        )
+        pm.register_position(
+            "inst-2", "acc-1", "binance", "ETHUSDT", "long", Decimal("50"), Decimal("4")
+        )
         pnl = PortfolioMetrics.calculate_unrealized_pnl(
             pm.get_positions(), {"BTCUSDT": Decimal("110"), "ETHUSDT": Decimal("55")}
         )
@@ -55,7 +97,15 @@ class TestRealizedPnl:
 
     def test_realized_pnl(self) -> None:
         pm = PortfolioManager()
-        pm.register_position("inst-1", "acc-1", "binance", "BTCUSDT", "long", Decimal("100"), Decimal("2"))
+        pm.register_position(
+            "inst-1",
+            "acc-1",
+            "binance",
+            "BTCUSDT",
+            "long",
+            Decimal("100"),
+            Decimal("2"),
+        )
         pm.update_position("inst-1", Decimal("120"), Decimal("1"), "sell")
         pm.close_position("inst-1")
         pnl = PortfolioMetrics.calculate_realized_pnl(pm.get_closed_positions())
@@ -70,8 +120,24 @@ class TestTotalExposure:
 
     def test_total_exposure(self) -> None:
         pm = PortfolioManager()
-        pm.register_position("inst-1", "acc-1", "binance", "BTCUSDT", "long", Decimal("100"), Decimal("2"))
-        pm.register_position("inst-2", "acc-1", "binance", "ETHUSDT", "short", Decimal("50"), Decimal("4"))
+        pm.register_position(
+            "inst-1",
+            "acc-1",
+            "binance",
+            "BTCUSDT",
+            "long",
+            Decimal("100"),
+            Decimal("2"),
+        )
+        pm.register_position(
+            "inst-2",
+            "acc-1",
+            "binance",
+            "ETHUSDT",
+            "short",
+            Decimal("50"),
+            Decimal("4"),
+        )
         exposure = PortfolioMetrics.calculate_total_exposure(
             pm.get_positions(), {"BTCUSDT": Decimal("110"), "ETHUSDT": Decimal("55")}
         )
@@ -106,7 +172,15 @@ class TestMarginUsage:
 
     def test_margin_usage(self) -> None:
         pm = PortfolioManager()
-        pm.register_position("inst-1", "acc-1", "binance", "BTCUSDT", "long", Decimal("100"), Decimal("2"))
+        pm.register_position(
+            "inst-1",
+            "acc-1",
+            "binance",
+            "BTCUSDT",
+            "long",
+            Decimal("100"),
+            Decimal("2"),
+        )
         usage = PortfolioMetrics.calculate_margin_usage(
             pm.get_positions(), {"BTCUSDT": Decimal("110")}, Decimal("1000")
         )
@@ -115,7 +189,15 @@ class TestMarginUsage:
 
     def test_margin_usage_zero_balance(self) -> None:
         pm = PortfolioManager()
-        pm.register_position("inst-1", "acc-1", "binance", "BTCUSDT", "long", Decimal("100"), Decimal("2"))
+        pm.register_position(
+            "inst-1",
+            "acc-1",
+            "binance",
+            "BTCUSDT",
+            "long",
+            Decimal("100"),
+            Decimal("2"),
+        )
         usage = PortfolioMetrics.calculate_margin_usage(
             pm.get_positions(), {"BTCUSDT": Decimal("110")}, Decimal("0")
         )
@@ -126,11 +208,21 @@ class TestGenerateReport:
 
     def test_full_report(self) -> None:
         pm = PortfolioManager()
-        pm.register_position("inst-1", "acc-1", "binance", "BTCUSDT", "long", Decimal("100"), Decimal("2"))
+        pm.register_position(
+            "inst-1",
+            "acc-1",
+            "binance",
+            "BTCUSDT",
+            "long",
+            Decimal("100"),
+            Decimal("2"),
+        )
         pm.update_position("inst-1", Decimal("120"), Decimal("1"), "sell")
         pm.close_position("inst-1")
 
-        pm.register_position("inst-2", "acc-1", "binance", "ETHUSDT", "long", Decimal("50"), Decimal("4"))
+        pm.register_position(
+            "inst-2", "acc-1", "binance", "ETHUSDT", "long", Decimal("50"), Decimal("4")
+        )
 
         report = PortfolioMetrics.generate_report(
             positions=pm.get_positions(),

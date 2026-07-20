@@ -4,9 +4,10 @@ WorkerManager — manages worker lifecycle: start, stop, pause, resume, error tr
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Callable
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
 
 from core.logging import get_logger
 
@@ -49,7 +50,7 @@ class WorkerManager:
         if worker.state == "running":
             return True
         worker.state = "running"
-        worker.started_at = datetime.now(timezone.utc)
+        worker.started_at = datetime.now(UTC)
         worker.stopped_at = None
         worker.error_count = 0
         worker.last_error = None
@@ -64,7 +65,7 @@ class WorkerManager:
         if worker.state == "stopped":
             return True
         worker.state = "stopped"
-        worker.stopped_at = datetime.now(timezone.utc)
+        worker.stopped_at = datetime.now(UTC)
         self._metrics["workers_stopped"] += 1
         logger.info(f"Worker stopped: {name}")
         return True

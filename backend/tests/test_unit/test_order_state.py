@@ -3,7 +3,6 @@ Unit tests for ExecutionEngine order state machine.
 """
 
 import pytest
-
 from core.exceptions import InvalidStateTransition
 from engine.execution.models import ExecutionOrderStatus
 from engine.execution.order_state import OrderStateMachine

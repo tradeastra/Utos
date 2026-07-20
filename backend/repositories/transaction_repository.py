@@ -4,9 +4,9 @@ Transaction repository — async CRUD for transactions table.
 
 import uuid
 
+from models.transaction import Transaction
 from sqlalchemy import select
 
-from models.transaction import Transaction
 from repositories.base import IRepository
 
 

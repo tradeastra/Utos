@@ -5,13 +5,11 @@ Unit tests for RecoveryCoordinator.
 from decimal import Decimal
 
 import pytest
-
 from core.exceptions import RecoveryError
 from engine.recovery.connection import ConnectionRecovery
 from engine.recovery.coordinator import (
     InstanceContext,
     RecoveryCoordinator,
-    RecoveryStatus,
 )
 from engine.recovery.persistence import RecoveryPersistence
 from engine.recovery.reconciler import RuntimeReconciler
@@ -79,7 +77,9 @@ class TestRecoverInstance:
         assert coordinator.get_metrics()["recoveries_completed"] == 1
 
     @pytest.mark.asyncio
-    async def test_recover_unregistered_raises(self, coordinator: RecoveryCoordinator) -> None:
+    async def test_recover_unregistered_raises(
+        self, coordinator: RecoveryCoordinator
+    ) -> None:
         with pytest.raises(RecoveryError, match="not registered"):
             await coordinator.recover_instance("nonexistent")
 
@@ -92,17 +92,22 @@ class TestRecoverInstance:
         sr = StateRecovery()
         rc = RuntimeReconciler()
         coord = RecoveryCoordinator(cr, sr, rc)
-        coord.register_instance("inst-1", InstanceContext(
-            instance_id="inst-1", account_id="acc-1", exchange="binance", symbol="BTCUSDT",
-        ))
+        coord.register_instance(
+            "inst-1",
+            InstanceContext(
+                instance_id="inst-1",
+                account_id="acc-1",
+                exchange="binance",
+                symbol="BTCUSDT",
+            ),
+        )
         report = await coord.recover_instance("inst-1")
         assert report.connection_ok is False
         assert any("Connection recovery" in e for e in report.errors)
 
     @pytest.mark.asyncio
     async def test_recover_with_grid_and_profit_lock(self) -> None:
-        from core.types import GridLevel, GridState
-        from decimal import Decimal
+        from core.domain_types import GridLevel, GridState
         from engine.grid.persistence import GridPersistence
         from engine.profit_lock.persistence import ProfitPersistence
         from engine.profit_lock.state import ProfitLockState, ProfitLockStatus
@@ -116,7 +121,14 @@ class TestRecoverInstance:
             grid_spacing=Decimal("2"),
             investment_per_grid=Decimal("100"),
             symbol="BTCUSDT",
-            levels=[GridLevel(level=0, buy_price=Decimal("100"), sell_price=Decimal("102"), quantity=Decimal("1"))],
+            levels=[
+                GridLevel(
+                    level=0,
+                    buy_price=Decimal("100"),
+                    sell_price=Decimal("102"),
+                    quantity=Decimal("1"),
+                )
+            ],
         )
         grid_json = GridPersistence.to_json_string(grid_state)
 
@@ -150,10 +162,17 @@ class TestRecoverInstance:
         )
         rc = RuntimeReconciler()
         coord = RecoveryCoordinator(cr, sr, rc)
-        coord.register_instance("inst-1", InstanceContext(
-            instance_id="inst-1", account_id="acc-1", exchange="binance",
-            symbol="BTCUSDT", has_grid=True, has_profit_lock=True,
-        ))
+        coord.register_instance(
+            "inst-1",
+            InstanceContext(
+                instance_id="inst-1",
+                account_id="acc-1",
+                exchange="binance",
+                symbol="BTCUSDT",
+                has_grid=True,
+                has_profit_lock=True,
+            ),
+        )
         report = await coord.recover_instance("inst-1")
         assert report.connection_ok is True
         assert report.state_ok is True
@@ -164,22 +183,36 @@ class TestRecoverAll:
     @pytest.mark.asyncio
     async def test_recover_all(self, coordinator: RecoveryCoordinator) -> None:
         for i in range(5):
-            coordinator.register_instance(f"inst-{i}", InstanceContext(
-                instance_id=f"inst-{i}", account_id="acc-1", exchange="binance", symbol="BTCUSDT",
-            ))
+            coordinator.register_instance(
+                f"inst-{i}",
+                InstanceContext(
+                    instance_id=f"inst-{i}",
+                    account_id="acc-1",
+                    exchange="binance",
+                    symbol="BTCUSDT",
+                ),
+            )
         results = await coordinator.recover_all()
         assert len(results) == 5
-        for iid, report in results.items():
+        for _iid, report in results.items():
             assert report.connection_ok is True
             assert report.state_ok is True
 
 
 class TestRecoveryStatus:
 
-    def test_status_idle_before_recovery(self, coordinator: RecoveryCoordinator) -> None:
-        coordinator.register_instance("inst-1", InstanceContext(
-            instance_id="inst-1", account_id="acc-1", exchange="binance", symbol="BTCUSDT",
-        ))
+    def test_status_idle_before_recovery(
+        self, coordinator: RecoveryCoordinator
+    ) -> None:
+        coordinator.register_instance(
+            "inst-1",
+            InstanceContext(
+                instance_id="inst-1",
+                account_id="acc-1",
+                exchange="binance",
+                symbol="BTCUSDT",
+            ),
+        )
         status = coordinator.get_recovery_status("inst-1")
         assert status.state == "idle"
         assert status.started_at is None

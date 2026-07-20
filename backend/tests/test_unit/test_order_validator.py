@@ -3,13 +3,12 @@ Unit tests for OrderValidator.
 """
 
 import uuid
+from datetime import UTC
 from decimal import Decimal
 
 import pytest
-
 from adapters.base import IExchangeAdapter
-from core.exceptions import SymbolNotSupported
-from core.types import OrderSide, OrderType
+from core.domain_types import OrderSide, OrderType
 from engine.execution.exceptions import OrderValidationError
 from engine.execution.models import OrderRequest
 from engine.execution.validator import OrderValidator
@@ -90,14 +89,16 @@ class FakeAdapter(IExchangeAdapter):
         pass
 
     async def get_exchange_info(self):
-        from core.types import ExchangeInfo
-        from datetime import datetime, timezone
+        from datetime import datetime
+
+        from core.domain_types import ExchangeInfo
+
         return ExchangeInfo(
             name="binance",
             supported_symbols=["BTCUSDT"],
             rate_limits={},
             fee_structure={},
-            server_time=datetime.now(timezone.utc),
+            server_time=datetime.now(UTC),
         )
 
     async def health_check(self):
@@ -128,10 +129,17 @@ def valid_request() -> OrderRequest:
 
 
 class TestOrderValidator:
-    def test_valid_limit_order(self, validator: OrderValidator, valid_request: OrderRequest, adapter: FakeAdapter) -> None:
+    def test_valid_limit_order(
+        self,
+        validator: OrderValidator,
+        valid_request: OrderRequest,
+        adapter: FakeAdapter,
+    ) -> None:
         validator.validate(valid_request, adapter)
 
-    def test_valid_market_order(self, validator: OrderValidator, adapter: FakeAdapter) -> None:
+    def test_valid_market_order(
+        self, validator: OrderValidator, adapter: FakeAdapter
+    ) -> None:
         request = OrderRequest(
             request_id=uuid.uuid4(),
             exchange_account_id=uuid.uuid4(),
@@ -142,42 +150,79 @@ class TestOrderValidator:
         )
         validator.validate(request, adapter)
 
-    def test_missing_request_id(self, validator: OrderValidator, valid_request: OrderRequest, adapter: FakeAdapter) -> None:
+    def test_missing_request_id(
+        self,
+        validator: OrderValidator,
+        valid_request: OrderRequest,
+        adapter: FakeAdapter,
+    ) -> None:
         valid_request.request_id = None  # type: ignore[assignment]
         with pytest.raises(OrderValidationError):
             validator.validate(valid_request, adapter)
 
-    def test_missing_symbol(self, validator: OrderValidator, valid_request: OrderRequest, adapter: FakeAdapter) -> None:
+    def test_missing_symbol(
+        self,
+        validator: OrderValidator,
+        valid_request: OrderRequest,
+        adapter: FakeAdapter,
+    ) -> None:
         valid_request.symbol = ""
         with pytest.raises(OrderValidationError):
             validator.validate(valid_request, adapter)
 
-    def test_invalid_side(self, validator: OrderValidator, valid_request: OrderRequest, adapter: FakeAdapter) -> None:
+    def test_invalid_side(
+        self,
+        validator: OrderValidator,
+        valid_request: OrderRequest,
+        adapter: FakeAdapter,
+    ) -> None:
         valid_request.side = "long"  # type: ignore[assignment]
         with pytest.raises(OrderValidationError):
             validator.validate(valid_request, adapter)
 
-    def test_invalid_order_type(self, validator: OrderValidator, valid_request: OrderRequest, adapter: FakeAdapter) -> None:
+    def test_invalid_order_type(
+        self,
+        validator: OrderValidator,
+        valid_request: OrderRequest,
+        adapter: FakeAdapter,
+    ) -> None:
         valid_request.order_type = "unsupported"  # type: ignore[assignment]
         with pytest.raises(OrderValidationError):
             validator.validate(valid_request, adapter)
 
-    def test_zero_quantity(self, validator: OrderValidator, valid_request: OrderRequest, adapter: FakeAdapter) -> None:
+    def test_zero_quantity(
+        self,
+        validator: OrderValidator,
+        valid_request: OrderRequest,
+        adapter: FakeAdapter,
+    ) -> None:
         valid_request.quantity = Decimal("0")
         with pytest.raises(OrderValidationError):
             validator.validate(valid_request, adapter)
 
-    def test_negative_quantity(self, validator: OrderValidator, valid_request: OrderRequest, adapter: FakeAdapter) -> None:
+    def test_negative_quantity(
+        self,
+        validator: OrderValidator,
+        valid_request: OrderRequest,
+        adapter: FakeAdapter,
+    ) -> None:
         valid_request.quantity = Decimal("-1")
         with pytest.raises(OrderValidationError):
             validator.validate(valid_request, adapter)
 
-    def test_limit_without_price(self, validator: OrderValidator, valid_request: OrderRequest, adapter: FakeAdapter) -> None:
+    def test_limit_without_price(
+        self,
+        validator: OrderValidator,
+        valid_request: OrderRequest,
+        adapter: FakeAdapter,
+    ) -> None:
         valid_request.price = None
         with pytest.raises(OrderValidationError):
             validator.validate(valid_request, adapter)
 
-    def test_stop_limit_without_stop_price(self, validator: OrderValidator, adapter: FakeAdapter) -> None:
+    def test_stop_limit_without_stop_price(
+        self, validator: OrderValidator, adapter: FakeAdapter
+    ) -> None:
         request = OrderRequest(
             request_id=uuid.uuid4(),
             exchange_account_id=uuid.uuid4(),
@@ -190,7 +235,9 @@ class TestOrderValidator:
         with pytest.raises(OrderValidationError):
             validator.validate(request, adapter)
 
-    def test_market_with_price(self, validator: OrderValidator, adapter: FakeAdapter) -> None:
+    def test_market_with_price(
+        self, validator: OrderValidator, adapter: FakeAdapter
+    ) -> None:
         request = OrderRequest(
             request_id=uuid.uuid4(),
             exchange_account_id=uuid.uuid4(),
@@ -203,5 +250,7 @@ class TestOrderValidator:
         with pytest.raises(OrderValidationError):
             validator.validate(request, adapter)
 
-    def test_validation_without_adapter(self, validator: OrderValidator, valid_request: OrderRequest) -> None:
+    def test_validation_without_adapter(
+        self, validator: OrderValidator, valid_request: OrderRequest
+    ) -> None:
         validator.validate(valid_request, None)

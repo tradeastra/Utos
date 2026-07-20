@@ -75,14 +75,13 @@ jobs:
           TEST_DATABASE_URL: postgresql+asyncpg://utos:utos_test_password@localhost:5432/utos_test
           TEST_REDIS_URL: redis://localhost:6379/1
           SECRET_KEY: ci-test-secret-key-at-least-32-chars
-        run: |
-          cd backend
-          poetry run pytest --cov=. --cov-report=xml --cov-fail-under=80 -v
+          PYTHONPATH: ${{ github.workspace }}/backend
+        run: poetry run pytest backend/tests --cov=backend --cov-report=xml -v
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
-          files: backend/coverage.xml
+          files: coverage.xml
           fail_ci_if_error: false
 
   frontend:

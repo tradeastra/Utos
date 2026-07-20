@@ -2,12 +2,9 @@
 User repository — async CRUD for the users table.
 """
 
-from typing import Optional
-import uuid
-
+from models.user import User
 from sqlalchemy import select
 
-from models.user import User
 from repositories.base import IRepository
 
 
@@ -16,7 +13,7 @@ class UserRepository(IRepository[User]):
 
     model = User
 
-    async def get_by_email(self, email: str) -> Optional[User]:
+    async def get_by_email(self, email: str) -> User | None:
         result = await self._session.execute(
             select(User).where(User.email == email.lower())
         )
@@ -28,7 +25,7 @@ class UserRepository(IRepository[User]):
         )
         return result.scalar_one_or_none() is not None
 
-    async def get_by_referral_code(self, referral_code: str) -> Optional[User]:
+    async def get_by_referral_code(self, referral_code: str) -> User | None:
         result = await self._session.execute(
             select(User).where(User.referral_code == referral_code)
         )

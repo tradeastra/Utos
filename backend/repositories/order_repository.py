@@ -4,10 +4,10 @@ Order repository — async CRUD for orders table.
 
 import uuid
 
+from core.domain_types import OrderStatus
+from models.order import Order
 from sqlalchemy import select
 
-from core.types import OrderStatus
-from models.order import Order
 from repositories.base import IRepository
 
 

@@ -5,7 +5,6 @@ Unit tests for SubscriptionManager.
 from typing import Any
 
 import pytest
-
 from market.subscription_manager import SubscriptionManager
 
 
@@ -51,7 +50,9 @@ async def _noop_callback(data: Any) -> None:
 
 class TestSubscriptionManager:
     @pytest.mark.asyncio
-    async def test_single_subscription(self, manager: SubscriptionManager, backend: FakeSubscribeBackend) -> None:
+    async def test_single_subscription(
+        self, manager: SubscriptionManager, backend: FakeSubscribeBackend
+    ) -> None:
         sub_id = await manager.subscribe("binance", "BTCUSDT", "ticker", _noop_callback)
         assert sub_id is not None
         assert backend.subscribe_calls == 1
@@ -59,7 +60,9 @@ class TestSubscriptionManager:
         assert manager.consumer_count() == 1
 
     @pytest.mark.asyncio
-    async def test_deduplicated_subscription(self, manager: SubscriptionManager, backend: FakeSubscribeBackend) -> None:
+    async def test_deduplicated_subscription(
+        self, manager: SubscriptionManager, backend: FakeSubscribeBackend
+    ) -> None:
         """Two consumers on same (exchange, symbol, channel) = 1 WebSocket."""
         sub1 = await manager.subscribe("binance", "BTCUSDT", "ticker", _noop_callback)
         sub2 = await manager.subscribe("binance", "BTCUSDT", "ticker", _noop_callback)
@@ -69,31 +72,39 @@ class TestSubscriptionManager:
         assert manager.consumer_count() == 2
 
     @pytest.mark.asyncio
-    async def test_different_channels_separate(self, manager: SubscriptionManager, backend: FakeSubscribeBackend) -> None:
+    async def test_different_channels_separate(
+        self, manager: SubscriptionManager, backend: FakeSubscribeBackend
+    ) -> None:
         await manager.subscribe("binance", "BTCUSDT", "ticker", _noop_callback)
         await manager.subscribe("binance", "BTCUSDT", "orderbook", _noop_callback)
         assert backend.subscribe_calls == 2
         assert manager.active_count() == 2
 
     @pytest.mark.asyncio
-    async def test_different_exchanges_separate(self, manager: SubscriptionManager, backend: FakeSubscribeBackend) -> None:
+    async def test_different_exchanges_separate(
+        self, manager: SubscriptionManager, backend: FakeSubscribeBackend
+    ) -> None:
         await manager.subscribe("binance", "BTCUSDT", "ticker", _noop_callback)
         await manager.subscribe("bybit", "BTCUSDT", "ticker", _noop_callback)
         assert backend.subscribe_calls == 2
         assert manager.active_count() == 2
 
     @pytest.mark.asyncio
-    async def test_unsubscribe_keeps_stream(self, manager: SubscriptionManager, backend: FakeSubscribeBackend) -> None:
+    async def test_unsubscribe_keeps_stream(
+        self, manager: SubscriptionManager, backend: FakeSubscribeBackend
+    ) -> None:
         """Unsub one consumer when two are active should NOT close the stream."""
         sub1 = await manager.subscribe("binance", "BTCUSDT", "ticker", _noop_callback)
-        sub2 = await manager.subscribe("binance", "BTCUSDT", "ticker", _noop_callback)
+        await manager.subscribe("binance", "BTCUSDT", "ticker", _noop_callback)
         await manager.unsubscribe(sub1)
         assert backend.unsubscribe_calls == 0
         assert manager.active_count() == 1
         assert manager.consumer_count() == 1
 
     @pytest.mark.asyncio
-    async def test_unsubscribe_last_closes_stream(self, manager: SubscriptionManager, backend: FakeSubscribeBackend) -> None:
+    async def test_unsubscribe_last_closes_stream(
+        self, manager: SubscriptionManager, backend: FakeSubscribeBackend
+    ) -> None:
         sub1 = await manager.subscribe("binance", "BTCUSDT", "ticker", _noop_callback)
         sub2 = await manager.subscribe("binance", "BTCUSDT", "ticker", _noop_callback)
         await manager.unsubscribe(sub1)
@@ -130,11 +141,15 @@ class TestSubscriptionManager:
         assert ("bybit", "ETHUSDT", "orderbook") in keys
 
     @pytest.mark.asyncio
-    async def test_many_consumers_one_stream(self, manager: SubscriptionManager, backend: FakeSubscribeBackend) -> None:
+    async def test_many_consumers_one_stream(
+        self, manager: SubscriptionManager, backend: FakeSubscribeBackend
+    ) -> None:
         """10 consumers = 1 WebSocket subscription."""
         sub_ids = []
         for _ in range(10):
-            sub_ids.append(await manager.subscribe("binance", "BTCUSDT", "ticker", _noop_callback))
+            sub_ids.append(
+                await manager.subscribe("binance", "BTCUSDT", "ticker", _noop_callback)
+            )
         assert backend.subscribe_calls == 1
         assert manager.active_count() == 1
         assert manager.consumer_count() == 10

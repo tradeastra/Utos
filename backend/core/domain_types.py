@@ -5,24 +5,24 @@ This module defines the fundamental data types used throughout the system.
 """
 
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Any, Callable
-from decimal import Decimal
 from datetime import datetime
-from enum import Enum
+from decimal import Decimal
+from enum import StrEnum
+from typing import Any
 
 
-class OrderSide(str, Enum):
+class OrderSide(StrEnum):
     BUY = "buy"
     SELL = "sell"
 
 
-class OrderType(str, Enum):
+class OrderType(StrEnum):
     LIMIT = "limit"
     MARKET = "market"
     STOP_LIMIT = "stop_limit"
 
 
-class OrderStatus(str, Enum):
+class OrderStatus(StrEnum):
     PENDING = "pending"
     OPEN = "open"
     PARTIALLY_FILLED = "partially_filled"
@@ -32,7 +32,7 @@ class OrderStatus(str, Enum):
     EXPIRED = "expired"
 
 
-class TradingInstanceStatus(str, Enum):
+class TradingInstanceStatus(StrEnum):
     CREATED = "created"
     READY = "ready"
     RUNNING = "running"
@@ -44,7 +44,7 @@ class TradingInstanceStatus(str, Enum):
     RECOVERED = "recovered"
 
 
-class GridLevelStatus(str, Enum):
+class GridLevelStatus(StrEnum):
     WAITING = "waiting"
     OPEN = "open"
     FILLED = "filled"
@@ -58,19 +58,19 @@ class GridLevelStatus(str, Enum):
     SELL_FILLED = "tp_hit"
 
 
-class StrategyType(str, Enum):
+class StrategyType(StrEnum):
     SMART_GRID = "smart_grid"
     ADAPTIVE_GRID = "adaptive_grid"
     INFINITY_GRID = "infinity_grid"
     DCA = "dca"
 
 
-class PositionSide(str, Enum):
+class PositionSide(StrEnum):
     LONG = "long"
     SHORT = "short"
 
 
-class TransactionType(str, Enum):
+class TransactionType(StrEnum):
     DEPOSIT = "deposit"
     WITHDRAWAL = "withdrawal"
     FEE = "fee"
@@ -78,7 +78,7 @@ class TransactionType(str, Enum):
     REFUND = "refund"
 
 
-class NotificationType(str, Enum):
+class NotificationType(StrEnum):
     ORDER_FILLED = "order_filled"
     ORDER_FAILED = "order_failed"
     GRID_COMPLETED = "grid_completed"
@@ -88,7 +88,7 @@ class NotificationType(str, Enum):
     SUBSCRIPTION = "subscription"
 
 
-class RiskLevel(str, Enum):
+class RiskLevel(StrEnum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -101,16 +101,16 @@ class ExchangeCredentials:
     exchange_name: str
     api_key: str
     api_secret: str
-    passphrase: Optional[str] = None  # Required for some exchanges (OKX, etc.)
+    passphrase: str | None = None  # Required for some exchanges (OKX, etc.)
 
 
 @dataclass
 class ExchangeAdapterConfig:
     exchange_name: str
     is_testnet: bool = False
-    market_stream_url: Optional[str] = None
-    account_stream_url: Optional[str] = None
-    rest_url: Optional[str] = None
+    market_stream_url: str | None = None
+    account_stream_url: str | None = None
+    rest_url: str | None = None
     connection_timeout: float = 10.0
     request_timeout: float = 30.0
     recv_window: int = 5000
@@ -124,13 +124,13 @@ class OrderResult:
     side: str
     order_type: str
     quantity: Decimal
-    price: Optional[Decimal]
+    price: Decimal | None
     filled_quantity: Decimal
-    average_fill_price: Optional[Decimal]
+    average_fill_price: Decimal | None
     status: str
     created_at: datetime
     updated_at: datetime
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
 
 @dataclass
@@ -148,7 +148,7 @@ class PositionEntry:
     quantity: Decimal
     entry_price: Decimal
     unrealized_pnl: Decimal
-    leverage: Optional[Decimal] = None
+    leverage: Decimal | None = None
 
 
 @dataclass
@@ -177,8 +177,8 @@ class TickerData:
 @dataclass
 class OrderBook:
     symbol: str
-    bids: List[tuple[Decimal, Decimal]]  # [(price, quantity), ...]
-    asks: List[tuple[Decimal, Decimal]]
+    bids: list[tuple[Decimal, Decimal]]  # [(price, quantity), ...]
+    asks: list[tuple[Decimal, Decimal]]
     timestamp: datetime
 
 
@@ -197,9 +197,9 @@ class Candle:
 @dataclass
 class ExchangeInfo:
     name: str
-    supported_symbols: List[str]
-    rate_limits: Dict[str, Any]
-    fee_structure: Dict[str, Any]
+    supported_symbols: list[str]
+    rate_limits: dict[str, Any]
+    fee_structure: dict[str, Any]
     server_time: datetime
 
 
@@ -210,8 +210,8 @@ class GridLevel:
     buy_price: Decimal
     sell_price: Decimal
     quantity: Decimal
-    buy_order_id: Optional[str] = None
-    sell_order_id: Optional[str] = None
+    buy_order_id: str | None = None
+    sell_order_id: str | None = None
     status: GridLevelStatus = GridLevelStatus.WAITING
 
 
@@ -224,12 +224,12 @@ class GridState:
     grid_count: int
     grid_spacing: Decimal
     investment_per_grid: Decimal
-    levels: List[GridLevel] = field(default_factory=list)
+    levels: list[GridLevel] = field(default_factory=list)
     total_cycles: int = 0
     total_profit: Decimal = Decimal("0")
-    exchange_account_id: Optional[Any] = None
+    exchange_account_id: Any | None = None
     symbol: str = ""
-    current_price: Optional[Decimal] = None
+    current_price: Decimal | None = None
 
 
 # Portfolio Types
@@ -256,7 +256,7 @@ class PortfolioSummary:
     total_investment: Decimal
     total_pnl: Decimal
     pnl_percentage: Decimal
-    positions: List[Position]
+    positions: list[Position]
 
 
 @dataclass
@@ -281,7 +281,7 @@ class PnLRecord:
 @dataclass
 class RiskCheckResult:
     allowed: bool
-    reason: Optional[str]
+    reason: str | None
     current_exposure: Decimal
     max_exposure: Decimal
 
@@ -291,7 +291,7 @@ class RiskAssessment:
     risk_level: RiskLevel
     total_exposure: Decimal
     max_drawdown: Decimal
-    recommendations: List[str]
+    recommendations: list[str]
 
 
 @dataclass
@@ -309,8 +309,8 @@ class Event:
     event_type: str
     event_id: str
     timestamp: datetime
-    data: Dict[str, Any]
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    data: dict[str, Any]
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 # Worker Types
@@ -318,7 +318,7 @@ class Event:
 class Task:
     id: str
     type: str
-    payload: Dict[str, Any]
+    payload: dict[str, Any]
     priority: int  # 1 (high) to 5 (low)
     retry_count: int
     max_retries: int
@@ -330,8 +330,8 @@ class Task:
 class TaskResult:
     task_id: str
     status: str  # "success", "failed", "retry"
-    result: Optional[Dict[str, Any]]
-    error: Optional[str]
+    result: dict[str, Any] | None
+    error: str | None
     completed_at: datetime
 
 
@@ -353,30 +353,30 @@ class TradingInstance:
     exchange_account_id: str
     symbol: str
     strategy_type: str
-    strategy_params: Dict[str, Any]
+    strategy_params: dict[str, Any]
     status: TradingInstanceStatus
     total_investment: Decimal
     current_value: Decimal
     total_pnl: Decimal
     created_at: datetime
     updated_at: datetime
-    started_at: Optional[datetime] = None
-    stopped_at: Optional[datetime] = None
-    
+    started_at: datetime | None = None
+    stopped_at: datetime | None = None
+
     # Grid-specific fields
-    grid_upper_price: Optional[Decimal] = None
-    grid_lower_price: Optional[Decimal] = None
-    grid_count: Optional[int] = None
-    investment_per_grid: Optional[Decimal] = None
-    
+    grid_upper_price: Decimal | None = None
+    grid_lower_price: Decimal | None = None
+    grid_count: int | None = None
+    investment_per_grid: Decimal | None = None
+
     # Risk fields
-    max_position_size: Optional[Decimal] = None
-    stop_loss_percentage: Optional[Decimal] = None
-    take_profit_percentage: Optional[Decimal] = None
-    
+    max_position_size: Decimal | None = None
+    stop_loss_percentage: Decimal | None = None
+    take_profit_percentage: Decimal | None = None
+
     # Portfolio lock fields (premium feature)
     portfolio_lock_enabled: bool = False
-    portfolio_lock_percentage: Optional[Decimal] = None
+    portfolio_lock_percentage: Decimal | None = None
 
 
 # Strategy Types
@@ -400,7 +400,7 @@ class NotificationRequest:
     notification_type: str
     title: str
     message: str
-    data: Optional[Dict[str, Any]] = None
+    data: dict[str, Any] | None = None
 
 
 @dataclass
@@ -410,7 +410,7 @@ class Notification:
     type: str
     title: str
     message: str
-    data: Optional[Dict[str, Any]]
+    data: dict[str, Any] | None
     is_read: bool
     created_at: datetime
-    read_at: Optional[datetime] = None
+    read_at: datetime | None = None

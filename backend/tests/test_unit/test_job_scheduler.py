@@ -1,17 +1,16 @@
 """Unit tests for JobScheduler."""
 
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
-
-from engine.scheduler.scheduler import JobScheduler, ScheduledTask
+from engine.scheduler.scheduler import JobScheduler
 
 
 class TestAddRemoveTask:
 
     def test_add_task(self) -> None:
         js = JobScheduler()
-        task_id = js.add_task("cleanup", "cleanup", 60)
+        js.add_task("cleanup", "cleanup", 60)
         assert js.get_task_count() == 1
         assert js.get_metrics()["tasks_added"] == 1
 
@@ -85,10 +84,13 @@ class TestRunTask:
     @pytest.mark.asyncio
     async def test_run_all(self) -> None:
         js = JobScheduler()
+
         async def t1() -> int:
             return 1
+
         async def t2() -> int:
             return 2
+
         js.add_task("t1", "cleanup", 60, coroutine=t1)
         js.add_task("t2", "sync", 30, coroutine=t2)
         results = await js.run_all()
@@ -101,14 +103,14 @@ class TestPendingTasks:
     def test_get_pending_tasks(self) -> None:
         js = JobScheduler()
         js.add_task("t1", "cleanup", 60)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         pending = js.get_pending_tasks(now=now + timedelta(seconds=120))
         assert len(pending) == 1
 
     def test_no_pending_future(self) -> None:
         js = JobScheduler()
         js.add_task("t1", "cleanup", 60)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         pending = js.get_pending_tasks(now=now)
         assert len(pending) == 0
 

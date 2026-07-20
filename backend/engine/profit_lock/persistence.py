@@ -35,7 +35,9 @@ class ProfitPersistence:
             "is_triggered": state.is_triggered,
             "is_executed": state.is_executed,
             "lock_order_id": state.lock_order_id,
-            "exchange_account_id": str(state.exchange_account_id) if state.exchange_account_id else None,
+            "exchange_account_id": (
+                str(state.exchange_account_id) if state.exchange_account_id else None
+            ),
             "symbol": state.symbol,
         }
 
@@ -51,12 +53,18 @@ class ProfitPersistence:
             entry_price=Decimal(data.get("entry_price", "0")),
             quantity=Decimal(data.get("quantity", "0")),
             side=data.get("side", "long"),
-            highest_price=Decimal(data["highest_price"]) if data.get("highest_price") else None,
+            highest_price=(
+                Decimal(data["highest_price"]) if data.get("highest_price") else None
+            ),
             lock_price=Decimal(data["lock_price"]) if data.get("lock_price") else None,
             is_triggered=data.get("is_triggered", False),
             is_executed=data.get("is_executed", False),
             lock_order_id=data.get("lock_order_id"),
-            exchange_account_id=uuid.UUID(data["exchange_account_id"]) if data.get("exchange_account_id") else None,
+            exchange_account_id=(
+                uuid.UUID(data["exchange_account_id"])
+                if data.get("exchange_account_id")
+                else None
+            ),
             symbol=data.get("symbol", ""),
         )
 

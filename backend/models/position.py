@@ -4,13 +4,11 @@ Position model — matches DATABASE.md §2.4.
 
 import uuid
 
+from core.domain_types import PositionSide
+from database.base import GUID, Base
 from sqlalchemy import DateTime, Enum, ForeignKey, Index, Numeric, String
-from database.base import GUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-
-from core.types import PositionSide
-from database.base import Base
 
 
 class Position(Base):
@@ -18,22 +16,24 @@ class Position(Base):
 
     __tablename__ = "positions"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        GUID(), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
     trading_instance_id: Mapped[uuid.UUID] = mapped_column(
         GUID(), ForeignKey("trading_instances.id"), nullable=False
     )
     symbol: Mapped[str] = mapped_column(String(20), nullable=False)
     side: Mapped[PositionSide] = mapped_column(
-        Enum(PositionSide, name="position_side"), nullable=False
+        Enum(PositionSide, name="position_side", values_callable=lambda x: [e.value for e in x]), nullable=False
     )
     entry_price: Mapped[float] = mapped_column(Numeric(20, 8), nullable=False)
     current_price: Mapped[float | None] = mapped_column(Numeric(20, 8), nullable=True)
     quantity: Mapped[float] = mapped_column(Numeric(20, 8), nullable=False)
     value: Mapped[float] = mapped_column(Numeric(20, 8), nullable=False)
-    unrealized_pnl: Mapped[float] = mapped_column(Numeric(20, 8), default=0, nullable=False)
-    realized_pnl: Mapped[float] = mapped_column(Numeric(20, 8), default=0, nullable=False)
+    unrealized_pnl: Mapped[float] = mapped_column(
+        Numeric(20, 8), default=0, nullable=False
+    )
+    realized_pnl: Mapped[float] = mapped_column(
+        Numeric(20, 8), default=0, nullable=False
+    )
 
     created_at: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

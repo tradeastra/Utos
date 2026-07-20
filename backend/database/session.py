@@ -9,14 +9,13 @@ Provides:
 
 from collections.abc import AsyncGenerator
 
+from database.base import Base, get_engine
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
-
-from database.base import Base, get_engine
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
@@ -32,7 +31,9 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
             raise
 
 
-def create_test_engine(url: str) -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
+def create_test_engine(
+    url: str,
+) -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
     """Create a test engine + session factory for the given URL."""
     engine = create_async_engine(url, echo=False)
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)

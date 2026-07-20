@@ -5,18 +5,18 @@ OrderExecutor: dispatch orders to an exchange adapter with retry logic.
 from __future__ import annotations
 
 import asyncio
-from decimal import Decimal
 
 from adapters.base import IExchangeAdapter
+from core.domain_types import OrderResult
 from core.exceptions import (
     ExchangeConnectionError,
     ExchangeError,
     ExchangeRateLimitError,
     InsufficientBalanceError,
-    TimeoutError,
     RetryableError,
+    TimeoutError,
 )
-from core.types import OrderResult
+
 from engine.execution.exceptions import OrderExecutionError
 from engine.execution.models import OrderRequest
 

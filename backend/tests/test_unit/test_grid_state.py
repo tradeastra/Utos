@@ -5,9 +5,8 @@ Unit tests for GridStateMachine and GridStateStore.
 from decimal import Decimal
 
 import pytest
-
+from core.domain_types import GridLevel, GridLevelStatus, GridState
 from core.exceptions import GridError, InvalidStateTransition
-from core.types import GridLevel, GridLevelStatus, GridState
 from engine.grid.state import (
     GridStateMachine,
     GridStateStore,
@@ -18,10 +17,14 @@ from engine.grid.state import (
 class TestGridStateMachine:
 
     def test_idle_to_initialized(self) -> None:
-        GridStateMachine.validate_grid_transition(GridStatus.IDLE, GridStatus.INITIALIZED)
+        GridStateMachine.validate_grid_transition(
+            GridStatus.IDLE, GridStatus.INITIALIZED
+        )
 
     def test_initialized_to_active(self) -> None:
-        GridStateMachine.validate_grid_transition(GridStatus.INITIALIZED, GridStatus.ACTIVE)
+        GridStateMachine.validate_grid_transition(
+            GridStatus.INITIALIZED, GridStatus.ACTIVE
+        )
 
     def test_active_to_paused(self) -> None:
         GridStateMachine.validate_grid_transition(GridStatus.ACTIVE, GridStatus.PAUSED)
@@ -41,11 +44,15 @@ class TestGridStateMachine:
 
     def test_invalid_grid_transition_raises(self) -> None:
         with pytest.raises(InvalidStateTransition):
-            GridStateMachine.validate_grid_transition(GridStatus.IDLE, GridStatus.ACTIVE)
+            GridStateMachine.validate_grid_transition(
+                GridStatus.IDLE, GridStatus.ACTIVE
+            )
 
     def test_completed_to_active_raises(self) -> None:
         with pytest.raises(InvalidStateTransition):
-            GridStateMachine.validate_grid_transition(GridStatus.COMPLETED, GridStatus.ACTIVE)
+            GridStateMachine.validate_grid_transition(
+                GridStatus.COMPLETED, GridStatus.ACTIVE
+            )
 
 
 class TestGridLevelStateMachine:
@@ -111,9 +118,24 @@ class TestGridStateStore:
 
     def _make_state(self, instance_id: str = "test-1") -> GridState:
         levels = [
-            GridLevel(level=0, buy_price=Decimal("50"), sell_price=Decimal("60"), quantity=Decimal("2")),
-            GridLevel(level=1, buy_price=Decimal("60"), sell_price=Decimal("70"), quantity=Decimal("1.67")),
-            GridLevel(level=2, buy_price=Decimal("70"), sell_price=Decimal("80"), quantity=Decimal("1.43")),
+            GridLevel(
+                level=0,
+                buy_price=Decimal("50"),
+                sell_price=Decimal("60"),
+                quantity=Decimal("2"),
+            ),
+            GridLevel(
+                level=1,
+                buy_price=Decimal("60"),
+                sell_price=Decimal("70"),
+                quantity=Decimal("1.67"),
+            ),
+            GridLevel(
+                level=2,
+                buy_price=Decimal("70"),
+                sell_price=Decimal("80"),
+                quantity=Decimal("1.43"),
+            ),
         ]
         return GridState(
             instance_id=instance_id,

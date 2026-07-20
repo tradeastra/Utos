@@ -9,18 +9,22 @@ Tests 5 failure scenarios:
 5. Order filled during restart → detected on reconcile
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
-
-from core.types import GridLevel, GridLevelStatus, GridState, OrderResult, OrderStatus, PositionEntry
+from core.domain_types import (
+    GridLevel,
+    GridLevelStatus,
+    GridState,
+    OrderResult,
+    PositionEntry,
+)
 from engine.grid.persistence import GridPersistence
 from engine.profit_lock.persistence import ProfitPersistence
 from engine.profit_lock.state import ProfitLockState, ProfitLockStatus
 from engine.recovery.connection import ConnectionRecovery, QueuedOrder
 from engine.recovery.coordinator import InstanceContext, RecoveryCoordinator
-from engine.recovery.persistence import RecoveryPersistence
 from engine.recovery.reconciler import RuntimeReconciler
 from engine.recovery.state import StateRecovery
 from engine.risk.portfolio import PortfolioManager
@@ -44,8 +48,8 @@ def _make_order(
         filled_quantity=filled,
         average_fill_price=Decimal("100") if filled > 0 else None,
         status=status,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
     )
 
 
@@ -65,18 +69,22 @@ class TestChaosServerRestart:
         coord = RecoveryCoordinator(cr, sr, rc)
 
         for i in range(100):
-            coord.register_instance(f"inst-{i}", InstanceContext(
-                instance_id=f"inst-{i}",
-                account_id="acc-1",
-                exchange="binance",
-                symbol="BTCUSDT",
-            ))
+            coord.register_instance(
+                f"inst-{i}",
+                InstanceContext(
+                    instance_id=f"inst-{i}",
+                    account_id="acc-1",
+                    exchange="binance",
+                    symbol="BTCUSDT",
+                ),
+            )
 
         results = await coord.recover_all()
         assert len(results) == 100
 
         success_count = sum(
-            1 for r in results.values()
+            1
+            for r in results.values()
             if r.connection_ok and r.state_ok and len(r.errors) == 0
         )
         assert success_count == 100
@@ -95,9 +103,15 @@ class TestChaosServerRestart:
         rc = RuntimeReconciler()
         coord = RecoveryCoordinator(cr, sr, rc)
 
-        coord.register_instance("inst-1", InstanceContext(
-            instance_id="inst-1", account_id="acc-1", exchange="binance", symbol="BTCUSDT",
-        ))
+        coord.register_instance(
+            "inst-1",
+            InstanceContext(
+                instance_id="inst-1",
+                account_id="acc-1",
+                exchange="binance",
+                symbol="BTCUSDT",
+            ),
+        )
 
         report1 = await coord.recover_instance("inst-1")
         assert report1.connection_ok is True
@@ -137,9 +151,15 @@ class TestChaosRedisDeath:
         rc = RuntimeReconciler()
         coord = RecoveryCoordinator(cr, sr, rc)
 
-        coord.register_instance("inst-1", InstanceContext(
-            instance_id="inst-1", account_id="acc-1", exchange="binance", symbol="BTCUSDT",
-        ))
+        coord.register_instance(
+            "inst-1",
+            InstanceContext(
+                instance_id="inst-1",
+                account_id="acc-1",
+                exchange="binance",
+                symbol="BTCUSDT",
+            ),
+        )
         report = await coord.recover_instance("inst-1")
         assert report.connection_ok is False
         assert report.state_ok is True
@@ -187,15 +207,17 @@ class TestChaosExchangeTimeout:
         await cr.on_exchange_disconnect("binance", "acc-1")
 
         for i in range(5):
-            cr.queue_order(QueuedOrder(
-                instance_id=f"inst-{i}",
-                account_id="acc-1",
-                exchange="binance",
-                symbol="BTCUSDT",
-                side="buy",
-                quantity=Decimal("1"),
-                price=Decimal("100"),
-            ))
+            cr.queue_order(
+                QueuedOrder(
+                    instance_id=f"inst-{i}",
+                    account_id="acc-1",
+                    exchange="binance",
+                    symbol="BTCUSDT",
+                    side="buy",
+                    quantity=Decimal("1"),
+                    price=Decimal("100"),
+                )
+            )
 
         assert cr.get_queue_size() == 5
 
@@ -370,14 +392,17 @@ class TestChaosFullRecoveryFlow:
         rc = RuntimeReconciler()
         coord = RecoveryCoordinator(cr, sr, rc)
 
-        coord.register_instance("inst-1", InstanceContext(
-            instance_id="inst-1",
-            account_id="acc-1",
-            exchange="binance",
-            symbol="BTCUSDT",
-            has_grid=True,
-            has_profit_lock=True,
-        ))
+        coord.register_instance(
+            "inst-1",
+            InstanceContext(
+                instance_id="inst-1",
+                account_id="acc-1",
+                exchange="binance",
+                symbol="BTCUSDT",
+                has_grid=True,
+                has_profit_lock=True,
+            ),
+        )
 
         report = await coord.recover_instance("inst-1")
 
@@ -402,9 +427,15 @@ class TestChaosFullRecoveryFlow:
         rc = RuntimeReconciler()
         coord = RecoveryCoordinator(cr, sr, rc)
 
-        coord.register_instance("inst-1", InstanceContext(
-            instance_id="inst-1", account_id="acc-1", exchange="binance", symbol="BTCUSDT",
-        ))
+        coord.register_instance(
+            "inst-1",
+            InstanceContext(
+                instance_id="inst-1",
+                account_id="acc-1",
+                exchange="binance",
+                symbol="BTCUSDT",
+            ),
+        )
 
         report = await coord.recover_instance("inst-1")
         assert report.connection_ok is False

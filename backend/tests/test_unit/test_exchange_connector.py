@@ -2,13 +2,13 @@
 Unit tests for ExchangeConnector.
 """
 
-from datetime import datetime, timezone
+from collections.abc import Callable
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, Callable
+from typing import Any
 
 import pytest
-
-from core.types import Candle, OrderBook, TickerData
+from core.domain_types import Candle, OrderBook, TickerData
 from market.base import MarketStatus
 from market.connector.exchange_connector import ExchangeConnector
 
@@ -55,7 +55,9 @@ class FakeAdapter:
     async def is_account_connected(self) -> bool:
         return True
 
-    async def subscribe_market(self, symbol: str, channel: str, callback: Callable) -> str:
+    async def subscribe_market(
+        self, symbol: str, channel: str, callback: Callable
+    ) -> str:
         self._sub_counter += 1
         sub_id = f"sub_{self._sub_counter}"
         self._subs[sub_id] = (symbol, channel, callback)
@@ -71,7 +73,7 @@ class FakeAdapter:
             ask=Decimal("50001"),
             last=Decimal("50000.50"),
             volume=Decimal("1000"),
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         )
 
     async def get_order_book(self, symbol: str, depth: int = 20) -> OrderBook:
@@ -79,28 +81,34 @@ class FakeAdapter:
             symbol=symbol,
             bids=[(Decimal("50000"), Decimal("1"))],
             asks=[(Decimal("50001"), Decimal("1"))],
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         )
 
-    async def get_candles(self, symbol: str, interval: str, limit: int = 100) -> list[Candle]:
+    async def get_candles(
+        self, symbol: str, interval: str, limit: int = 100
+    ) -> list[Candle]:
         return [
             Candle(
-                symbol=symbol, interval=interval,
-                open=Decimal("50000"), high=Decimal("50100"),
-                low=Decimal("49900"), close=Decimal("50050"),
+                symbol=symbol,
+                interval=interval,
+                open=Decimal("50000"),
+                high=Decimal("50100"),
+                low=Decimal("49900"),
+                close=Decimal("50050"),
                 volume=Decimal("100"),
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
             )
         ]
 
     async def get_exchange_info(self) -> Any:
-        from core.types import ExchangeInfo
+        from core.domain_types import ExchangeInfo
+
         return ExchangeInfo(
             name="binance",
             supported_symbols=["BTCUSDT", "ETHUSDT"],
             rate_limits={},
             fee_structure={},
-            server_time=datetime.now(timezone.utc),
+            server_time=datetime.now(UTC),
         )
 
     async def health_check(self) -> bool:
@@ -123,13 +131,17 @@ def connector(adapter: FakeAdapter) -> ExchangeConnector:
 
 class TestExchangeConnector:
     @pytest.mark.asyncio
-    async def test_start(self, connector: ExchangeConnector, adapter: FakeAdapter) -> None:
+    async def test_start(
+        self, connector: ExchangeConnector, adapter: FakeAdapter
+    ) -> None:
         await connector.start()
         assert connector.running is True
         assert adapter.connect_calls == 1
 
     @pytest.mark.asyncio
-    async def test_stop(self, connector: ExchangeConnector, adapter: FakeAdapter) -> None:
+    async def test_stop(
+        self, connector: ExchangeConnector, adapter: FakeAdapter
+    ) -> None:
         await connector.start()
         await connector.stop()
         assert connector.running is False
@@ -179,7 +191,9 @@ class TestExchangeConnector:
         assert m.dropped_messages == 1
 
     @pytest.mark.asyncio
-    async def test_reconnect(self, connector: ExchangeConnector, adapter: FakeAdapter) -> None:
+    async def test_reconnect(
+        self, connector: ExchangeConnector, adapter: FakeAdapter
+    ) -> None:
         await connector.start()
         await connector.subscribe("BTCUSDT", "ticker")
         await connector.reconnect()

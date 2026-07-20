@@ -11,7 +11,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from decimal import Decimal
 
-from core.types import GridLevel, GridLevelStatus
+from core.domain_types import GridLevel, GridLevelStatus
+
 from engine.grid.state import GridStateStore
 
 
@@ -63,9 +64,7 @@ class GridPlanner:
 
         return GridPlan(actions=actions)
 
-    def _plan_level(
-        self, lv: GridLevel, current_price: Decimal
-    ) -> GridAction | None:
+    def _plan_level(self, lv: GridLevel, current_price: Decimal) -> GridAction | None:
         status = lv.status
 
         if status == GridLevelStatus.WAITING:

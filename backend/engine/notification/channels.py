@@ -8,9 +8,8 @@ Each channel is independent. Channels use callback-based sending
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from core.logging import get_logger
 

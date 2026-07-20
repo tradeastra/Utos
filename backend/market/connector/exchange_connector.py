@@ -11,15 +11,17 @@ Each connector wraps one IExchangeAdapter instance and is responsible for:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Callable
+from datetime import UTC, datetime
+from typing import Any
 
 from adapters.base import IExchangeAdapter
 from core.exceptions import ExchangeConnectionError, SymbolNotSupported
 from core.logging import get_logger
-from core.types import Candle, OrderBook, TickerData
+
 from market.base import MarketMetrics, MarketStatus
 
 logger = get_logger(__name__)
@@ -133,10 +135,8 @@ class ExchangeConnector:
         for task in self._tasks:
             task.cancel()
         for task in list(self._tasks):
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await task
-            except asyncio.CancelledError:
-                pass
         self._tasks.clear()
         try:
             await self.adapter.disconnect()
@@ -162,7 +162,7 @@ class ExchangeConnector:
             self._sub_map[sub_id] = (symbol.upper(), channel.lower())
             metrics.status = MarketStatus.CONNECTED
             metrics.record_latency(start, time.time())
-            metrics.last_update = datetime.now(timezone.utc)
+            metrics.last_update = datetime.now(UTC)
             return sub_id
         except SymbolNotSupported:
             metrics.status = MarketStatus.DISCONNECTED
@@ -193,7 +193,7 @@ class ExchangeConnector:
         metrics = self._metrics_for(symbol)
         if metrics is not None:
             metrics.record_message()
-            metrics.last_update = datetime.now(timezone.utc)
+            metrics.last_update = datetime.now(UTC)
             if metrics.status != MarketStatus.CONNECTED:
                 metrics.status = MarketStatus.CONNECTED
         await self.data_callback(self.exchange, symbol, channel, data)
@@ -204,7 +204,7 @@ class ExchangeConnector:
             return False
         if metrics.last_update is None:
             return False
-        elapsed = (datetime.now(timezone.utc) - metrics.last_update).total_seconds()
+        elapsed = (datetime.now(UTC) - metrics.last_update).total_seconds()
         if elapsed > self._stale_threshold:
             metrics.status = MarketStatus.STALE
             return False
@@ -215,7 +215,7 @@ class ExchangeConnector:
         if metrics is None:
             return MarketStatus.DISCONNECTED
         if metrics.status == MarketStatus.CONNECTED and metrics.last_update is not None:
-            elapsed = (datetime.now(timezone.utc) - metrics.last_update).total_seconds()
+            elapsed = (datetime.now(UTC) - metrics.last_update).total_seconds()
             if elapsed > self._stale_threshold:
                 metrics.status = MarketStatus.STALE
         return metrics.status
@@ -239,25 +239,29 @@ class ExchangeConnector:
 
     async def reconnect(self) -> None:
         """Reconnect the market stream with exponential backoff."""
-        for symbol, metrics in self._metrics.items():
+        for _symbol, metrics in self._metrics.items():
             metrics.status = MarketStatus.RECONNECTING
             metrics.record_reconnect()
 
         for delay in self._reconnect_backoff:
             try:
                 await self.adapter.connect_market()
-                for symbol, metrics in self._metrics.items():
+                for _symbol, metrics in self._metrics.items():
                     metrics.status = MarketStatus.CONNECTED
-                    metrics.last_update = datetime.now(timezone.utc)
+                    metrics.last_update = datetime.now(UTC)
                 logger.info(f"{self.exchange} market connector reconnected")
                 return
             except Exception as exc:  # noqa: BLE001
-                logger.warning(f"{self.exchange} reconnect failed: {exc}, retrying in {delay}s")
+                logger.warning(
+                    f"{self.exchange} reconnect failed: {exc}, retrying in {delay}s"
+                )
                 await asyncio.sleep(delay)
 
-        for symbol, metrics in self._metrics.items():
+        for _symbol, metrics in self._metrics.items():
             metrics.status = MarketStatus.DISCONNECTED
-        raise ExchangeConnectionError(f"{self.exchange} reconnect exhausted", self.exchange)
+        raise ExchangeConnectionError(
+            f"{self.exchange} reconnect exhausted", self.exchange
+        )
 
     @property
     def running(self) -> bool:

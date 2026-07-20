@@ -1,7 +1,7 @@
 """Process state machine and transition validation."""
 
+from core.domain_types import TradingInstanceStatus
 from core.exceptions import InvalidStateTransition
-from core.types import TradingInstanceStatus
 
 
 class ProcessStateMachine:
@@ -21,10 +21,16 @@ class ProcessStateMachine:
             TradingInstanceStatus.RECOVERING,
             TradingInstanceStatus.ERROR,
         },
-        TradingInstanceStatus.STOPPING: {TradingInstanceStatus.STOPPED, TradingInstanceStatus.ERROR},
+        TradingInstanceStatus.STOPPING: {
+            TradingInstanceStatus.STOPPED,
+            TradingInstanceStatus.ERROR,
+        },
         TradingInstanceStatus.STOPPED: set(),
         TradingInstanceStatus.ERROR: set(),
-        TradingInstanceStatus.RECOVERING: {TradingInstanceStatus.RECOVERED, TradingInstanceStatus.ERROR},
+        TradingInstanceStatus.RECOVERING: {
+            TradingInstanceStatus.RECOVERED,
+            TradingInstanceStatus.ERROR,
+        },
         TradingInstanceStatus.RECOVERED: {
             TradingInstanceStatus.RUNNING,
             TradingInstanceStatus.PAUSED,

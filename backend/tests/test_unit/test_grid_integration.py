@@ -7,13 +7,12 @@ the real ExecutionEngine.
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
 import pytest
-
-from core.types import GridLevelStatus, OrderResult, OrderSide, OrderStatus, OrderType
+from core.domain_types import GridLevelStatus, OrderResult, OrderStatus
 from engine.execution import ExecutionEngine
 from engine.grid.engine import GridEngine
 from engine.grid.state import GridStatus
@@ -39,13 +38,15 @@ class FakeAdapter:
         stop_price: Decimal | None = None,
         client_order_id: str | None = None,
     ) -> OrderResult:
-        self.place_calls.append({
-            "symbol": symbol,
-            "side": side,
-            "order_type": order_type,
-            "quantity": quantity,
-            "price": price,
-        })
+        self.place_calls.append(
+            {
+                "symbol": symbol,
+                "side": side,
+                "order_type": order_type,
+                "quantity": quantity,
+                "price": price,
+            }
+        )
         self._counter += 1
         order_id = f"ex_{self._counter}"
         result = OrderResult(
@@ -59,8 +60,8 @@ class FakeAdapter:
             filled_quantity=Decimal("0"),
             average_fill_price=None,
             status=OrderStatus.OPEN.value,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
         self._orders[order_id] = result
         return result
@@ -73,6 +74,7 @@ class FakeAdapter:
         result = self._orders.get(order_id)
         if result is None:
             from core.exceptions import OrderNotFound
+
             raise OrderNotFound(order_id=order_id)
         return result
 
@@ -91,7 +93,9 @@ def fake_adapter() -> FakeAdapter:
 
 
 @pytest.fixture
-def execution_engine(account_id: uuid.UUID, fake_adapter: FakeAdapter) -> ExecutionEngine:
+def execution_engine(
+    account_id: uuid.UUID, fake_adapter: FakeAdapter
+) -> ExecutionEngine:
     e = ExecutionEngine()
     e.register_adapter(account_id, fake_adapter)
     return e
@@ -103,9 +107,7 @@ def grid_engine(execution_engine: ExecutionEngine) -> GridEngine:
 
 
 @pytest.fixture
-async def initialized_grid(
-    grid_engine: GridEngine, account_id: uuid.UUID
-) -> str:
+async def initialized_grid(grid_engine: GridEngine, account_id: uuid.UUID) -> str:
     """Initialize a grid and return the instance_id."""
     await grid_engine.initialize_grid(
         instance_id="inst-1",
@@ -120,9 +122,7 @@ async def initialized_grid(
 
 
 @pytest.fixture
-async def active_grid(
-    grid_engine: GridEngine, account_id: uuid.UUID
-) -> str:
+async def active_grid(grid_engine: GridEngine, account_id: uuid.UUID) -> str:
     """Initialize and activate a grid, return the instance_id."""
     await grid_engine.initialize_grid(
         instance_id="inst-1",

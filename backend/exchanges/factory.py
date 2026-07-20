@@ -5,9 +5,8 @@ Responsible for registering and resolving concrete exchange adapters
 by `ExchangeName` without coupling callers to specific implementations.
 """
 
-from typing import Type
-
 from core.logging import get_logger
+
 from exchanges.adapter import IExchangeAdapter
 
 logger = get_logger(__name__)
@@ -16,11 +15,11 @@ logger = get_logger(__name__)
 class ExchangeFactory:
     """Factory that registers and creates exchange adapters by name."""
 
-    _registry: dict[str, Type[IExchangeAdapter]] = {}
+    _registry: dict[str, type[IExchangeAdapter]] = {}
 
     @classmethod
     def register(
-        cls, exchange_name: str, adapter_class: Type[IExchangeAdapter]
+        cls, exchange_name: str, adapter_class: type[IExchangeAdapter]
     ) -> None:
         """Register an adapter class for the given exchange name."""
         cls._registry[exchange_name.lower()] = adapter_class

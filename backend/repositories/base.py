@@ -54,6 +54,7 @@ class IRepository(abc.ABC, Generic[ModelT]):
 
     async def count(self) -> int:
         from sqlalchemy import func as sa_func
+
         result = await self._session.execute(
             select(sa_func.count()).select_from(self.model)
         )

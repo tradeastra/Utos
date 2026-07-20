@@ -5,13 +5,13 @@ and subscription deduplication at scale.
 
 import asyncio
 import time
-from datetime import datetime, timezone
+from collections.abc import Callable
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, Callable
+from typing import Any
 
 import pytest
-
-from core.types import TickerData
+from core.domain_types import TickerData
 from market.hub.market_hub import MarketHub
 from market.symbol_registry import SymbolRegistry
 
@@ -53,7 +53,9 @@ class PerfFakeAdapter:
     async def is_account_connected(self) -> bool:
         return True
 
-    async def subscribe_market(self, symbol: str, channel: str, callback: Callable) -> str:
+    async def subscribe_market(
+        self, symbol: str, channel: str, callback: Callable
+    ) -> str:
         self._sub_counter += 1
         sub_id = f"perf_sub_{self._sub_counter}"
         self._callbacks[sub_id] = callback
@@ -64,37 +66,49 @@ class PerfFakeAdapter:
 
     async def get_ticker(self, symbol: str) -> TickerData:
         return TickerData(
-            symbol=symbol, bid=Decimal("50000"), ask=Decimal("50001"),
-            last=Decimal("50000.50"), volume=Decimal("1000"),
-            timestamp=datetime.now(timezone.utc),
+            symbol=symbol,
+            bid=Decimal("50000"),
+            ask=Decimal("50001"),
+            last=Decimal("50000.50"),
+            volume=Decimal("1000"),
+            timestamp=datetime.now(UTC),
         )
 
     async def get_order_book(self, symbol: str, depth: int = 20) -> Any:
-        from core.types import OrderBook
+        from core.domain_types import OrderBook
+
         return OrderBook(
             symbol=symbol,
             bids=[(Decimal("50000"), Decimal("1"))],
             asks=[(Decimal("50001"), Decimal("1"))],
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         )
 
     async def get_candles(self, symbol: str, interval: str, limit: int = 100) -> list:
-        from core.types import Candle
-        return [Candle(
-            symbol=symbol, interval=interval,
-            open=Decimal("50000"), high=Decimal("50100"),
-            low=Decimal("49900"), close=Decimal("50050"),
-            volume=Decimal("100"),
-            timestamp=datetime.now(timezone.utc),
-        )]
+        from core.domain_types import Candle
+
+        return [
+            Candle(
+                symbol=symbol,
+                interval=interval,
+                open=Decimal("50000"),
+                high=Decimal("50100"),
+                low=Decimal("49900"),
+                close=Decimal("50050"),
+                volume=Decimal("100"),
+                timestamp=datetime.now(UTC),
+            )
+        ]
 
     async def get_exchange_info(self) -> Any:
-        from core.types import ExchangeInfo
+        from core.domain_types import ExchangeInfo
+
         return ExchangeInfo(
             name=self._name,
             supported_symbols=["BTCUSDT", "ETHUSDT"],
-            rate_limits={}, fee_structure={},
-            server_time=datetime.now(timezone.utc),
+            rate_limits={},
+            fee_structure={},
+            server_time=datetime.now(UTC),
         )
 
     async def health_check(self) -> bool:
@@ -131,9 +145,12 @@ class TestMarketHubPerformance:
     async def test_cache_read_latency(self, hub: MarketHub) -> None:
         """Cache reads should complete in under 1ms per call."""
         ticker = TickerData(
-            symbol="BTCUSDT", bid=Decimal("50000"), ask=Decimal("50001"),
-            last=Decimal("50000.50"), volume=Decimal("1000"),
-            timestamp=datetime.now(timezone.utc),
+            symbol="BTCUSDT",
+            bid=Decimal("50000"),
+            ask=Decimal("50001"),
+            last=Decimal("50000.50"),
+            volume=Decimal("1000"),
+            timestamp=datetime.now(UTC),
         )
         hub.cache.update_ticker("binance", "BTCUSDT", ticker)
 
@@ -144,10 +161,14 @@ class TestMarketHubPerformance:
         elapsed = time.perf_counter() - start
         per_call_us = (elapsed / iterations) * 1_000_000
 
-        assert per_call_us < 100, f"Cache read took {per_call_us:.1f}µs per call (expected <100µs)"
+        assert (
+            per_call_us < 100
+        ), f"Cache read took {per_call_us:.1f}µs per call (expected <100µs)"
 
     @pytest.mark.asyncio
-    async def test_fan_out_50_consumers(self, hub: MarketHub, adapter: PerfFakeAdapter) -> None:
+    async def test_fan_out_50_consumers(
+        self, hub: MarketHub, adapter: PerfFakeAdapter
+    ) -> None:
         """50 consumers should all receive data from a single WebSocket."""
         received: list[TickerData] = []
         lock = asyncio.Lock()
@@ -156,6 +177,7 @@ class TestMarketHubPerformance:
             async def cb(data: TickerData) -> None:
                 async with lock:
                     received.append(data)
+
             return cb
 
         sub_ids = []
@@ -167,9 +189,12 @@ class TestMarketHubPerformance:
         assert hub.consumer_count() == 50
 
         ticker = TickerData(
-            symbol="BTCUSDT", bid=Decimal("50000"), ask=Decimal("50001"),
-            last=Decimal("50000.50"), volume=Decimal("1000"),
-            timestamp=datetime.now(timezone.utc),
+            symbol="BTCUSDT",
+            bid=Decimal("50000"),
+            ask=Decimal("50001"),
+            last=Decimal("50000.50"),
+            volume=Decimal("1000"),
+            timestamp=datetime.now(UTC),
         )
 
         start = time.perf_counter()
@@ -188,7 +213,9 @@ class TestMarketHubPerformance:
         """100 consumers on same stream = 1 WebSocket subscription."""
         sub_ids = []
         for _ in range(100):
-            sub_ids.append(await hub.subscribe("binance", "BTCUSDT", "ticker", lambda d: None))
+            sub_ids.append(
+                await hub.subscribe("binance", "BTCUSDT", "ticker", lambda d: None)
+            )
 
         assert hub.active_websocket_subscriptions() == 1
         assert hub.consumer_count() == 100
@@ -201,22 +228,29 @@ class TestMarketHubPerformance:
     @pytest.mark.asyncio
     async def test_concurrent_cache_writes(self, hub: MarketHub) -> None:
         """1000 concurrent cache updates should not raise."""
+
         async def write_one(idx: int) -> None:
-            hub.cache.update_ticker("binance", "BTCUSDT", TickerData(
-                symbol="BTCUSDT",
-                bid=Decimal(str(50000 + idx)),
-                ask=Decimal(str(50001 + idx)),
-                last=Decimal(str(50000 + idx)),
-                volume=Decimal("1000"),
-                timestamp=datetime.now(timezone.utc),
-            ))
+            hub.cache.update_ticker(
+                "binance",
+                "BTCUSDT",
+                TickerData(
+                    symbol="BTCUSDT",
+                    bid=Decimal(str(50000 + idx)),
+                    ask=Decimal(str(50001 + idx)),
+                    last=Decimal(str(50000 + idx)),
+                    volume=Decimal("1000"),
+                    timestamp=datetime.now(UTC),
+                ),
+            )
 
         await asyncio.gather(*[write_one(i) for i in range(1000)])
         assert hub.cache.get_ticker("binance", "BTCUSDT") is not None
         assert hub.cache.get_message_count("binance", "BTCUSDT") == 1000
 
     @pytest.mark.asyncio
-    async def test_snapshot_under_load(self, hub: MarketHub, adapter: PerfFakeAdapter) -> None:
+    async def test_snapshot_under_load(
+        self, hub: MarketHub, adapter: PerfFakeAdapter
+    ) -> None:
         """Snapshot should be fast even with active subscriptions."""
         for _ in range(20):
             await hub.subscribe("binance", "BTCUSDT", "ticker", lambda d: None)

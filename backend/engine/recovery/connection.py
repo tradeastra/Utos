@@ -7,10 +7,11 @@ Queues orders during disconnect and replays them on reconnect.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, Callable
+from typing import Any
 
 from core.logging import get_logger
 
@@ -28,7 +29,7 @@ class QueuedOrder:
     side: str
     quantity: Decimal
     price: Decimal
-    queued_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    queued_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 class ConnectionRecovery:
@@ -194,7 +195,10 @@ class ConnectionRecovery:
                     self._metrics["orders_replayed"] += 1
                     logger.info(
                         "Queued order replayed",
-                        extra={"instance_id": order.instance_id, "symbol": order.symbol},
+                        extra={
+                            "instance_id": order.instance_id,
+                            "symbol": order.symbol,
+                        },
                     )
                 else:
                     logger.warning(

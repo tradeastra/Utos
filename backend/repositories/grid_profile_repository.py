@@ -4,9 +4,9 @@ Grid profile repository — async CRUD for grid_profiles table.
 
 import uuid
 
+from models.grid_profile import GridProfile
 from sqlalchemy import select
 
-from models.grid_profile import GridProfile
 from repositories.base import IRepository
 
 

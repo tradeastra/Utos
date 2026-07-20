@@ -1,7 +1,6 @@
 """Unit tests for TemplateEngine."""
 
 import pytest
-
 from core.exceptions import NotificationError
 from engine.notification.template import NotificationTemplate, TemplateEngine
 
@@ -20,24 +19,31 @@ class TestDefaultTemplates:
 
     def test_render_order_filled(self) -> None:
         engine = TemplateEngine()
-        msg = engine.render("order_filled", {
-            "symbol": "BTCUSDT",
-            "side": "buy",
-            "quantity": "1.5",
-            "price": "50000",
-        })
+        msg = engine.render(
+            "order_filled",
+            {
+                "symbol": "BTCUSDT",
+                "side": "buy",
+                "quantity": "1.5",
+                "price": "50000",
+            },
+        )
         assert "BTCUSDT" in msg.title
         assert "1.5" in msg.message
         assert "50000" in msg.message
 
     def test_render_telegram_format(self) -> None:
         engine = TemplateEngine()
-        msg = engine.render("order_filled", {
-            "symbol": "BTCUSDT",
-            "side": "buy",
-            "quantity": "1.5",
-            "price": "50000",
-        }, channel="telegram")
+        msg = engine.render(
+            "order_filled",
+            {
+                "symbol": "BTCUSDT",
+                "side": "buy",
+                "quantity": "1.5",
+                "price": "50000",
+            },
+            channel="telegram",
+        )
         assert "✅" in msg.message
         assert "BTCUSDT" in msg.message
 
@@ -46,11 +52,13 @@ class TestCustomTemplates:
 
     def test_register_and_render(self) -> None:
         engine = TemplateEngine()
-        engine.register_template(NotificationTemplate(
-            name="custom",
-            title_template="Alert: {type}",
-            message_template="Value: {value}",
-        ))
+        engine.register_template(
+            NotificationTemplate(
+                name="custom",
+                title_template="Alert: {type}",
+                message_template="Value: {value}",
+            )
+        )
         msg = engine.render("custom", {"type": "warning", "value": "42"})
         assert msg.title == "Alert: warning"
         assert msg.message == "Value: 42"

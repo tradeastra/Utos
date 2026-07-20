@@ -2,16 +2,23 @@
 Trading instance model — matches DATABASE.md §2.3.
 """
 
-import enum
 import uuid
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, Integer, Numeric, String, Text
-from database.base import GUID, JSONBCompat
+from core.domain_types import TradingInstanceStatus
+from database.base import GUID, Base, JSONBCompat
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-
-from core.types import TradingInstanceStatus
-from database.base import Base
 
 
 class TradingInstance(Base):
@@ -19,9 +26,7 @@ class TradingInstance(Base):
 
     __tablename__ = "trading_instances"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        GUID(), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
         GUID(), ForeignKey("users.id"), nullable=False
     )
@@ -37,7 +42,7 @@ class TradingInstance(Base):
 
     symbol: Mapped[str] = mapped_column(String(20), nullable=False)
     status: Mapped[TradingInstanceStatus] = mapped_column(
-        Enum(TradingInstanceStatus, name="trading_instance_status"),
+        Enum(TradingInstanceStatus, name="trading_instance_status", values_callable=lambda x: [e.value for e in x]),
         default=TradingInstanceStatus.CREATED,
         nullable=False,
     )
@@ -48,12 +53,24 @@ class TradingInstance(Base):
     base_currency: Mapped[str] = mapped_column(String(10), nullable=False)
     quote_currency: Mapped[str] = mapped_column(String(10), nullable=False)
 
-    profit_lock_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    profit_lock_trigger_percentage: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
-    profit_lock_trail_percentage: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
-    portfolio_lock_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    portfolio_lock_trigger_percentage: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
-    portfolio_lock_trail_percentage: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
+    profit_lock_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+    profit_lock_trigger_percentage: Mapped[float | None] = mapped_column(
+        Numeric(5, 2), nullable=True
+    )
+    profit_lock_trail_percentage: Mapped[float | None] = mapped_column(
+        Numeric(5, 2), nullable=True
+    )
+    portfolio_lock_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+    portfolio_lock_trigger_percentage: Mapped[float | None] = mapped_column(
+        Numeric(5, 2), nullable=True
+    )
+    portfolio_lock_trail_percentage: Mapped[float | None] = mapped_column(
+        Numeric(5, 2), nullable=True
+    )
 
     worker_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     memory_snapshot: Mapped[dict | None] = mapped_column(JSONBCompat(), nullable=True)
@@ -61,9 +78,15 @@ class TradingInstance(Base):
 
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    started_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    stopped_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    deleted_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[DateTime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    stopped_at: Mapped[DateTime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    deleted_at: Mapped[DateTime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     created_at: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -76,9 +99,13 @@ class TradingInstance(Base):
     )
 
     user: Mapped["User"] = relationship(back_populates="trading_instances")
-    exchange_account: Mapped["ExchangeAccount"] = relationship(back_populates="trading_instances")
+    exchange_account: Mapped["ExchangeAccount"] = relationship(
+        back_populates="trading_instances"
+    )
     strategy: Mapped["Strategy"] = relationship(back_populates="trading_instances")
-    grid_profile: Mapped["GridProfile"] = relationship(back_populates="trading_instances")
+    grid_profile: Mapped["GridProfile"] = relationship(
+        back_populates="trading_instances"
+    )
     orders: Mapped[list["Order"]] = relationship(
         back_populates="trading_instance", cascade="all, delete-orphan"
     )
@@ -95,4 +122,6 @@ class TradingInstance(Base):
     )
 
     def __repr__(self) -> str:
-        return f"<TradingInstance id={self.id} symbol={self.symbol} status={self.status}>"
+        return (
+            f"<TradingInstance id={self.id} symbol={self.symbol} status={self.status}>"
+        )

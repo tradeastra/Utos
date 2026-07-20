@@ -14,11 +14,17 @@ Key operations:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable
 
-from core.exceptions import ReconciliationError
+from core.domain_types import (
+    GridLevel,
+    GridLevelStatus,
+    GridState,
+    OrderResult,
+    OrderStatus,
+    PositionEntry,
+)
 from core.logging import get_logger
-from core.types import GridLevel, GridLevelStatus, GridState, OrderResult, OrderStatus, PositionEntry
+
 from engine.risk.portfolio import PortfolioManager, Position
 
 logger = get_logger(__name__)
@@ -65,17 +71,20 @@ class RuntimeReconciler:
         They need to be re-placed if the grid is still active.
         """
         live_order_ids = {
-            o.exchange_order_id for o in live_orders
+            o.exchange_order_id
+            for o in live_orders
             if o.status not in (OrderStatus.FILLED.value, OrderStatus.CANCELLED.value)
         }
 
         missing: list[GridLevel] = []
         for level in grid_state.levels:
-            if level.status == GridLevelStatus.OPEN:
-                if level.buy_order_id and level.buy_order_id not in live_order_ids:
-                    missing.append(level)
-                elif level.sell_order_id and level.sell_order_id not in live_order_ids:
-                    missing.append(level)
+            if level.status == GridLevelStatus.OPEN and (
+                level.buy_order_id
+                and level.buy_order_id not in live_order_ids
+                or level.sell_order_id
+                and level.sell_order_id not in live_order_ids
+            ):
+                missing.append(level)
 
         self._metrics["missing_orders_found"] += len(missing)
         return missing
@@ -99,9 +108,12 @@ class RuntimeReconciler:
 
         orphans: list[OrderResult] = []
         for order in live_orders:
-            if order.status not in (OrderStatus.FILLED.value, OrderStatus.CANCELLED.value):
-                if order.exchange_order_id not in local_order_ids:
-                    orphans.append(order)
+            if (
+                order.status
+                not in (OrderStatus.FILLED.value, OrderStatus.CANCELLED.value)
+                and order.exchange_order_id not in local_order_ids
+            ):
+                orphans.append(order)
 
         self._metrics["orphan_orders_found"] += len(orphans)
         return orphans
@@ -142,14 +154,16 @@ class RuntimeReconciler:
                         details.append(
                             f"Level {level.level} buy order filled on exchange"
                         )
-                elif exchange_order.status == OrderStatus.CANCELLED.value:
-                    if level.status == GridLevelStatus.OPEN:
-                        level.status = GridLevelStatus.WAITING
-                        level.buy_order_id = None
-                        action_count += 1
-                        details.append(
-                            f"Level {level.level} buy order cancelled on exchange"
-                        )
+                elif (
+                    exchange_order.status == OrderStatus.CANCELLED.value
+                    and level.status == GridLevelStatus.OPEN
+                ):
+                    level.status = GridLevelStatus.WAITING
+                    level.buy_order_id = None
+                    action_count += 1
+                    details.append(
+                        f"Level {level.level} buy order cancelled on exchange"
+                    )
 
             if level.sell_order_id and level.sell_order_id in live_order_map:
                 exchange_order = live_order_map[level.sell_order_id]
@@ -160,13 +174,15 @@ class RuntimeReconciler:
                         details.append(
                             f"Level {level.level} sell order filled on exchange"
                         )
-                elif exchange_order.status == OrderStatus.CANCELLED.value:
-                    if level.status == GridLevelStatus.OPEN:
-                        level.sell_order_id = None
-                        action_count += 1
-                        details.append(
-                            f"Level {level.level} sell order cancelled on exchange"
-                        )
+                elif (
+                    exchange_order.status == OrderStatus.CANCELLED.value
+                    and level.status == GridLevelStatus.OPEN
+                ):
+                    level.sell_order_id = None
+                    action_count += 1
+                    details.append(
+                        f"Level {level.level} sell order cancelled on exchange"
+                    )
 
         # Phase 2: Find missing and orphan orders
         missing = self.find_missing_orders(grid_state, live_orders)

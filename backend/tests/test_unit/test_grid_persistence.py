@@ -4,7 +4,7 @@ Unit tests for GridPersistence.
 
 from decimal import Decimal
 
-from core.types import GridLevel, GridLevelStatus, GridState
+from core.domain_types import GridLevel, GridLevelStatus, GridState
 from engine.grid.persistence import GridPersistence
 from engine.grid.state import GridStatus
 
@@ -106,7 +106,7 @@ class TestGridPersistenceDeserialize:
         state = _make_state()
         data = GridPersistence.serialize(state)
         restored = GridPersistence.deserialize(data)
-        for orig, rest in zip(state.levels, restored.levels):
+        for orig, rest in zip(state.levels, restored.levels, strict=False):
             assert rest.level == orig.level
             assert rest.buy_price == orig.buy_price
             assert rest.sell_price == orig.sell_price

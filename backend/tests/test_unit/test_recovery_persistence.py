@@ -2,10 +2,9 @@
 Unit tests for RecoveryPersistence.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
-
 from core.exceptions import CheckpointError
 from engine.recovery.persistence import RecoveryCheckpoint, RecoveryPersistence
 
@@ -16,7 +15,7 @@ class TestSaveLoadCheckpoint:
         persistence = RecoveryPersistence()
         checkpoint = RecoveryCheckpoint(
             instance_id="inst-1",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             phase="connection",
             data={"redis_ok": True},
         )
@@ -36,7 +35,7 @@ class TestSaveLoadCheckpoint:
         persistence = RecoveryPersistence()
         checkpoint = RecoveryCheckpoint(
             instance_id="inst-1",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             phase="connection",
             data={},
         )
@@ -50,7 +49,7 @@ class TestClearCheckpoint:
         persistence = RecoveryPersistence()
         checkpoint = RecoveryCheckpoint(
             instance_id="inst-1",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             phase="state",
             data={},
         )
@@ -73,12 +72,15 @@ class TestListCheckpoints:
     def test_list_multiple(self) -> None:
         persistence = RecoveryPersistence()
         for iid in ["inst-1", "inst-2", "inst-3"]:
-            persistence.save_checkpoint(iid, RecoveryCheckpoint(
-                instance_id=iid,
-                created_at=datetime.now(timezone.utc),
-                phase="connection",
-                data={},
-            ))
+            persistence.save_checkpoint(
+                iid,
+                RecoveryCheckpoint(
+                    instance_id=iid,
+                    created_at=datetime.now(UTC),
+                    phase="connection",
+                    data={},
+                ),
+            )
         result = persistence.list_checkpoints()
         assert set(result) == {"inst-1", "inst-2", "inst-3"}
 
@@ -88,7 +90,7 @@ class TestSerializeDeserialize:
     def test_roundtrip(self) -> None:
         checkpoint = RecoveryCheckpoint(
             instance_id="inst-1",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             phase="reconciliation",
             data={"results": [{"component": "grid", "action": "restored"}]},
         )
@@ -105,7 +107,7 @@ class TestMetrics:
         persistence = RecoveryPersistence()
         checkpoint = RecoveryCheckpoint(
             instance_id="inst-1",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             phase="connection",
             data={},
         )

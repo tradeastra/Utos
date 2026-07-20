@@ -6,10 +6,11 @@ must implement this interface in later sprints.
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from decimal import Decimal
-from typing import Any, Callable, Optional
+from typing import Any
 
-from core.types import (
+from core.domain_types import (
     BalanceEntry,
     Candle,
     ExchangeAdapterConfig,
@@ -65,7 +66,7 @@ class IExchangeAdapter(ABC):
         ...
 
     @abstractmethod
-    async def get_balance(self, asset: Optional[str] = None) -> list[BalanceEntry]:
+    async def get_balance(self, asset: str | None = None) -> list[BalanceEntry]:
         """Return account balances."""
         ...
 
@@ -80,7 +81,7 @@ class IExchangeAdapter(ABC):
         ...
 
     @abstractmethod
-    async def get_positions(self, symbol: Optional[str] = None) -> list[PositionEntry]:
+    async def get_positions(self, symbol: str | None = None) -> list[PositionEntry]:
         """Return open positions."""
         ...
 
@@ -91,7 +92,7 @@ class IExchangeAdapter(ABC):
         side: str,
         order_type: str,
         quantity: Decimal,
-        price: Optional[Decimal] = None,
+        price: Decimal | None = None,
         **kwargs: Any,
     ) -> OrderResult:
         """Place a new order."""
@@ -103,7 +104,7 @@ class IExchangeAdapter(ABC):
         ...
 
     @abstractmethod
-    async def cancel_all(self, symbol: Optional[str] = None) -> list[OrderResult]:
+    async def cancel_all(self, symbol: str | None = None) -> list[OrderResult]:
         """Cancel all open orders for the given symbol or account."""
         ...
 
@@ -113,7 +114,7 @@ class IExchangeAdapter(ABC):
         ...
 
     @abstractmethod
-    async def get_open_orders(self, symbol: Optional[str] = None) -> list[OrderResult]:
+    async def get_open_orders(self, symbol: str | None = None) -> list[OrderResult]:
         """Return open orders."""
         ...
 
@@ -170,16 +171,12 @@ class IExchangeAdapter(ABC):
         """Subscribe to private account stream."""
         ...
 
-    async def subscribe_user_data(
-        self, callback: Callable[[Any], None]
-    ) -> bool:
+    async def subscribe_user_data(self, callback: Callable[[Any], None]) -> bool:
         """Convenience wrapper for user account stream subscription."""
         return await self.subscribe_account("user", callback)
 
     @abstractmethod
-    async def unsubscribe_market(
-        self, symbols: list[str], channel: str
-    ) -> bool:
+    async def unsubscribe_market(self, symbols: list[str], channel: str) -> bool:
         """Unsubscribe from market data stream."""
         ...
 

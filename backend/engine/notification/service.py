@@ -6,15 +6,14 @@ Flow: notify() → template render → enqueue → queue process → channel sen
 
 from __future__ import annotations
 
-import uuid
-from datetime import datetime, timezone
 from typing import Any
 
 from core.exceptions import NotificationError
 from core.logging import get_logger
+
 from engine.notification.channels import NotificationChannel
 from engine.notification.queue import NotificationQueue, QueuedNotification
-from engine.notification.template import NotificationMessage, TemplateEngine
+from engine.notification.template import TemplateEngine
 
 logger = get_logger(__name__)
 
@@ -43,11 +42,14 @@ class NotificationService:
 
     def register_template(self, template_name: str, title: str, message: str) -> None:
         from engine.notification.template import NotificationTemplate
-        self._templates.register_template(NotificationTemplate(
-            name=template_name,
-            title_template=title,
-            message_template=message,
-        ))
+
+        self._templates.register_template(
+            NotificationTemplate(
+                name=template_name,
+                title_template=title,
+                message_template=message,
+            )
+        )
 
     def set_recipient(self, user_id: str, channel: str, recipient: str) -> None:
         self._recipient_resolver[f"{user_id}:{channel}"] = recipient
@@ -90,7 +92,9 @@ class NotificationService:
         ids: list[str] = []
         for channel in channels:
             try:
-                notification_id = await self.notify(user_id, template_name, channel, context)
+                notification_id = await self.notify(
+                    user_id, template_name, channel, context
+                )
                 ids.append(notification_id)
             except NotificationError as exc:
                 logger.error(f"Failed to notify via {channel}: {exc}")

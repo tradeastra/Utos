@@ -5,8 +5,7 @@ Unit tests for StateRecovery (Layer 2).
 from decimal import Decimal
 
 import pytest
-
-from core.types import GridLevel, GridLevelStatus, GridState, PositionEntry
+from core.domain_types import GridLevel, GridState, PositionEntry
 from engine.grid.persistence import GridPersistence
 from engine.profit_lock.persistence import ProfitPersistence
 from engine.profit_lock.state import ProfitLockState, ProfitLockStatus
@@ -19,6 +18,7 @@ class TestRecoverTradingProcess:
     async def test_recover_process_ok(self) -> None:
         def load_fn(iid: str) -> dict:
             return {"instance_id": iid, "status": "running"}
+
         sr = StateRecovery(load_instance_fn=load_fn)
         result = await sr.recover_trading_process("inst-1")
         assert result is True
@@ -29,6 +29,7 @@ class TestRecoverTradingProcess:
     async def test_recover_process_not_found(self) -> None:
         def load_fn(iid: str) -> dict | None:
             return None
+
         sr = StateRecovery(load_instance_fn=load_fn)
         result = await sr.recover_trading_process("inst-1")
         assert result is False
@@ -44,6 +45,7 @@ class TestRecoverTradingProcess:
     async def test_recover_process_exception(self) -> None:
         def boom(iid: str) -> dict:
             raise RuntimeError("DB error")
+
         sr = StateRecovery(load_instance_fn=boom)
         result = await sr.recover_trading_process("inst-1")
         assert result is False
@@ -63,7 +65,12 @@ class TestRecoverGrid:
             investment_per_grid=Decimal("100"),
             symbol="BTCUSDT",
             levels=[
-                GridLevel(level=0, buy_price=Decimal("100"), sell_price=Decimal("102"), quantity=Decimal("1")),
+                GridLevel(
+                    level=0,
+                    buy_price=Decimal("100"),
+                    sell_price=Decimal("102"),
+                    quantity=Decimal("1"),
+                ),
             ],
         )
         json_str = GridPersistence.to_json_string(grid_state)
@@ -90,6 +97,7 @@ class TestRecoverGrid:
     async def test_recover_grid_exception(self) -> None:
         def boom(iid: str) -> str:
             raise RuntimeError("DB error")
+
         sr = StateRecovery(load_grid_snapshot_fn=boom)
         result = await sr.recover_grid("inst-1")
         assert result is None
@@ -167,6 +175,7 @@ class TestRecoverPortfolio:
     async def test_recover_portfolio_exception(self) -> None:
         def boom(iid: str) -> list:
             raise RuntimeError("Exchange error")
+
         sr = StateRecovery(fetch_exchange_positions_fn=boom)
         result = await sr.recover_portfolio("inst-1")
         assert result == []

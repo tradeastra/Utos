@@ -8,9 +8,10 @@ or automated replay.
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Callable
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
 
 from core.logging import get_logger
 
@@ -31,7 +32,9 @@ class DeadLetterEntry:
 class DeadLetterQueue:
     """In-memory dead letter queue for failed events."""
 
-    def __init__(self, replay_handler: Callable[[DeadLetterEntry], bool] | None = None) -> None:
+    def __init__(
+        self, replay_handler: Callable[[DeadLetterEntry], bool] | None = None
+    ) -> None:
         self._entries: dict[str, DeadLetterEntry] = {}
         self._replay_handler = replay_handler
         self._metrics: dict[str, int] = {
@@ -56,7 +59,7 @@ class DeadLetterQueue:
             data=data,
             metadata=metadata or {},
             reason=reason,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         self._entries[entry_id] = entry
         self._metrics["entries_added"] += 1

@@ -7,9 +7,10 @@ Tasks: cleanup, checkpoint, heartbeat, sync, retry.
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
-from typing import Any, Callable
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from core.logging import get_logger
 
@@ -51,7 +52,7 @@ class JobScheduler:
         enabled: bool = True,
     ) -> str:
         task_id = str(uuid.uuid4())
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         task = ScheduledTask(
             id=task_id,
             name=name,
@@ -95,17 +96,25 @@ class JobScheduler:
         if not task or not task.enabled or task.coroutine is None:
             return None
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         task.last_run = now
         task.next_run = now + timedelta(seconds=task.interval_seconds)
 
         try:
-            result = await task.coroutine() if self._is_async(task.coroutine) else task.coroutine()
+            result = (
+                await task.coroutine()
+                if self._is_async(task.coroutine)
+                else task.coroutine()
+            )
             task.run_count += 1
             self._metrics["tasks_executed"] += 1
             logger.info(
                 "Task executed",
-                extra={"task_id": task_id, "task_name": task.name, "type": task.task_type},
+                extra={
+                    "task_id": task_id,
+                    "task_name": task.name,
+                    "type": task.task_type,
+                },
             )
             return {"task_id": task_id, "status": "success", "result": result}
         except Exception as exc:
@@ -127,9 +136,10 @@ class JobScheduler:
 
     def get_pending_tasks(self, now: datetime | None = None) -> list[ScheduledTask]:
         if now is None:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
         return [
-            t for t in self._tasks.values()
+            t
+            for t in self._tasks.values()
             if t.enabled and (t.next_run is None or t.next_run <= now)
         ]
 
@@ -145,4 +155,5 @@ class JobScheduler:
     @staticmethod
     def _is_async(func: Callable[..., Any]) -> bool:
         import asyncio
+
         return asyncio.iscoroutinefunction(func)

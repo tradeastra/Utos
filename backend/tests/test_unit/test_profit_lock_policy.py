@@ -4,10 +4,8 @@ Unit tests for ProfitLockPolicy.
 
 from decimal import Decimal
 
-import pytest
-
-from engine.profit_lock.calculator import ProfitCalculator, ProfitResult
-from engine.profit_lock.policy import PolicyDecision, ProfitLockPolicy
+from engine.profit_lock.calculator import ProfitResult
+from engine.profit_lock.policy import ProfitLockPolicy
 from engine.profit_lock.state import ProfitLockState, ProfitLockStatus
 
 
@@ -54,7 +52,9 @@ class TestProfitLockPolicyMonitoring:
         assert decision.action == "none"
 
     def test_trigger_lock_when_profit_exceeds_trigger(self) -> None:
-        state = _make_state(trigger_percentage=Decimal("10"), trail_percentage=Decimal("5"))
+        state = _make_state(
+            trigger_percentage=Decimal("10"), trail_percentage=Decimal("5")
+        )
         profit = _make_profit(Decimal("12"), Decimal("112"))
         decision = ProfitLockPolicy.evaluate(Decimal("112"), profit, state)
         assert decision.action == "trigger_lock"

@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from core.domain_types import GridLevel, GridLevelStatus
 from core.exceptions import ValidationError
-from core.types import GridLevel, GridLevelStatus
 
 
 class GridCalculator:
@@ -28,9 +28,7 @@ class GridCalculator:
                 f"upper_price ({upper_price}) must be > lower_price ({lower_price})"
             )
         if grid_count < 2:
-            raise ValidationError(
-                f"grid_count must be >= 2, got {grid_count}"
-            )
+            raise ValidationError(f"grid_count must be >= 2, got {grid_count}")
         if investment_per_grid <= 0:
             raise ValidationError(
                 f"investment_per_grid must be > 0, got {investment_per_grid}"
@@ -60,7 +58,9 @@ class GridCalculator:
         - sell_price = buy_price + spacing   (the price at which we sell after buy fills)
         - quantity   = investment_per_grid / buy_price
         """
-        cls.validate_parameters(upper_price, lower_price, grid_count, investment_per_grid)
+        cls.validate_parameters(
+            upper_price, lower_price, grid_count, investment_per_grid
+        )
 
         spacing = cls.calculate_spacing(upper_price, lower_price, grid_count)
         levels: list[GridLevel] = []
@@ -70,7 +70,9 @@ class GridCalculator:
             sell_price = buy_price + spacing
             if sell_price > upper_price:
                 sell_price = upper_price
-            quantity = investment_per_grid / buy_price if buy_price > 0 else Decimal("0")
+            quantity = (
+                investment_per_grid / buy_price if buy_price > 0 else Decimal("0")
+            )
             levels.append(
                 GridLevel(
                     level=i,
@@ -91,7 +93,9 @@ class GridCalculator:
         investment_per_grid: Decimal,
     ) -> dict:
         """Return a dict with levels and spacing for GridState construction."""
-        levels = cls.calculate_levels(upper_price, lower_price, grid_count, investment_per_grid)
+        levels = cls.calculate_levels(
+            upper_price, lower_price, grid_count, investment_per_grid
+        )
         spacing = cls.calculate_spacing(upper_price, lower_price, grid_count)
         return {
             "levels": levels,

@@ -8,14 +8,11 @@ plaintext keys never persist.
 
 import base64
 import hashlib
-from typing import Optional
-
-from cryptography.fernet import Fernet
-from cryptography.fernet import InvalidToken
 
 from core.config import settings
 from core.exceptions import AuthenticationError
 from core.logging import get_logger
+from cryptography.fernet import Fernet, InvalidToken
 
 logger = get_logger(__name__)
 
@@ -23,7 +20,7 @@ logger = get_logger(__name__)
 class CredentialManager:
     """Encrypt and decrypt exchange API credentials."""
 
-    def __init__(self, secret_key: Optional[str] = None) -> None:
+    def __init__(self, secret_key: str | None = None) -> None:
         """Initialize with a secret key; defaults to `settings.SECRET_KEY`."""
         self._secret = (secret_key or settings.SECRET_KEY).encode("utf-8")
         self._cipher = self._make_fernet(self._secret)

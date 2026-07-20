@@ -5,9 +5,10 @@ OrderTracker: in-memory tracking of orders managed by the Execution Engine.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from core.types import OrderResult, OrderStatus
+from core.domain_types import OrderResult, OrderStatus
+
 from engine.execution.models import ExecutionOrderStatus, TrackedOrder
 
 
@@ -31,7 +32,7 @@ class OrderTracker:
         status: ExecutionOrderStatus,
     ) -> TrackedOrder:
         """Create and store a new tracked order."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         tracked = TrackedOrder(
             request_id=request_id,
             exchange_account_id=exchange_account_id,
@@ -45,9 +46,7 @@ class OrderTracker:
         self._request_index[request_id] = key
         return tracked
 
-    def get_by_request_id(
-        self, request_id: uuid.UUID
-    ) -> TrackedOrder | None:
+    def get_by_request_id(self, request_id: uuid.UUID) -> TrackedOrder | None:
         """Return the tracked order for a given request idempotency key."""
         key = self._request_index.get(request_id)
         if key is None:

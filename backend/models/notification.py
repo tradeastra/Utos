@@ -5,15 +5,13 @@ Notification model — matches DATABASE.md §2.11.
 import enum
 import uuid
 
+from database.base import GUID, Base, JSONBCompat
 from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, String, Text
-from database.base import GUID, JSONBCompat
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
-from database.base import Base
 
-
-class NotificationType(str, enum.Enum):
+class NotificationType(enum.StrEnum):
     ORDER_FILLED = "order_filled"
     ORDER_FAILED = "order_failed"
     GRID_COMPLETED = "grid_completed"
@@ -28,14 +26,12 @@ class Notification(Base):
 
     __tablename__ = "notifications"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        GUID(), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
         GUID(), ForeignKey("users.id"), nullable=False
     )
     type: Mapped[NotificationType] = mapped_column(
-        Enum(NotificationType, name="notification_type"), nullable=False
+        Enum(NotificationType, name="notification_type", values_callable=lambda x: [e.value for e in x]), nullable=False
     )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)

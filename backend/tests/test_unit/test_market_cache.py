@@ -2,12 +2,11 @@
 Unit tests for MarketCache.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
-
-from core.types import Candle, OrderBook, TickerData
+from core.domain_types import Candle, OrderBook, TickerData
 from market.cache.market_cache import MarketCache
 
 
@@ -24,7 +23,7 @@ def ticker() -> TickerData:
         ask=Decimal("50001.00"),
         last=Decimal("50000.50"),
         volume=Decimal("1000.5"),
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
     )
 
 
@@ -34,7 +33,7 @@ def orderbook() -> OrderBook:
         symbol="BTCUSDT",
         bids=[(Decimal("50000"), Decimal("1.5")), (Decimal("49999"), Decimal("2.0"))],
         asks=[(Decimal("50001"), Decimal("1.0")), (Decimal("50002"), Decimal("0.5"))],
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
     )
 
 
@@ -49,20 +48,24 @@ def candles() -> list[Candle]:
             low=Decimal("49900"),
             close=Decimal("50050"),
             volume=Decimal("100"),
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         ),
     ]
 
 
 class TestMarketCache:
-    def test_update_and_get_ticker(self, cache: MarketCache, ticker: TickerData) -> None:
+    def test_update_and_get_ticker(
+        self, cache: MarketCache, ticker: TickerData
+    ) -> None:
         cache.update_ticker("binance", "BTCUSDT", ticker)
         result = cache.get_ticker("binance", "BTCUSDT")
         assert result is not None
         assert result.symbol == "BTCUSDT"
         assert result.last == Decimal("50000.50")
 
-    def test_update_ticker_sets_price(self, cache: MarketCache, ticker: TickerData) -> None:
+    def test_update_ticker_sets_price(
+        self, cache: MarketCache, ticker: TickerData
+    ) -> None:
         cache.update_ticker("binance", "BTCUSDT", ticker)
         assert cache.get_price("binance", "BTCUSDT") == Decimal("50000.50")
 
@@ -72,34 +75,48 @@ class TestMarketCache:
     def test_get_price_missing(self, cache: MarketCache) -> None:
         assert cache.get_price("binance", "ETHUSDT") is None
 
-    def test_update_and_get_orderbook(self, cache: MarketCache, orderbook: OrderBook) -> None:
+    def test_update_and_get_orderbook(
+        self, cache: MarketCache, orderbook: OrderBook
+    ) -> None:
         cache.update_orderbook("binance", "BTCUSDT", orderbook)
         result = cache.get_orderbook("binance", "BTCUSDT")
         assert result is not None
         assert len(result.bids) == 2
         assert len(result.asks) == 2
 
-    def test_update_and_get_candles(self, cache: MarketCache, candles: list[Candle]) -> None:
+    def test_update_and_get_candles(
+        self, cache: MarketCache, candles: list[Candle]
+    ) -> None:
         cache.update_candles("binance", "BTCUSDT", "1m", candles)
         result = cache.get_candles("binance", "BTCUSDT", "1m")
         assert result is not None
         assert len(result) == 1
         assert result[0].interval == "1m"
 
-    def test_candles_different_intervals(self, cache: MarketCache, candles: list[Candle]) -> None:
+    def test_candles_different_intervals(
+        self, cache: MarketCache, candles: list[Candle]
+    ) -> None:
         cache.update_candles("binance", "BTCUSDT", "1m", candles)
-        candles_5m = [Candle(
-            symbol="BTCUSDT", interval="5m",
-            open=Decimal("50000"), high=Decimal("50200"), low=Decimal("49800"),
-            close=Decimal("50100"), volume=Decimal("500"),
-            timestamp=datetime.now(timezone.utc),
-        )]
+        candles_5m = [
+            Candle(
+                symbol="BTCUSDT",
+                interval="5m",
+                open=Decimal("50000"),
+                high=Decimal("50200"),
+                low=Decimal("49800"),
+                close=Decimal("50100"),
+                volume=Decimal("500"),
+                timestamp=datetime.now(UTC),
+            )
+        ]
         cache.update_candles("binance", "BTCUSDT", "5m", candles_5m)
         assert cache.get_candles("binance", "BTCUSDT", "1m") is not None
         assert cache.get_candles("binance", "BTCUSDT", "5m") is not None
         assert len(cache.get_candles("binance", "BTCUSDT", "5m")) == 1
 
-    def test_is_fresh_after_update(self, cache: MarketCache, ticker: TickerData) -> None:
+    def test_is_fresh_after_update(
+        self, cache: MarketCache, ticker: TickerData
+    ) -> None:
         cache.update_ticker("binance", "BTCUSDT", ticker)
         assert cache.is_fresh("binance", "BTCUSDT") is True
 
@@ -110,6 +127,7 @@ class TestMarketCache:
         stale_cache = MarketCache(stale_threshold_seconds=0.01)
         stale_cache.update_ticker("binance", "BTCUSDT", ticker)
         import time
+
         time.sleep(0.02)
         assert stale_cache.is_fresh("binance", "BTCUSDT") is False
 
@@ -154,6 +172,8 @@ class TestMarketCache:
         assert ("binance", "BTCUSDT") in snap
         assert snap[("binance", "BTCUSDT")]["has_ticker"] is True
 
-    def test_case_insensitive_exchange(self, cache: MarketCache, ticker: TickerData) -> None:
+    def test_case_insensitive_exchange(
+        self, cache: MarketCache, ticker: TickerData
+    ) -> None:
         cache.update_ticker("Binance", "btcusdt", ticker)
         assert cache.get_ticker("BINANCE", "BTCUSDT") is not None

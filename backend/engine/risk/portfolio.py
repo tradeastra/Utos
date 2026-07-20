@@ -8,9 +8,8 @@ Updates on order fills, closes on sell-side fills.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
 
 from core.exceptions import PortfolioError, ValidationError
 
@@ -27,7 +26,7 @@ class Position:
     entry_price: Decimal
     quantity: Decimal
     realized_pnl: Decimal = Decimal("0")
-    opened_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    opened_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     closed: bool = False
     closed_at: datetime | None = None
 
@@ -98,7 +97,9 @@ class PortfolioManager:
         )
 
         if is_opening:
-            total_cost = position.entry_price * position.quantity + fill_price * fill_quantity
+            total_cost = (
+                position.entry_price * position.quantity + fill_price * fill_quantity
+            )
             total_qty = position.quantity + fill_quantity
             position.entry_price = total_cost / total_qty
             position.quantity = total_qty
@@ -115,7 +116,7 @@ class PortfolioManager:
             position.quantity -= fill_quantity
             if position.quantity == 0:
                 position.closed = True
-                position.closed_at = datetime.now(timezone.utc)
+                position.closed_at = datetime.now(UTC)
 
         return position
 
@@ -125,7 +126,7 @@ class PortfolioManager:
         if position is None:
             raise PortfolioError(f"Position not found for instance {instance_id}")
         position.closed = True
-        position.closed_at = datetime.now(timezone.utc)
+        position.closed_at = datetime.now(UTC)
         del self._positions[instance_id]
         self._closed_positions.append(position)
         return position

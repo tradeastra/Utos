@@ -5,9 +5,8 @@ Unit tests for GridCalculator.
 from decimal import Decimal
 
 import pytest
-
+from core.domain_types import GridLevelStatus
 from core.exceptions import ValidationError
-from core.types import GridLevelStatus
 from engine.grid.calculator import GridCalculator
 
 

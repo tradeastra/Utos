@@ -4,10 +4,8 @@ Unit tests for GridPlanner.
 
 from decimal import Decimal
 
-import pytest
-
-from core.types import GridLevel, GridLevelStatus, GridState
-from engine.grid.planner import GridAction, GridPlanner
+from core.domain_types import GridLevel, GridLevelStatus, GridState
+from engine.grid.planner import GridPlanner
 from engine.grid.state import GridStateStore, GridStatus
 
 
@@ -18,9 +16,24 @@ def _make_store_with_levels(
 ) -> GridStateStore:
     if levels is None:
         levels = [
-            GridLevel(level=0, buy_price=Decimal("50"), sell_price=Decimal("60"), quantity=Decimal("2")),
-            GridLevel(level=1, buy_price=Decimal("60"), sell_price=Decimal("70"), quantity=Decimal("1.67")),
-            GridLevel(level=2, buy_price=Decimal("70"), sell_price=Decimal("80"), quantity=Decimal("1.43")),
+            GridLevel(
+                level=0,
+                buy_price=Decimal("50"),
+                sell_price=Decimal("60"),
+                quantity=Decimal("2"),
+            ),
+            GridLevel(
+                level=1,
+                buy_price=Decimal("60"),
+                sell_price=Decimal("70"),
+                quantity=Decimal("1.67"),
+            ),
+            GridLevel(
+                level=2,
+                buy_price=Decimal("70"),
+                sell_price=Decimal("80"),
+                quantity=Decimal("1.43"),
+            ),
         ]
     store = GridStateStore()
     state = GridState(

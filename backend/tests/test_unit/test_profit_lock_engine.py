@@ -3,16 +3,14 @@ Unit tests for ProfitLockEngine.
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
 import pytest
-
+from core.domain_types import OrderResult, OrderStatus
 from core.exceptions import ProfitLockError, ValidationError
-from core.types import OrderResult, OrderSide, OrderStatus, OrderType
 from engine.execution import ExecutionEngine
-from engine.execution.models import OrderRequest
 from engine.profit_lock.engine import ProfitLockEngine
 from engine.profit_lock.state import ProfitLockStatus
 
@@ -37,13 +35,15 @@ class FakeAdapter:
         stop_price: Decimal | None = None,
         client_order_id: str | None = None,
     ) -> OrderResult:
-        self.place_calls.append({
-            "symbol": symbol,
-            "side": side,
-            "order_type": order_type,
-            "quantity": quantity,
-            "price": price,
-        })
+        self.place_calls.append(
+            {
+                "symbol": symbol,
+                "side": side,
+                "order_type": order_type,
+                "quantity": quantity,
+                "price": price,
+            }
+        )
         self._counter += 1
         order_id = f"ex_{self._counter}"
         result = OrderResult(
@@ -57,8 +57,8 @@ class FakeAdapter:
             filled_quantity=Decimal("0"),
             average_fill_price=None,
             status=OrderStatus.OPEN.value,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
         self._orders[order_id] = result
         return result
@@ -71,6 +71,7 @@ class FakeAdapter:
         result = self._orders.get(order_id)
         if result is None:
             from core.exceptions import OrderNotFound
+
             raise OrderNotFound(order_id=order_id)
         return result
 
@@ -89,7 +90,9 @@ def fake_adapter() -> FakeAdapter:
 
 
 @pytest.fixture
-def execution_engine(account_id: uuid.UUID, fake_adapter: FakeAdapter) -> ExecutionEngine:
+def execution_engine(
+    account_id: uuid.UUID, fake_adapter: FakeAdapter
+) -> ExecutionEngine:
     e = ExecutionEngine()
     e.register_adapter(account_id, fake_adapter)
     return e
@@ -215,7 +218,10 @@ class TestProfitLockEnginePriceUpdate:
 
     @pytest.mark.asyncio
     async def test_price_update_executes_lock(
-        self, enabled_lock: str, profit_lock_engine: ProfitLockEngine, fake_adapter: FakeAdapter
+        self,
+        enabled_lock: str,
+        profit_lock_engine: ProfitLockEngine,
+        fake_adapter: FakeAdapter,
     ) -> None:
         # Trigger
         await profit_lock_engine.on_price_update("inst-1", Decimal("112"))
@@ -259,7 +265,9 @@ class TestProfitLockEngineOrderEvents:
         order_id = state.lock_order_id
 
         # Simulate fill
-        await profit_lock_engine.on_order_filled("inst-1", order_id, Decimal("100"), Decimal("2"))
+        await profit_lock_engine.on_order_filled(
+            "inst-1", order_id, Decimal("100"), Decimal("2")
+        )
         state = await profit_lock_engine.get_state("inst-1")
         assert state.status == ProfitLockStatus.LOCKED
         assert state.is_executed is True
@@ -291,7 +299,9 @@ class TestProfitLockEngineOrderEvents:
         await profit_lock_engine.on_price_update("inst-1", Decimal("112"))
         await profit_lock_engine.on_price_update("inst-1", Decimal("100"))
         # Fill for wrong order_id
-        await profit_lock_engine.on_order_filled("inst-1", "wrong_order", Decimal("100"), Decimal("2"))
+        await profit_lock_engine.on_order_filled(
+            "inst-1", "wrong_order", Decimal("100"), Decimal("2")
+        )
         state = await profit_lock_engine.get_state("inst-1")
         assert state.status == ProfitLockStatus.EXECUTING  # unchanged
 
@@ -300,7 +310,10 @@ class TestProfitLockEngineDisable:
 
     @pytest.mark.asyncio
     async def test_disable_cancels_lock_order(
-        self, enabled_lock: str, profit_lock_engine: ProfitLockEngine, fake_adapter: FakeAdapter
+        self,
+        enabled_lock: str,
+        profit_lock_engine: ProfitLockEngine,
+        fake_adapter: FakeAdapter,
     ) -> None:
         # Trigger and execute
         await profit_lock_engine.on_price_update("inst-1", Decimal("112"))
@@ -327,7 +340,9 @@ class TestProfitLockEnginePositionUpdate:
     async def test_position_update_changes_entry(
         self, enabled_lock: str, profit_lock_engine: ProfitLockEngine
     ) -> None:
-        await profit_lock_engine.on_position_update("inst-1", Decimal("95"), Decimal("3"))
+        await profit_lock_engine.on_position_update(
+            "inst-1", Decimal("95"), Decimal("3")
+        )
         state = await profit_lock_engine.get_state("inst-1")
         assert state.entry_price == Decimal("95")
         assert state.quantity == Decimal("3")

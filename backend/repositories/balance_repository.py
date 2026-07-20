@@ -4,9 +4,9 @@ Balance repository — async CRUD for balances table.
 
 import uuid
 
+from models.balance import Balance
 from sqlalchemy import select
 
-from models.balance import Balance
 from repositories.base import IRepository
 
 

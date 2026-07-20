@@ -4,9 +4,9 @@ Affiliate repository — async CRUD for affiliates table.
 
 import uuid
 
+from models.affiliate import Affiliate
 from sqlalchemy import select
 
-from models.affiliate import Affiliate
 from repositories.base import IRepository
 
 

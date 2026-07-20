@@ -1,8 +1,7 @@
 """Unit tests for HeartbeatMonitor."""
 
 import pytest
-
-from engine.scheduler.heartbeat import HeartbeatMonitor, HealthCheckResult
+from engine.scheduler.heartbeat import HeartbeatMonitor
 
 
 class TestRegister:
@@ -45,8 +44,10 @@ class TestCheck:
     @pytest.mark.asyncio
     async def test_check_exception(self) -> None:
         hm = HeartbeatMonitor()
+
         def boom() -> bool:
             raise ConnectionError("PG down")
+
         hm.register("postgres", boom)
         result = await hm.check("postgres")
         assert result.healthy is False

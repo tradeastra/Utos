@@ -1,8 +1,7 @@
 """Unit tests for AuthService."""
 
 import pytest
-
-from core.exceptions import AuthenticationError, ValidationError
+from core.exceptions import ValidationError
 from services.saas.auth import AuthService, TokenPair
 
 

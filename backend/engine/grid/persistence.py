@@ -11,7 +11,7 @@ import json
 from decimal import Decimal
 from typing import Any
 
-from core.types import GridLevel, GridLevelStatus, GridState
+from core.domain_types import GridLevel, GridLevelStatus, GridState
 
 
 class GridPersistence:
@@ -32,7 +32,9 @@ class GridPersistence:
             "total_profit": str(state.total_profit),
             "symbol": state.symbol,
             "current_price": str(state.current_price) if state.current_price else None,
-            "exchange_account_id": str(state.exchange_account_id) if state.exchange_account_id else None,
+            "exchange_account_id": (
+                str(state.exchange_account_id) if state.exchange_account_id else None
+            ),
             "levels": [
                 {
                     "level": lv.level,
@@ -41,7 +43,11 @@ class GridPersistence:
                     "quantity": str(lv.quantity),
                     "buy_order_id": lv.buy_order_id,
                     "sell_order_id": lv.sell_order_id,
-                    "status": lv.status.value if isinstance(lv.status, GridLevelStatus) else str(lv.status),
+                    "status": (
+                        lv.status.value
+                        if isinstance(lv.status, GridLevelStatus)
+                        else str(lv.status)
+                    ),
                 }
                 for lv in state.levels
             ],
@@ -81,7 +87,9 @@ class GridPersistence:
             total_cycles=data.get("total_cycles", 0),
             total_profit=Decimal(data.get("total_profit", "0")),
             symbol=data.get("symbol", ""),
-            current_price=Decimal(data["current_price"]) if data.get("current_price") else None,
+            current_price=(
+                Decimal(data["current_price"]) if data.get("current_price") else None
+            ),
             exchange_account_id=data.get("exchange_account_id"),
         )
 

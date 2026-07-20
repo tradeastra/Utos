@@ -3,7 +3,6 @@ Unit tests for SymbolRegistry.
 """
 
 import pytest
-
 from core.exceptions import SymbolNotSupported
 from market.symbol_registry import SymbolRegistry
 

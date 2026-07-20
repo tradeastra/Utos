@@ -4,13 +4,11 @@ Strategy model — matches DATABASE.md §2.7.
 
 import uuid
 
+from core.domain_types import StrategyType
+from database.base import GUID, Base
 from sqlalchemy import Boolean, DateTime, Enum, Numeric, String, Text
-from database.base import GUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-
-from core.types import StrategyType
-from database.base import Base
 
 
 class Strategy(Base):
@@ -18,12 +16,10 @@ class Strategy(Base):
 
     __tablename__ = "strategies"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        GUID(), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     type: Mapped[StrategyType] = mapped_column(
-        Enum(StrategyType, name="strategy_type"), nullable=False
+        Enum(StrategyType, name="strategy_type", values_callable=lambda x: [e.value for e in x]), nullable=False
     )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     min_investment: Mapped[float] = mapped_column(Numeric(20, 8), nullable=False)

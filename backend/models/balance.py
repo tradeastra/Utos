@@ -4,12 +4,10 @@ Balance model — matches DATABASE.md §2.12.
 
 import uuid
 
+from database.base import GUID, Base
 from sqlalchemy import DateTime, ForeignKey, Index, Numeric, String
-from database.base import GUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-
-from database.base import Base
 
 
 class Balance(Base):
@@ -17,9 +15,7 @@ class Balance(Base):
 
     __tablename__ = "balances"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        GUID(), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
     exchange_account_id: Mapped[uuid.UUID] = mapped_column(
         GUID(), ForeignKey("exchange_accounts.id"), nullable=False
     )
