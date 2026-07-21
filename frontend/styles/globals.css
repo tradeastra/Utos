@@ -92,4 +92,38 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+  .ios-toggle {
+    @apply relative h-6 w-11 rounded-full transition-colors duration-200;
+  }
+  .ios-toggle-thumb {
+    @apply absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200;
+  }
+  .gradient-primary {
+    background: linear-gradient(135deg, hsl(262 83% 58%), hsl(280 83% 52%));
+  }
+  .dark .gradient-primary {
+    background: linear-gradient(135deg, hsl(262 83% 65%), hsl(280 83% 58%));
+  }
+  .animate-slide-up {
+    animation: slide-up 0.3s ease-out;
+  }
+  .animate-fade-in {
+    animation: fade-in 0.2s ease-out;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }

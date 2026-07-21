@@ -10,10 +10,16 @@ interface AuthState {
   setUser: (user: User) => void;
 }
 
+const DEMO_MODE = false;
+
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
-  token: typeof window !== 'undefined' ? localStorage.getItem('access_token') : null,
-  isAuthenticated: typeof window !== 'undefined' ? !!localStorage.getItem('access_token') : false,
+  token: typeof window !== 'undefined'
+    ? localStorage.getItem('access_token') || (DEMO_MODE ? 'demo-token' : null)
+    : null,
+  isAuthenticated: typeof window !== 'undefined'
+    ? !!localStorage.getItem('access_token') || DEMO_MODE
+    : false,
   login: (token, user) => {
     localStorage.setItem('access_token', token);
     set({ token, user, isAuthenticated: true });

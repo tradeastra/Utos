@@ -4,6 +4,7 @@ API dependencies for UTOS Trading Engine.
 This module provides FastAPI dependencies for authentication and authorization.
 """
 
+import uuid
 from typing import Any
 
 from core.exceptions import AuthenticationError, AuthorizationError
@@ -12,7 +13,9 @@ from core.security import token_manager
 from database.base import get_db
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy.orm import Session
+from models.user import User
+from repositories.user_repository import UserRepository
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = get_logger(__name__)
 
@@ -60,17 +63,24 @@ async def get_current_user_token(
 
 async def get_current_user(
     current_user_token: dict[str, Any] = Depends(get_current_user_token),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Get current user with database lookup."""
     try:
-        # TODO: Implement actual user lookup from database
-        # user = db.query(User).filter(User.id == current_user_token["user_id"]).first()
-        # if user is None:
-        #     raise AuthenticationError("User not found")
+        repo = UserRepository(db)
+        user = await repo.get_by_id(uuid.UUID(current_user_token["user_id"]))
+        if user is None:
+            raise AuthenticationError("User not found")
 
-        # For now, return the token payload
-        return current_user_token
+        return {
+            **current_user_token,
+            "is_active": user.is_active,
+            "is_verified": user.is_verified,
+            "role": user.role.value if hasattr(user.role, "value") else str(user.role),
+            "subscription_tier": user.subscription_tier.value
+            if hasattr(user.subscription_tier, "value")
+            else str(user.subscription_tier),
+        }
 
     except AuthenticationError as e:
         logger.error(f"User lookup error: {e}")
@@ -91,40 +101,24 @@ async def get_current_active_user(
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Get current active user."""
-    try:
-        # TODO: Check if user is active from database
-        # if not current_user.is_active:
-        #     raise AuthenticationError("User is not active")
-
-        return current_user
-
-    except AuthenticationError as e:
-        logger.error(f"Active user check error: {e}")
+    if not current_user.get("is_active", True):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e),
-            headers={"WWW-Authenticate": "Bearer"},
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is disabled",
         )
+    return current_user
 
 
 async def get_current_verified_user(
     current_user: dict[str, Any] = Depends(get_current_active_user),
 ) -> dict[str, Any]:
     """Get current verified user."""
-    try:
-        # TODO: Check if user is verified from database
-        # if not current_user.is_verified:
-        #     raise AuthenticationError("User is not verified")
-
-        return current_user
-
-    except AuthenticationError as e:
-        logger.error(f"Verified user check error: {e}")
+    if not current_user.get("is_verified", False):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e),
-            headers={"WWW-Authenticate": "Bearer"},
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email verification required",
         )
+    return current_user
 
 
 async def require_role(required_role: str):

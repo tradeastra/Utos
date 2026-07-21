@@ -182,3 +182,115 @@ export interface RecoveryStatus {
     persistence: string;
   };
 }
+
+export type StrategyMode = 'A' | 'B' | 'C' | 'D' | 'U';
+
+export interface StrategyModeInfo {
+  mode: StrategyMode;
+  label: string;
+  dailyRange: string;
+  riskLevel: string;
+}
+
+export interface CoinGroup {
+  id: string;
+  name: string;
+  description: string | null;
+  max_coins: number;
+  coins: string[];
+  is_builtin: boolean;
+  is_active: boolean;
+}
+
+export interface CoinSelectionLimit {
+  tier: string;
+  max_coin_selection: number;
+  current_selection: number;
+}
+
+export type MMPresetType = 'mm30' | 'mm50' | 'mm70' | 'custom';
+
+export interface MMPreset {
+  id: string;
+  name: string;
+  preset_type: string;
+  steps: number;
+  min_capital: string;
+  max_capital: string | null;
+  description: string | null;
+  allowed_coin_groups: string[];
+  is_builtin: boolean;
+  is_active: boolean;
+}
+
+export interface MMCalculationResult {
+  buy_amount: string;
+  max_coins: number;
+  steps: number;
+  capital: string;
+  preset_type: string;
+  min_volume_filter: string;
+}
+
+export interface AveragingStep {
+  step_number: number;
+  drop_rate: string;
+  multiple_buy_amount: string;
+  take_profit: string;
+  description: string | null;
+}
+
+export interface AveragingTemplateSummary {
+  total_steps: number;
+  avg_drop_rate: number;
+  max_drop_rate: number;
+  min_drop_rate: number;
+  avg_take_profit: number;
+  max_multiplier: number;
+  drop_rates: number[];
+  take_profits: number[];
+  multipliers: number[];
+}
+
+export interface ForceBuyResult {
+  order_id: string;
+  level: number;
+  price: string;
+  quantity: string;
+  side: 'buy';
+  message: string;
+}
+
+export interface ForceSellResult {
+  order_ids: string[];
+  levels_sold: number[];
+  price: string;
+  total_quantity: string;
+  total_value: string;
+  side: 'sell';
+  message: string;
+}
+
+export interface TAConfig {
+  id?: string;
+  indicator: string;
+  time_frame: string;
+  operator: string;
+  params: Record<string, number | string> | null;
+  enabled: boolean;
+  priority: number;
+  description: string | null;
+}
+
+export interface TAIndicatorDescription {
+  indicator: string;
+  label: string;
+  description: string;
+  default_params: Record<string, number>;
+}
+
+export interface TATemplate {
+  name: string;
+  description: string;
+  configs: TAConfig[];
+}

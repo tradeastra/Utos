@@ -426,6 +426,273 @@ class ApiClient {
       duration_days: durationDays,
     });
   }
+
+  async getCoinGroups() {
+    return this.get<{
+      id: string;
+      name: string;
+      description: string | null;
+      max_coins: number;
+      coins: string[];
+      is_builtin: boolean;
+      is_active: boolean;
+    }[]>('/api/v1/coin-groups');
+  }
+
+  async createCoinGroup(name: string, coins: string[], description?: string) {
+    return this.post<{
+      id: string;
+      name: string;
+      max_coins: number;
+      coins: string[];
+      is_builtin: boolean;
+    }>('/api/v1/coin-groups', { name, coins, description });
+  }
+
+  async deleteCoinGroup(groupId: string) {
+    return this.delete(`/api/v1/coin-groups/${groupId}`);
+  }
+
+  async getCoinSelectionLimits() {
+    return this.get<{
+      tier: string;
+      max_coin_selection: number;
+      current_selection: number;
+    }>('/api/v1/coin-groups/limits');
+  }
+
+  async getMMPresets() {
+    return this.get<{
+      id: string;
+      name: string;
+      preset_type: string;
+      steps: number;
+      min_capital: string;
+      max_capital: string | null;
+      description: string | null;
+      allowed_coin_groups: string[];
+      is_builtin: boolean;
+      is_active: boolean;
+    }[]>('/api/v1/mm-presets');
+  }
+
+  async calculateMM(presetType: string, capital: number, coinGroupName?: string, customSteps?: number) {
+    return this.post<{
+      buy_amount: string;
+      max_coins: number;
+      steps: number;
+      capital: string;
+      preset_type: string;
+      min_volume_filter: string;
+    }>('/api/v1/mm-presets/calculate', {
+      preset_type: presetType,
+      capital,
+      coin_group_name: coinGroupName,
+      custom_steps: customSteps,
+    });
+  }
+
+  async createMMPreset(name: string, steps: number, minCapital: number, description?: string) {
+    return this.post<{
+      id: string;
+      name: string;
+      preset_type: string;
+      steps: number;
+    }>('/api/v1/mm-presets', { name, steps, min_capital: minCapital, description });
+  }
+
+  async deleteMMPreset(presetId: string) {
+    return this.delete(`/api/v1/mm-presets/${presetId}`);
+  }
+
+  // ─── Admin endpoints ───────────────────────────────────────
+
+  async adminListCoinGroups() {
+    return this.get<{
+      id: string; name: string; description: string | null; max_coins: number;
+      coins: string[]; is_builtin: boolean; is_active: boolean; user_id: string | null;
+    }[]>('/api/v1/admin/coin-groups');
+  }
+
+  async adminCreateCoinGroup(data: { name: string; description?: string; max_coins: number; coins: string[]; is_builtin?: boolean }) {
+    return this.post<{
+      id: string; name: string; max_coins: number; coins: string[]; is_builtin: boolean; is_active: boolean;
+    }>('/api/v1/admin/coin-groups', data);
+  }
+
+  async adminUpdateCoinGroup(groupId: string, data: {
+    name?: string; description?: string; max_coins?: number; coins?: string[]; is_active?: boolean;
+  }) {
+    return this.put<{
+      id: string; name: string; description: string | null; max_coins: number;
+      coins: string[]; is_builtin: boolean; is_active: boolean;
+    }>(`/api/v1/admin/coin-groups/${groupId}`, data);
+  }
+
+  async adminDeleteCoinGroup(groupId: string) {
+    return this.delete(`/api/v1/admin/coin-groups/${groupId}`);
+  }
+
+  async adminListMMPresets() {
+    return this.get<{
+      id: string; name: string; preset_type: string; steps: number; min_capital: string;
+      max_capital: string | null; description: string | null; allowed_coin_groups: string[];
+      is_builtin: boolean; is_active: boolean; user_id: string | null;
+    }[]>('/api/v1/admin/mm-presets');
+  }
+
+  async adminCreateMMPreset(data: {
+    name: string; preset_type: string; steps: number; min_capital: number;
+    max_capital?: number; description?: string; allowed_coin_groups?: string[]; is_builtin?: boolean;
+  }) {
+    return this.post<{
+      id: string; name: string; preset_type: string; steps: number;
+    }>('/api/v1/admin/mm-presets', data);
+  }
+
+  async adminUpdateMMPreset(presetId: string, data: {
+    name?: string; steps?: number; min_capital?: number; max_capital?: number;
+    description?: string; allowed_coin_groups?: string[]; is_active?: boolean;
+  }) {
+    return this.put<{
+      id: string; name: string; preset_type: string; steps: number;
+    }>(`/api/v1/admin/mm-presets/${presetId}`, data);
+  }
+
+  async adminDeleteMMPreset(presetId: string) {
+    return this.delete(`/api/v1/admin/mm-presets/${presetId}`);
+  }
+
+  async adminListStrategyModes() {
+    return this.get<{
+      mode: string; label: string; daily_range_min: number; daily_range_max: number; risk_level: string;
+    }[]>('/api/v1/admin/strategy-modes');
+  }
+
+  async adminUpdateStrategyMode(mode: string, data: {
+    label?: string; daily_range_min?: number; daily_range_max?: number; risk_level?: string;
+  }) {
+    return this.put<{
+      mode: string; label: string; daily_range_min: number; daily_range_max: number; risk_level: string;
+    }>(`/api/v1/admin/strategy-modes/${mode}`, data);
+  }
+
+  // ─── Averaging Config ──────────────────────────────────────
+
+  async getAveragingConfig(instanceId: string) {
+    return this.get<{
+      step_number: number; drop_rate: string; multiple_buy_amount: string;
+      take_profit: string; description: string | null;
+    }[]>(`/api/v1/trading-instances/${instanceId}/averaging-config`);
+  }
+
+  async updateAveragingConfig(instanceId: string, steps: {
+    step_number: number; drop_rate: number; multiple_buy_amount?: number;
+    take_profit: number; description?: string;
+  }[]) {
+    return this.put<{
+      step_number: number; drop_rate: string; multiple_buy_amount: string;
+      take_profit: string; description: string | null;
+    }[]>(`/api/v1/trading-instances/${instanceId}/averaging-config`, { steps });
+  }
+
+  async resetAveragingConfig(instanceId: string) {
+    return this.post<{
+      step_number: number; drop_rate: string; multiple_buy_amount: string;
+      take_profit: string; description: string | null;
+    }[]>(`/api/v1/trading-instances/${instanceId}/averaging-config/reset`, {});
+  }
+
+  async getAveragingTemplate() {
+    return this.get<{
+      total_steps: number; avg_drop_rate: number; max_drop_rate: number;
+      min_drop_rate: number; avg_take_profit: number; max_multiplier: number;
+      drop_rates: number[]; take_profits: number[]; multipliers: number[];
+    }>('/api/v1/trading-instances/averaging-config/template');
+  }
+
+  async adminGetAveragingTemplate() {
+    return this.get<{
+      summary: {
+        total_steps: number; avg_drop_rate: number; max_drop_rate: number;
+        min_drop_rate: number; avg_take_profit: number; max_multiplier: number;
+        drop_rates: number[]; take_profits: number[]; multipliers: number[];
+      };
+      steps: {
+        step_number: number; drop_rate: string; multiple_buy_amount: string; take_profit: string;
+      }[];
+    }>('/api/v1/admin/averaging-config/template');
+  }
+
+  async adminUpdateAveragingTemplate(steps: {
+    step_number: number; drop_rate: number; multiple_buy_amount?: number; take_profit: number;
+  }[]) {
+    return this.put<{
+      total_steps: number; drop_rates: number[]; take_profits: number[]; multipliers: number[];
+    }>('/api/v1/admin/averaging-config/template', { steps });
+  }
+
+  // ─── Force Buy / Force Sell ────────────────────────────────
+
+  async forceBuy(instanceId: string, data: {
+    level?: number; price?: number; quantity?: number;
+  }) {
+    return this.post<{
+      order_id: string; level: number; price: string; quantity: string;
+      side: string; message: string;
+    }>(`/api/v1/trading-instances/${instanceId}/force-buy`, data);
+  }
+
+  async forceSell(instanceId: string, data: {
+    level?: number; price?: number; quantity?: number;
+  }) {
+    return this.post<{
+      order_ids: string[]; levels_sold: number[]; price: string;
+      total_quantity: string; total_value: string; side: string; message: string;
+    }>(`/api/v1/trading-instances/${instanceId}/force-sell`, data);
+  }
+
+  // ─── Technical Analysis ─────────────────────────────────────
+
+  async getTAConfigs(instanceId: string) {
+    return this.get<{
+      id: string; indicator: string; time_frame: string; operator: string;
+      params: Record<string, number | string> | null; enabled: boolean;
+      priority: number; description: string | null;
+    }[]>(`/api/v1/trading-instances/${instanceId}/technical-analysis`);
+  }
+
+  async updateTAConfigs(instanceId: string, configs: {
+    indicator: string; time_frame: string; operator: string;
+    params?: Record<string, number | string> | null; enabled: boolean;
+    priority: number; description?: string;
+  }[]) {
+    return this.put<{
+      id: string; indicator: string; time_frame: string; operator: string;
+      params: Record<string, number | string> | null; enabled: boolean;
+      priority: number; description: string | null;
+    }[]>(`/api/v1/trading-instances/${instanceId}/technical-analysis`, { configs });
+  }
+
+  async toggleTA(instanceId: string, enabled: boolean) {
+    return this.post<{
+      instance_id: string; ta_enabled: boolean; config_count: number;
+    }>(`/api/v1/trading-instances/${instanceId}/technical-analysis/toggle?enabled=${enabled}`, {});
+  }
+
+  async getTAIndicators() {
+    return this.get<{
+      indicator: string; label: string; description: string;
+      default_params: Record<string, number>;
+    }[]>('/api/v1/trading-instances/technical-analysis/indicators');
+  }
+
+  async adminListTATemplates() {
+    return this.get<{
+      name: string; description: string;
+      configs: { indicator: string; time_frame: string; operator: string; params: Record<string, number>; enabled: boolean; priority: number; }[];
+    }[]>('/api/v1/admin/technical-analysis/templates');
+  }
 }
 
 export const api = new ApiClient();

@@ -72,6 +72,18 @@ async def get_current_user_from_token(
     return user  # type: ignore[return-value]
 
 
+async def require_admin(
+    user: UserResponse = Depends(get_current_user_from_token),
+) -> UserResponse:
+    """Dependency: require admin role."""
+    if user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": {"code": "FORBIDDEN", "message": "Admin access required", "details": None}},
+        )
+    return user
+
+
 @router.get("/me", response_model=dict)
 async def get_me(user=Depends(get_current_user_from_token)) -> dict:
     """Return the authenticated user's profile."""

@@ -11,6 +11,7 @@ const pageTitles: Record<string, string> = {
   '/dashboard': 'Overview',
   '/dashboard/trading': 'Trading',
   '/dashboard/trade': 'Trade',
+  '/dashboard/moonbot-setting': 'Moonbot Setting',
   '/dashboard/grid': 'Grid',
   '/dashboard/orders': 'Orders',
   '/dashboard/portfolio': 'Portfolio',
@@ -34,7 +35,6 @@ export default function DashboardLayout({
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [checked, setChecked] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -53,27 +53,18 @@ export default function DashboardLayout({
   }
 
   const title = pageTitles[pathname] || 'UTOS';
+  const isOverview = pathname === '/dashboard';
 
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
 
-      {mobileOpen && (
-        <div className="fixed inset-0 z-50 md:hidden">
-          <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() => setMobileOpen(false)}
-          />
-          <div className="absolute left-0 top-0 h-full">
-            <Sidebar collapsed={false} onToggle={() => setMobileOpen(false)} />
-          </div>
-        </div>
-      )}
-
       <div className="flex flex-1 flex-col overflow-hidden">
-        <TopBar onMenuClick={() => setMobileOpen(true)} title={title} />
-        <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
-          <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 lg:px-8">
+        <div className={isOverview ? 'hidden md:block' : undefined}>
+          <TopBar title={title} />
+        </div>
+        <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
+          <div className={isOverview ? 'mx-auto max-w-7xl md:px-6 md:py-6 lg:px-8' : 'mx-auto max-w-7xl px-4 py-6 md:px-6 lg:px-8'}>
             {children}
           </div>
         </main>
