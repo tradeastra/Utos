@@ -73,8 +73,9 @@ class TokenManager:
                     minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
                 )
 
+            import secrets as _secrets
             to_encode.update(
-                {"exp": expire, "iat": datetime.utcnow(), "type": "access"}
+                {"exp": expire, "iat": datetime.utcnow(), "type": "access", "jti": _secrets.token_urlsafe(16)}
             )
 
             encoded_jwt = jwt.encode(
@@ -133,6 +134,12 @@ class TokenManager:
             if exp is None or datetime.fromtimestamp(exp) < datetime.utcnow():
                 raise AuthenticationError("Token has expired")
 
+            # Check blocklist (only for access tokens)
+            if token_type == "access":
+                jti = payload.get("jti")
+                if jti and TokenManager.is_token_blacklisted(jti):
+                    raise AuthenticationError("Token has been revoked")
+
             return payload
 
         except jwt.ExpiredSignatureError:
@@ -140,9 +147,49 @@ class TokenManager:
         except jwt.InvalidTokenError as e:
             logger.error(f"Token verification error: {e}")
             raise AuthenticationError("Invalid token")
+        except AuthenticationError:
+            raise
         except Exception as e:
             logger.error(f"Token verification error: {e}")
             raise AuthenticationError("Failed to verify token")
+
+    @staticmethod
+    def is_token_blacklisted(jti: str) -> bool:
+        """Check if a token's jti is in the Redis blocklist."""
+        try:
+            from database.redis_client import get_redis
+
+            redis = get_redis()
+            if redis is None:
+                return False
+            return bool(redis.exists(f"token_blocklist:{jti}"))
+        except Exception:
+            return False
+
+    @staticmethod
+    async def revoke_token(token: str) -> None:
+        """Add a token to the Redis blocklist with TTL matching its expiry."""
+        try:
+            from database.redis_client import get_redis
+
+            redis = get_redis()
+            if redis is None:
+                return
+
+            payload = jwt.decode(
+                token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+            )
+            jti = payload.get("jti")
+            exp = payload.get("exp")
+            if not jti or not exp:
+                return
+
+            import time as _time
+            ttl = int(exp - _time.time())
+            if ttl > 0:
+                await redis.set(f"token_blocklist:{jti}", "1", ex=ttl)
+        except Exception as e:
+            logger.error(f"Token revocation error: {e}")
 
     @staticmethod
     def create_email_verification_token(email: str) -> str:

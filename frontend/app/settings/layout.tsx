@@ -16,7 +16,6 @@ export default function SettingsLayout({
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [checked, setChecked] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -38,20 +37,8 @@ export default function SettingsLayout({
     <div className="flex h-screen overflow-hidden">
       <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
 
-      {mobileOpen && (
-        <div className="fixed inset-0 z-50 md:hidden">
-          <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() => setMobileOpen(false)}
-          />
-          <div className="absolute left-0 top-0 h-full">
-            <Sidebar collapsed={false} onToggle={() => setMobileOpen(false)} />
-          </div>
-        </div>
-      )}
-
       <div className="flex flex-1 flex-col overflow-hidden">
-        <TopBar onMenuClick={() => setMobileOpen(true)} title="Settings" />
+        <TopBar title="Settings" />
         <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
           <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 lg:px-8">
             {children}

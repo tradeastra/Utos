@@ -4,12 +4,19 @@ Order management endpoints for UTOS Trading Engine.
 This module provides endpoints for managing orders.
 """
 
-from datetime import datetime
+import uuid
+from datetime import UTC, datetime
 from decimal import Decimal
 
+from api.dependencies import get_current_user_token
+from core.domain_types import OrderStatus
 from core.logging import get_logger
-from fastapi import APIRouter, HTTPException, Query, status
+from database.base import get_db
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from models.order import Order
 from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -44,18 +51,46 @@ async def list_orders(
         100, ge=1, le=1000, description="Maximum number of orders to return"
     ),
     offset: int = Query(0, ge=0, description="Number of orders to skip"),
+    current_user: dict = Depends(get_current_user_token),
+    db: AsyncSession = Depends(get_db),
 ):
     """List orders for current user."""
     try:
-        logger.info("Listing orders")
+        user_id = uuid.UUID(current_user["user_id"])
 
-        # TODO: Implement actual order listing logic
-        # - Validate access token
-        # - Get orders from database
-        # - Apply filters
-        # - Return paginated list
+        stmt = (
+            select(Order)
+            .where(Order.user_id == user_id)
+            .order_by(Order.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        if symbol:
+            stmt = stmt.where(Order.symbol == symbol.upper())
+        if order_status:
+            stmt = stmt.where(Order.status == OrderStatus(order_status))
 
-        return []
+        result = await db.execute(stmt)
+        orders = result.scalars().all()
+
+        return [
+            OrderResponse(
+                id=str(o.id),
+                exchange_order_id=o.exchange_order_id or "",
+                symbol=o.symbol,
+                side=o.side.value if hasattr(o.side, "value") else str(o.side),
+                order_type=o.order_type.value if hasattr(o.order_type, "value") else str(o.order_type),
+                quantity=o.quantity,
+                price=o.price,
+                filled_quantity=o.filled_quantity,
+                average_fill_price=o.average_fill_price,
+                status=o.status.value if hasattr(o.status, "value") else str(o.status),
+                created_at=o.created_at,
+                updated_at=o.updated_at,
+                trading_instance_id=str(o.trading_instance_id) if o.trading_instance_id else "",
+            )
+            for o in orders
+        ]
 
     except Exception as e:
         logger.error(f"List orders failed: {e}")
@@ -66,21 +101,45 @@ async def list_orders(
 
 
 @router.get("/{order_id}", response_model=OrderResponse)
-async def get_order(order_id: str):
+async def get_order(
+    order_id: str,
+    current_user: dict = Depends(get_current_user_token),
+    db: AsyncSession = Depends(get_db),
+):
     """Get a specific order."""
     try:
-        logger.info(f"Getting order {order_id}")
+        user_id = uuid.UUID(current_user["user_id"])
 
-        # TODO: Implement actual order retrieval logic
-        # - Validate access token
-        # - Get order from database
-        # - Check ownership
-        # - Return order details
+        result = await db.execute(
+            select(Order).where(
+                Order.id == uuid.UUID(order_id),
+                Order.user_id == user_id,
+            )
+        )
+        order = result.scalar_one_or_none()
+        if order is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Order not found"
+            )
 
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Order not found"
+        return OrderResponse(
+            id=str(order.id),
+            exchange_order_id=order.exchange_order_id or "",
+            symbol=order.symbol,
+            side=order.side.value if hasattr(order.side, "value") else str(order.side),
+            order_type=order.order_type.value if hasattr(order.order_type, "value") else str(order.order_type),
+            quantity=order.quantity,
+            price=order.price,
+            filled_quantity=order.filled_quantity,
+            average_fill_price=order.average_fill_price,
+            status=order.status.value if hasattr(order.status, "value") else str(order.status),
+            created_at=order.created_at,
+            updated_at=order.updated_at,
+            trading_instance_id=str(order.trading_instance_id) if order.trading_instance_id else "",
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Get order failed: {e}")
         raise HTTPException(
@@ -90,20 +149,42 @@ async def get_order(order_id: str):
 
 
 @router.delete("/{order_id}")
-async def cancel_order(order_id: str):
+async def cancel_order(
+    order_id: str,
+    current_user: dict = Depends(get_current_user_token),
+    db: AsyncSession = Depends(get_db),
+):
     """Cancel an order."""
     try:
-        logger.info(f"Cancelling order {order_id}")
+        user_id = uuid.UUID(current_user["user_id"])
 
-        # TODO: Implement actual order cancellation logic
-        # - Validate access token
-        # - Get order from database
-        # - Check ownership and status
-        # - Cancel order on exchange
-        # - Update order status
+        result = await db.execute(
+            select(Order).where(
+                Order.id == uuid.UUID(order_id),
+                Order.user_id == user_id,
+            )
+        )
+        order = result.scalar_one_or_none()
+        if order is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Order not found"
+            )
+
+        cancellable_statuses = {OrderStatus.PENDING, OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED}
+        if order.status not in cancellable_statuses:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot cancel order with status: {order.status.value}",
+            )
+
+        order.status = OrderStatus.CANCELLED
+        order.updated_at = datetime.now(tz=UTC)
+        await db.commit()
 
         return {"message": "Order cancelled successfully"}
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Cancel order failed: {e}")
         raise HTTPException(

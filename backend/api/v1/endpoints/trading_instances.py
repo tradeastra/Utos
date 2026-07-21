@@ -426,3 +426,91 @@ async def configure_trailing_profit(
         raise
     except Exception as exc:
         _handle_manager_exception(exc)
+
+
+# ------------------------------------------------------------------
+# Force Buy / Force Sell
+# ------------------------------------------------------------------
+
+class ForceBuyRequest(BaseModel):
+    level: int | None = Field(None, ge=0, description="Grid level to buy at (auto-select if omitted)")
+    price: float | None = Field(None, gt=0, description="Override buy price (defaults to level price)")
+    quantity: float | None = Field(None, gt=0, description="Override quantity (defaults to level config)")
+
+
+class ForceSellRequest(BaseModel):
+    level: int | None = Field(None, ge=0, description="Grid level to sell (sell all filled if omitted)")
+    price: float | None = Field(None, gt=0, description="Override sell price (defaults to current market price)")
+    quantity: float | None = Field(None, gt=0, description="Partial sell quantity (defaults to full position)")
+
+
+@router.post("/{instance_id}/force-buy")
+async def force_buy(
+    instance_id: str,
+    data: ForceBuyRequest,
+    current_user: User = Depends(get_current_user_from_token),
+    manager: TradingProcessManager = Depends(get_process_manager),
+) -> dict[str, Any]:
+    """Force buy — manually place a buy order bypassing the planner.
+
+    Spot market: initiates a buy at the specified level (or auto-selects next waiting level).
+    After the forced buy fills, averaging continues automatically for subsequent levels.
+    """
+    try:
+        instance = await manager.get_status(UUID(instance_id), current_user.id)
+
+        from main import grid_engine
+
+        if grid_engine is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Grid engine not initialized",
+            )
+
+        result = await grid_engine.force_buy(
+            instance_id=str(instance.id),
+            level=data.level,
+            price=Decimal(str(data.price)) if data.price else None,
+            quantity=Decimal(str(data.quantity)) if data.quantity else None,
+        )
+        return result
+    except HTTPException:
+        raise
+    except Exception as exc:
+        _handle_manager_exception(exc)
+
+
+@router.post("/{instance_id}/force-sell")
+async def force_sell(
+    instance_id: str,
+    data: ForceSellRequest,
+    current_user: User = Depends(get_current_user_from_token),
+    manager: TradingProcessManager = Depends(get_process_manager),
+) -> dict[str, Any]:
+    """Force sell — manually close an existing position.
+
+    Spot market: can only sell levels with FILLED status (coins we actually hold).
+    If no level specified, sells ALL filled positions. Cannot short sell.
+    """
+    try:
+        instance = await manager.get_status(UUID(instance_id), current_user.id)
+
+        from main import grid_engine
+
+        if grid_engine is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Grid engine not initialized",
+            )
+
+        result = await grid_engine.force_sell(
+            instance_id=str(instance.id),
+            level=data.level,
+            price=Decimal(str(data.price)) if data.price else None,
+            quantity=Decimal(str(data.quantity)) if data.quantity else None,
+        )
+        return result
+    except HTTPException:
+        raise
+    except Exception as exc:
+        _handle_manager_exception(exc)

@@ -65,6 +65,53 @@ class StrategyType(StrEnum):
     DCA = "dca"
 
 
+class StrategyMode(StrEnum):
+    """Moonbot-style strategy modes — daily range & risk level presets."""
+    A = "super_bearish"
+    B = "conventional"
+    C = "aggressive"
+    D = "very_aggressive"
+    U = "ultimate"
+
+
+class MoneyManagementPreset(StrEnum):
+    """Money Management presets — control buy amount, max coins, and capital allocation."""
+    MM30 = "mm30"
+    MM50 = "mm50"
+    MM70 = "mm70"
+    CUSTOM = "custom"
+
+
+class TAIndicator(StrEnum):
+    """Technical Analysis indicators available as order gates."""
+    RSI = "rsi"
+    MACD = "macd"
+    BOLLINGER_BANDS = "bollinger_bands"
+    FIBONACCI_RETRACEMENT = "fibonacci_retracement"
+    EMA_CROSSOVER = "ema_crossover"
+    SMA_CROSSOVER = "sma_crossover"
+    STOCHASTIC = "stochastic"
+    ATR = "atr"
+
+
+class TAOperator(StrEnum):
+    """Logical operator for combining multiple TA indicators."""
+    AND = "and"
+    OR = "or"
+
+
+class TimeFrame(StrEnum):
+    """Supported timeframes for technical analysis."""
+    M1 = "1m"
+    M5 = "5m"
+    M15 = "15m"
+    M30 = "30m"
+    H1 = "1h"
+    H4 = "4h"
+    D1 = "1d"
+    W1 = "1w"
+
+
 class PositionSide(StrEnum):
     LONG = "long"
     SHORT = "short"

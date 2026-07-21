@@ -20,6 +20,8 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
+  X,
+  Sliders,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth';
@@ -28,6 +30,7 @@ const navItems = [
   { label: 'Overview', href: '/dashboard', icon: LayoutDashboard },
   { label: 'Trade', href: '/dashboard/trade', icon: CandlestickChart },
   { label: 'Trading', href: '/dashboard/trading', icon: Grid3x3 },
+  { label: 'Moonbot Setting', href: '/dashboard/moonbot-setting', icon: Sliders },
   { label: 'Orders', href: '/dashboard/orders', icon: ShoppingCart },
   { label: 'Portfolio', href: '/dashboard/portfolio', icon: Wallet },
   { label: 'Risk', href: '/dashboard/risk', icon: Shield },
@@ -45,14 +48,16 @@ const saasItems = [
 
 const settingsItems = [
   { label: 'Exchanges', href: '/settings/exchanges', icon: Settings },
+  { label: 'Admin', href: '/dashboard/admin', icon: Shield },
 ];
 
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
+  mobile?: boolean;
 }
 
-export function Sidebar({ collapsed, onToggle }: SidebarProps) {
+export function Sidebar({ collapsed, onToggle, mobile = false }: SidebarProps) {
   const pathname = usePathname();
   const logout = useAuthStore((s) => s.logout);
 
@@ -66,17 +71,18 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       <Link
         key={item.href}
         href={item.href}
+        onClick={mobile ? onToggle : undefined}
         title={collapsed ? item.label : undefined}
         className={cn(
-          'flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-all',
-          collapsed && 'justify-center',
+          'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all',
+          collapsed && !mobile && 'justify-center',
           active
             ? 'bg-violet-500/10 text-violet-600 dark:text-violet-400 font-medium'
             : 'text-muted-foreground hover:bg-violet-500/5 hover:text-foreground',
         )}
       >
         <Icon className="h-[18px] w-[18px] shrink-0" />
-        {!collapsed && <span>{item.label}</span>}
+        {(!collapsed || mobile) && <span>{item.label}</span>}
       </Link>
     );
   };
@@ -84,23 +90,42 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   return (
     <aside
       className={cn(
-        'hidden md:flex h-screen flex-col border-r bg-card transition-all duration-300 ease-in-out',
-        collapsed ? 'w-16' : 'w-64',
+        'h-full flex-col border-r bg-card transition-all duration-300 ease-in-out',
+        mobile
+          ? 'flex w-72 animate-slide-in-left'
+          : cn('hidden md:flex', collapsed ? 'w-16' : 'w-64'),
       )}
     >
-      <div className="flex h-14 items-center border-b px-4">
-        {!collapsed && (
-          <span className="text-lg font-bold tracking-tight">
-            <span className="text-violet-500">U</span>TOS
-          </span>
-        )}
-        {collapsed && (
-          <span className="text-lg font-bold text-violet-500 mx-auto">U</span>
+      <div className="flex h-14 items-center justify-between border-b px-4">
+        {mobile ? (
+          <>
+            <span className="text-lg font-bold tracking-tight">
+              <span className="text-violet-500">U</span>TOS
+            </span>
+            <button
+              onClick={onToggle}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent"
+              aria-label="Close menu"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </>
+        ) : (
+          <>
+            {!collapsed && (
+              <span className="text-lg font-bold tracking-tight">
+                <span className="text-violet-500">U</span>TOS
+              </span>
+            )}
+            {collapsed && (
+              <span className="text-lg font-bold text-violet-500 mx-auto">U</span>
+            )}
+          </>
         )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-2 no-scrollbar">
-        {!collapsed && (
+        {(!collapsed || mobile) && (
           <div className="mb-1 px-3 pt-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
             Trading
           </div>
@@ -111,24 +136,24 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           ))}
         </ul>
 
-        {!collapsed && (
+        {(!collapsed || mobile) && (
           <div className="mb-1 mt-4 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
             SaaS
           </div>
         )}
-        {collapsed && <div className="my-3 border-t border-border/50" />}
+        {collapsed && !mobile && <div className="my-3 border-t border-border/50" />}
         <ul className="space-y-0.5">
           {saasItems.map((item) => (
             <li key={item.href}>{renderLink(item)}</li>
           ))}
         </ul>
 
-        {!collapsed && (
+        {(!collapsed || mobile) && (
           <div className="mb-1 mt-4 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
             Settings
           </div>
         )}
-        {collapsed && <div className="my-3 border-t border-border/50" />}
+        {collapsed && !mobile && <div className="my-3 border-t border-border/50" />}
         <ul className="space-y-0.5">
           {settingsItems.map((item) => (
             <li key={item.href}>{renderLink(item)}</li>
@@ -145,33 +170,35 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           title={collapsed ? 'Logout' : undefined}
           className={cn(
             'flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-muted-foreground transition-all hover:bg-red-500/10 hover:text-red-500',
-            collapsed && 'justify-center',
+            collapsed && !mobile && 'justify-center',
           )}
         >
           <LogOut className="h-[18px] w-[18px] shrink-0" />
-          {!collapsed && <span>Logout</span>}
+          {(!collapsed || mobile) && <span>Logout</span>}
         </button>
       </div>
 
-      <div className="border-t p-2">
-        <button
-          onClick={onToggle}
-          title={collapsed ? 'Expand' : 'Collapse'}
-          className={cn(
-            'flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-muted-foreground transition-all hover:bg-accent',
-            collapsed && 'justify-center',
-          )}
-        >
-          {collapsed ? (
-            <ChevronRight className="h-[18px] w-[18px]" />
-          ) : (
-            <>
-              <ChevronLeft className="h-[18px] w-[18px]" />
-              <span>Collapse</span>
-            </>
-          )}
-        </button>
-      </div>
+      {!mobile && (
+        <div className="border-t p-2">
+          <button
+            onClick={onToggle}
+            title={collapsed ? 'Expand' : 'Collapse'}
+            className={cn(
+              'flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-muted-foreground transition-all hover:bg-accent',
+              collapsed && 'justify-center',
+            )}
+          >
+            {collapsed ? (
+              <ChevronRight className="h-[18px] w-[18px]" />
+            ) : (
+              <>
+                <ChevronLeft className="h-[18px] w-[18px]" />
+                <span>Collapse</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
     </aside>
   );
 }

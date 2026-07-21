@@ -4,12 +4,19 @@ Portfolio endpoints for UTOS Trading Engine.
 This module provides endpoints for portfolio management.
 """
 
+import uuid
 from datetime import datetime
 from decimal import Decimal
 
+from api.dependencies import get_current_user_token
 from core.logging import get_logger
-from fastapi import APIRouter, HTTPException, status
+from database.base import get_db
+from fastapi import APIRouter, Depends, HTTPException, status
+from models.position import Position as PositionModel
+from models.trading_instance import TradingInstance
 from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -25,8 +32,8 @@ class PortfolioSummary(BaseModel):
     pnl_percentage: Decimal
 
 
-class Position(BaseModel):
-    """Position model."""
+class PositionResponse(BaseModel):
+    """Position response model."""
 
     id: str
     symbol: str
@@ -44,30 +51,66 @@ class PortfolioResponse(BaseModel):
     """Portfolio response model."""
 
     summary: PortfolioSummary
-    positions: list[Position]
+    positions: list[PositionResponse]
 
 
 @router.get("/", response_model=PortfolioResponse)
-async def get_portfolio():
+async def get_portfolio(
+    current_user: dict = Depends(get_current_user_token),
+    db: AsyncSession = Depends(get_db),
+):
     """Get portfolio summary for current user."""
     try:
-        logger.info("Getting portfolio summary")
+        user_id = uuid.UUID(current_user["user_id"])
 
-        # TODO: Implement actual portfolio retrieval logic
-        # - Validate access token
-        # - Calculate portfolio value
-        # - Get all positions
-        # - Calculate P&L
-        # - Return portfolio summary
+        result = await db.execute(
+            select(PositionModel)
+            .join(TradingInstance, PositionModel.trading_instance_id == TradingInstance.id)
+            .where(
+                TradingInstance.user_id == user_id,
+                TradingInstance.deleted_at.is_(None),
+            )
+        )
+        positions = result.scalars().all()
+
+        total_value = sum(
+            (p.value or Decimal(0)) for p in positions
+        )
+        total_investment = sum(
+            (p.entry_price * p.quantity) for p in positions
+        )
+        total_pnl = sum(
+            (p.unrealized_pnl or Decimal(0)) + (p.realized_pnl or Decimal(0))
+            for p in positions
+        )
+        pnl_percentage = (
+            (total_pnl / total_investment * Decimal(100))
+            if total_investment > 0
+            else Decimal(0)
+        )
 
         return PortfolioResponse(
             summary=PortfolioSummary(
-                total_value=Decimal("0"),
-                total_investment=Decimal("0"),
-                total_pnl=Decimal("0"),
-                pnl_percentage=Decimal("0"),
+                total_value=Decimal(total_value),
+                total_investment=Decimal(total_investment),
+                total_pnl=Decimal(total_pnl),
+                pnl_percentage=Decimal(pnl_percentage),
             ),
-            positions=[],
+            positions=[
+                PositionResponse(
+                    id=str(p.id),
+                    symbol=p.symbol,
+                    side=p.side.value if hasattr(p.side, "value") else str(p.side),
+                    quantity=p.quantity,
+                    entry_price=p.entry_price,
+                    current_price=p.current_price or Decimal(0),
+                    value=p.value,
+                    unrealized_pnl=p.unrealized_pnl or Decimal(0),
+                    realized_pnl=p.realized_pnl or Decimal(0),
+                    created_at=p.created_at,
+                )
+                for p in positions
+            ],
         )
 
     except Exception as e:
@@ -78,19 +121,40 @@ async def get_portfolio():
         )
 
 
-@router.get("/positions", response_model=list[Position])
-async def get_positions():
+@router.get("/positions", response_model=list[PositionResponse])
+async def get_positions(
+    current_user: dict = Depends(get_current_user_token),
+    db: AsyncSession = Depends(get_db),
+):
     """Get all positions for current user."""
     try:
-        logger.info("Getting positions")
+        user_id = uuid.UUID(current_user["user_id"])
 
-        # TODO: Implement actual positions retrieval logic
-        # - Validate access token
-        # - Get positions from database
-        # - Calculate current values
-        # - Return positions list
+        result = await db.execute(
+            select(PositionModel)
+            .join(TradingInstance, PositionModel.trading_instance_id == TradingInstance.id)
+            .where(
+                TradingInstance.user_id == user_id,
+                TradingInstance.deleted_at.is_(None),
+            )
+        )
+        positions = result.scalars().all()
 
-        return []
+        return [
+            PositionResponse(
+                id=str(p.id),
+                symbol=p.symbol,
+                side=p.side.value if hasattr(p.side, "value") else str(p.side),
+                quantity=p.quantity,
+                entry_price=p.entry_price,
+                current_price=p.current_price or Decimal(0),
+                value=p.value,
+                unrealized_pnl=p.unrealized_pnl or Decimal(0),
+                realized_pnl=p.realized_pnl or Decimal(0),
+                created_at=p.created_at,
+            )
+            for p in positions
+        ]
 
     except Exception as e:
         logger.error(f"Get positions failed: {e}")

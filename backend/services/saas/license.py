@@ -22,6 +22,7 @@ class PlanLimits:
     max_exchange_accounts: int
     max_symbols: int
     max_workers: int
+    max_coin_selection: int = 0
     feature_flags: list[str] = field(default_factory=list)
 
 
@@ -32,6 +33,7 @@ _DEFAULT_LIMITS: dict[str, PlanLimits] = {
         max_exchange_accounts=1,
         max_symbols=2,
         max_workers=1,
+        max_coin_selection=2,
         feature_flags=["basic_grid"],
     ),
     "starter": PlanLimits(
@@ -40,6 +42,7 @@ _DEFAULT_LIMITS: dict[str, PlanLimits] = {
         max_exchange_accounts=2,
         max_symbols=10,
         max_workers=3,
+        max_coin_selection=5,
         feature_flags=["basic_grid", "profit_lock", "trailing_profit", "notifications"],
     ),
     "pro": PlanLimits(
@@ -48,6 +51,7 @@ _DEFAULT_LIMITS: dict[str, PlanLimits] = {
         max_exchange_accounts=5,
         max_symbols=50,
         max_workers=10,
+        max_coin_selection=15,
         feature_flags=[
             "basic_grid",
             "profit_lock",
@@ -64,6 +68,7 @@ _DEFAULT_LIMITS: dict[str, PlanLimits] = {
         max_exchange_accounts=20,
         max_symbols=500,
         max_workers=100,
+        max_coin_selection=999,
         feature_flags=[
             "basic_grid",
             "profit_lock",

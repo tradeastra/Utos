@@ -4,7 +4,7 @@ Trading instance model — matches DATABASE.md §2.3.
 
 import uuid
 
-from core.domain_types import TradingInstanceStatus
+from core.domain_types import StrategyMode, TradingInstanceStatus
 from database.base import GUID, Base, JSONBCompat
 from sqlalchemy import (
     Boolean,
@@ -52,6 +52,17 @@ class TradingInstance(Base):
     total_investment: Mapped[float] = mapped_column(Numeric(20, 8), nullable=False)
     base_currency: Mapped[str] = mapped_column(String(10), nullable=False)
     quote_currency: Mapped[str] = mapped_column(String(10), nullable=False)
+
+    strategy_mode: Mapped[StrategyMode | None] = mapped_column(
+        Enum(StrategyMode, name="strategy_mode_enum", values_callable=lambda x: [e.value for e in x]),
+        nullable=True,
+    )
+    selected_coins: Mapped[list[str] | None] = mapped_column(JSONBCompat(), nullable=True)
+
+    mm_preset_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(), ForeignKey("mm_presets.id"), nullable=True
+    )
+    capital: Mapped[float | None] = mapped_column(Numeric(20, 8), nullable=True)
 
     profit_lock_enabled: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False
@@ -106,11 +117,20 @@ class TradingInstance(Base):
     grid_profile: Mapped["GridProfile"] = relationship(
         back_populates="trading_instances"
     )
+    mm_preset: Mapped["MMPreset | None"] = relationship("MMPreset")
     orders: Mapped[list["Order"]] = relationship(
         back_populates="trading_instance", cascade="all, delete-orphan"
     )
     positions: Mapped[list["Position"]] = relationship(
         back_populates="trading_instance", cascade="all, delete-orphan"
+    )
+    averaging_configs: Mapped[list["AveragingConfig"]] = relationship(
+        back_populates="trading_instance", cascade="all, delete-orphan",
+        order_by="AveragingConfig.step_number",
+    )
+    ta_configs: Mapped[list["TechnicalAnalysisConfig"]] = relationship(
+        back_populates="trading_instance", cascade="all, delete-orphan",
+        order_by="TechnicalAnalysisConfig.priority",
     )
 
     __table_args__ = (

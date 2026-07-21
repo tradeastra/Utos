@@ -135,11 +135,8 @@ async def refresh_token(body: RefreshTokenRequest) -> dict:
 
 @router.post("/logout", response_model=dict)
 async def logout(credentials: HTTPAuthorizationCredentials = Depends(_bearer)) -> dict:
-    """Invalidate the current session.
-
-    Note: token blocklist not implemented in Sprint 01 — the token expires
-    naturally after ACCESS_TOKEN_EXPIRE_MINUTES.
-    """
+    """Invalidate the current session by revoking the access token."""
+    await token_manager.revoke_token(credentials.credentials)
     logger.info("User logged out")
     return {
         "data": {"message": "Successfully logged out"},
