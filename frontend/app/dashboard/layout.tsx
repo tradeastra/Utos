@@ -11,7 +11,7 @@ const pageTitles: Record<string, string> = {
   '/dashboard': 'Overview',
   '/dashboard/trading': 'Trading',
   '/dashboard/trade': 'Trade',
-  '/dashboard/moonbot-setting': 'Moonbot Setting',
+  '/dashboard/strategy-setting': 'Strategy Setting',
   '/dashboard/grid': 'Grid',
   '/dashboard/orders': 'Orders',
   '/dashboard/portfolio': 'Portfolio',

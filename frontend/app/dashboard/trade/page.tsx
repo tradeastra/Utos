@@ -128,7 +128,7 @@ export default function TradePage() {
         )}
       </div>
 
-      {/* Moonbot-style Trading Table */}
+      {/* Trading Table */}
       <Card glass>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

@@ -1,7 +1,7 @@
-# Moonbot Interface Reference
+# Interface Reference
 
 **Status:** Draft — akan terus dilengkapi seiring tambahan foto/screenshot.
-**Purpose:** Dokumen ini menangkap pola UI/UX, layar, dan aturan bisnis yang terlihat dari aplikasi referensi Moonbot, sebagai masukan untuk desain/kelengkapan UTOS.
+**Purpose:** Dokumen ini menangkap pola UI/UX, layar, dan aturan bisnis yang terlihat dari aplikasi referensi, sebagai masukan untuk desain/kelengkapan UTOS.
 
 ---
 
@@ -10,11 +10,11 @@
 | # | Screen | Gambar | Fokus Utama |
 |---|--------|--------|-------------|
 | 1 | Trade / Portfolio | 1 | Daftar aset yang aktif/tidak aktif, harga, profit, posisi terbuka |
-| 2 | Moonbot Setting | 2 | Strategy mode & coin group selection |
+| 2 | Strategy Setting | 2 | Strategy mode & coin group selection |
 | 3 | Money Management | 3 | Parameter capital, MM preset, buy amount, max coin, volume filter |
 | 4 | Account / Profile | 4 | Informasi akun, voucher, notifikasi, withdrawal address |
 | 5 | Home / Dashboard | 5 | Ringkasan saldo, volume, kredit, menu utama |
-| 6 | Moonbot Setting (extended) | 6 | Update money management, technical analysis, pause |
+| 6 | Strategy Setting (extended) | 6 | Update money management, technical analysis, pause |
 | 7 | Coin / Position Detail | 7 | Detail BTC, Force Buy/Sell, grid metrics, settings |
 | 8 | Averaging Formula | 8 | Formula buy amount, limit, TP, trailing profit, TA |
 | 9 | Averaging Configuration (top) | 9 | Tabel step 1-16: drop rate, multiplier, take profit |
@@ -60,7 +60,7 @@
 
 ---
 
-## 2. Moonbot Setting — Strategy Mode & Coin Groups
+## 2. Strategy Setting — Strategy Mode & Coin Groups
 
 ### Strategy Mode (Radio Group)
 | Code | Mode | Daily Range | Risk Level | Badge |
@@ -114,7 +114,7 @@
 - Tombol aksi: **UPDATE TECHNICAL ANALYSIS** (ungu penuh lebar).
 - Tombol aksi: **PAUSE** (merah penuh lebar).
 
-### UI Patterns (Extended Moonbot Setting)
+### UI Patterns (Extended Strategy Setting)
 - Tombol **Update** ungu untuk setiap section konfigurasi.
 - Tombol **PAUSE** merah menonaktifkan bot — muncul di beberapa screen strategi.
 - Technical Analysis dapat menggabungkan 2 indikator dengan operator logika.
@@ -169,7 +169,7 @@
 | Menu | Icon | Badge |
 |------|------|-------|
 | Cashback | Star/coin | — |
-| Moonbot Setting | Logo flame | — |
+| Strategy Setting | Logo flame | — |
 | BNB Fee Setting | Invoice + coin | — |
 
 ### Information Section
@@ -193,7 +193,7 @@
 ## 5. Home / Dashboard
 
 ### Header
-- Logo **MOONBOT** di kiri
+- Logo **UTOS** di kiri
 - Exchange selector: **Exchanger** → **Binance** (dropdown)
 - Icon notifikasi (bell) dengan badge angka
 - Hamburger menu (3 garis)
@@ -216,12 +216,12 @@
 - FAQ
 
 ### Banner Promo
-- **MOONBOT MOBILE APP** — “One App. All Your Trades.” + CTA Google Play **GET THE APP**
+- **UTOS MOBILE APP** — “One App. All Your Trades.” + CTA Google Play **GET THE APP**
 
 ### Main Menu Cards
 - Saving
 - Cashback
-- Moonbot Setting
+- Strategy Setting
 - Fee Setting (terpotong di bagian bawah)
 
 ### Bottom Navigation
@@ -271,7 +271,7 @@
 | Setting | Icon | Status |
 |---------|------|--------|
 | Avg | Balance scale | ON |
-| Moon Logic | Shield | `New` badge |
+| Risk Guard | Shield | `New` badge |
 | Formula | Wrench | — |
 | Non-Stop | Traffic light | — |
 | Partial | Box | — |

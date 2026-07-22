@@ -4,7 +4,7 @@ Averaging Configuration model — per-step drop rate, buy amount multiplier, and
 Each TradingInstance can have multiple AveragingConfig rows (1:N).
 Step 0 is the initial buy; subsequent steps define averaging-down behavior.
 
-Default template: 35 steps with Moonbot pattern:
+Default template: 35 steps with standard pattern:
   Step 1: 0.6%, Step 2: 1.2%, Step 3: 1.1%, Step 4: 1.0%, Step 5: 2.0%, ...
 """
 

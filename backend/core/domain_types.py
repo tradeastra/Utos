@@ -66,7 +66,7 @@ class StrategyType(StrEnum):
 
 
 class StrategyMode(StrEnum):
-    """Moonbot-style strategy modes — daily range & risk level presets."""
+    """Strategy modes — daily range & risk level presets."""
     A = "super_bearish"
     B = "conventional"
     C = "aggressive"

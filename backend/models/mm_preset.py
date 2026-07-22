@@ -1,5 +1,5 @@
 """
-Money Management Preset model — Moonbot-style capital allocation presets.
+Money Management Preset model — capital allocation presets.
 
 Built-in presets: MM30 (30 steps), MM50 (50 steps), MM70 (70 steps).
 Users can create custom presets (Pro+ tier).

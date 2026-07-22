@@ -32,7 +32,7 @@ const quickActions = [
 const utilityLinks = [
   { label: 'Savings', detail: 'Grow your idle balance', icon: Coins, href: '/dashboard/portfolio', color: 'bg-amber-100 text-amber-600' },
   { label: 'Cashback', detail: 'View your earned rewards', icon: Gift, href: '/dashboard/affiliate', color: 'bg-orange-100 text-orange-500' },
-  { label: 'Moonbot Settings', detail: 'Configure your trading app', icon: Settings, href: '/dashboard/moonbot-setting', color: 'bg-violet-100 text-violet-600' },
+  { label: 'Strategy Settings', detail: 'Configure your trading app', icon: Settings, href: '/dashboard/strategy-setting', color: 'bg-violet-100 text-violet-600' },
 ];
 
 export default function DashboardOverview() {

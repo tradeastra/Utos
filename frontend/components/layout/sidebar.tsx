@@ -30,7 +30,7 @@ const navItems = [
   { label: 'Overview', href: '/dashboard', icon: LayoutDashboard },
   { label: 'Trade', href: '/dashboard/trade', icon: CandlestickChart },
   { label: 'Trading', href: '/dashboard/trading', icon: Grid3x3 },
-  { label: 'Moonbot Setting', href: '/dashboard/moonbot-setting', icon: Sliders },
+  { label: 'Strategy Setting', href: '/dashboard/strategy-setting', icon: Sliders },
   { label: 'Orders', href: '/dashboard/orders', icon: ShoppingCart },
   { label: 'Portfolio', href: '/dashboard/portfolio', icon: Wallet },
   { label: 'Risk', href: '/dashboard/risk', icon: Shield },
