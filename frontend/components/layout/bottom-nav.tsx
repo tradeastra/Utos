@@ -33,7 +33,7 @@ const mainTabs = [
 
 const moreItems = [
   { label: 'Orders', href: '/dashboard/orders', icon: ShoppingCart },
-  { label: 'Moonbot', href: '/dashboard/moonbot-setting', icon: Sliders },
+  { label: 'Strategy', href: '/dashboard/strategy-setting', icon: Sliders },
   { label: 'Risk', href: '/dashboard/risk', icon: Shield },
   { label: 'Recovery', href: '/dashboard/recovery', icon: RefreshCw },
   { label: 'Workers', href: '/dashboard/workers', icon: Users },

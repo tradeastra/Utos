@@ -1,5 +1,5 @@
 """
-Default averaging configuration template — 35 steps with Moonbot pattern.
+Default averaging configuration template — 35 steps with standard pattern.
 
 Drop rates (%): 0.6, 1.2, 1.1, 1.0, 2.0, repeating with slight variations.
 Take profit (%): 1.5 for early steps, 2.0 for mid, 3.0 for deep steps.
@@ -8,7 +8,7 @@ Multiple buy amount: 1.0x for first 5 steps, 1.5x for steps 6-15, 2.0x for steps
 
 from decimal import Decimal
 
-# Moonbot-style 35-step drop rate pattern (percent)
+# Standard 35-step drop rate pattern (percent)
 DEFAULT_DROP_RATES = [
     0.6, 1.2, 1.1, 1.0, 2.0,
     0.8, 1.5, 1.3, 1.1, 2.5,

@@ -1,5 +1,5 @@
 """
-CoinGroup model — Moonbot-style coin selection groups.
+CoinGroup model — coin selection groups.
 
 Replaces fixed "Coin Groups" with subscription-tier-limited selection.
 Built-in groups: 3 Kings, 5 Kings, Top 10, Top 20, Top 50, All.

@@ -24,7 +24,7 @@ interface SettingInstance {
   symbol: string;
 }
 
-export default function MoonbotSettingPage() {
+export default function StrategySettingPage() {
   const [mode, setMode] = useState<StrategyMode>('B');
   const [groups, setGroups] = useState<CoinGroup[]>([]);
   const [limits, setLimits] = useState<CoinSelectionLimit | null>(null);
@@ -122,7 +122,7 @@ export default function MoonbotSettingPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold tracking-tight">Moonbot Settings</h2>
+          <h2 className="text-xl font-bold tracking-tight">Strategy Settings</h2>
           <p className="text-sm text-muted-foreground">Configure strategy, coin groups, MM and TA</p>
         </div>
         <div className="flex items-center gap-2">

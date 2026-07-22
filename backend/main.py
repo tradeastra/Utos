@@ -2,8 +2,11 @@
 UTOS Trading Engine — FastAPI application entry point.
 """
 
+import os
+import subprocess
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import uvicorn
@@ -43,6 +46,77 @@ profit_lock_engine: ProfitLockEngine | None = None
 grid_engine: GridEngine | None = None
 
 
+def _run_alembic(args: list[str], backend_dir: Path) -> subprocess.CompletedProcess:
+    """Run an alembic command as subprocess."""
+    return subprocess.run(
+        ["alembic", *args],
+        cwd=backend_dir,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env={**os.environ, "PYTHONPATH": str(backend_dir)},
+    )
+
+
+async def _run_migrations() -> None:
+    """Run alembic upgrade head as a subprocess.
+
+    Uses subprocess to avoid asyncio.run() conflict inside the running event loop.
+    If tables were created by create_all_tables (no alembic_version table),
+    stamp head first so alembic knows the current state.
+    """
+    backend_dir = Path(__file__).resolve().parent
+    try:
+        import sqlalchemy as sa
+        from database.base import get_engine
+
+        engine = get_engine()
+        need_stamp = False
+        if engine:
+            async with engine.connect() as conn:
+                result = await conn.execute(
+                    sa.text(
+                        "SELECT EXISTS (SELECT 1 FROM information_schema.tables "
+                        "WHERE table_name = 'alembic_version')"
+                    )
+                )
+                has_alembic = result.scalar()
+
+                if not has_alembic:
+                    result2 = await conn.execute(
+                        sa.text(
+                            "SELECT EXISTS (SELECT 1 FROM information_schema.tables "
+                            "WHERE table_name = 'trading_instances')"
+                        )
+                    )
+                    has_tables = result2.scalar()
+                    need_stamp = bool(has_tables)
+
+        if need_stamp:
+            logger.info("Tables exist without alembic tracking — stamping to 0002 (base tables)")
+            stamp_result = _run_alembic(["stamp", "0002"], backend_dir)
+            if stamp_result.returncode != 0:
+                logger.error(f"Alembic stamp failed: {stamp_result.stderr}")
+                return
+            logger.info("Alembic stamp completed")
+
+        result = _run_alembic(["upgrade", "head"], backend_dir)
+        if result.returncode == 0:
+            logger.info("Alembic migration completed successfully")
+            if result.stdout.strip():
+                logger.info(f"Migration output: {result.stdout.strip()}")
+        else:
+            logger.error(f"Alembic migration failed (exit {result.returncode})")
+            logger.error(f"stdout: {result.stdout}")
+            logger.error(f"stderr: {result.stderr}")
+    except subprocess.TimeoutExpired:
+        logger.error("Alembic migration timed out after 60s")
+    except FileNotFoundError:
+        logger.warning("alembic not found — skipping migration")
+    except Exception as exc:
+        logger.error(f"Unexpected error during migration: {exc}")
+
+
 async def _recover_trading_processes() -> None:
     """Recover RUNNING/PAUSED trading processes on startup."""
     try:
@@ -71,11 +145,7 @@ async def lifespan(app: FastAPI):
     init_engine()
     engine = get_engine()
     if engine:
-        try:
-            await create_all_tables(engine)
-            logger.info("Database tables verified/created")
-        except Exception as exc:
-            logger.warning(f"create_all_tables skipped: {exc}")
+        await _run_migrations()
     await init_redis()
     await _recover_trading_processes()
     market_hub = MarketHub()

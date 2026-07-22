@@ -148,7 +148,7 @@ async def reset_averaging_config(
     current_user: UserResponse = Depends(get_current_user_from_token),
     db: AsyncSession = Depends(get_db),
 ) -> list[dict[str, Any]]:
-    """Reset averaging configuration to default 35-step Moonbot template."""
+    """Reset averaging configuration to default 35-step template."""
     instance = await _get_user_instance(db, UUID(instance_id), current_user.id)
 
     # Delete existing config
