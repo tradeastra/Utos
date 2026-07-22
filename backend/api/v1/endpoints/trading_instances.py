@@ -58,6 +58,10 @@ class TradingInstanceResponse(BaseModel):
     quote_currency: str = ""
     profit_lock_enabled: bool = False
     portfolio_lock_enabled: bool = False
+    avg_enabled: bool = True
+    non_stop: bool = False
+    partial_sell: bool = False
+    formula_mode: str = "default"
     worker_id: str | None = None
     memory_version: int = 0
     error_message: str | None = None
@@ -102,6 +106,10 @@ def _to_response(instance: Any) -> dict[str, Any]:
         "quote_currency": instance.quote_currency or "",
         "profit_lock_enabled": bool(instance.profit_lock_enabled),
         "portfolio_lock_enabled": bool(instance.portfolio_lock_enabled),
+        "avg_enabled": bool(instance.avg_enabled) if hasattr(instance, "avg_enabled") else True,
+        "non_stop": bool(instance.non_stop) if hasattr(instance, "non_stop") else False,
+        "partial_sell": bool(instance.partial_sell) if hasattr(instance, "partial_sell") else False,
+        "formula_mode": instance.formula_mode if hasattr(instance, "formula_mode") else "default",
         "worker_id": instance.worker_id,
         "memory_version": instance.memory_version or 0,
         "error_message": instance.error_message,
@@ -510,6 +518,61 @@ async def force_sell(
             quantity=Decimal(str(data.quantity)) if data.quantity else None,
         )
         return result
+    except HTTPException:
+        raise
+    except Exception as exc:
+        _handle_manager_exception(exc)
+
+
+# ------------------------------------------------------------------
+# Per-Coin Settings (Avg, Non-Stop, Partial Sell, Formula)
+# ------------------------------------------------------------------
+
+class PerCoinSettingsUpdate(BaseModel):
+    """Update per-coin settings for a trading instance."""
+    avg_enabled: bool | None = Field(None, description="Enable/disable averaging for this coin")
+    non_stop: bool | None = Field(None, description="Continue averaging without stopping at limit")
+    partial_sell: bool | None = Field(None, description="Allow partial selling instead of full position")
+    formula_mode: str | None = Field(None, max_length=50, description="Averaging formula mode")
+
+
+@router.patch("/{instance_id}/coin-settings", response_model=dict)
+async def update_coin_settings(
+    instance_id: str,
+    data: PerCoinSettingsUpdate,
+    current_user: User = Depends(get_current_user_from_token),
+    manager: TradingProcessManager = Depends(get_process_manager),
+) -> dict[str, Any]:
+    """Update per-coin settings (avg, non-stop, partial sell, formula mode)."""
+    try:
+        instance = await manager.get_status(UUID(instance_id), current_user.id)
+
+        changed = False
+        if data.avg_enabled is not None:
+            instance.avg_enabled = data.avg_enabled
+            changed = True
+        if data.non_stop is not None:
+            instance.non_stop = data.non_stop
+            changed = True
+        if data.partial_sell is not None:
+            instance.partial_sell = data.partial_sell
+            changed = True
+        if data.formula_mode is not None:
+            instance.formula_mode = data.formula_mode
+            changed = True
+
+        if changed:
+            manager.session.add(instance)
+            await manager.session.flush()
+
+        return {
+            "instance_id": str(instance.id),
+            "avg_enabled": bool(instance.avg_enabled),
+            "non_stop": bool(instance.non_stop),
+            "partial_sell": bool(instance.partial_sell),
+            "formula_mode": instance.formula_mode,
+            "updated": changed,
+        }
     except HTTPException:
         raise
     except Exception as exc:

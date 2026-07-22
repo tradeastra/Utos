@@ -83,6 +83,19 @@ class TradingInstance(Base):
         Numeric(5, 2), nullable=True
     )
 
+    avg_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=True, nullable=False
+    )
+    non_stop: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+    partial_sell: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+    formula_mode: Mapped[str] = mapped_column(
+        String(50), default="default", nullable=False
+    )
+
     worker_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     memory_snapshot: Mapped[dict | None] = mapped_column(JSONBCompat(), nullable=True)
     memory_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

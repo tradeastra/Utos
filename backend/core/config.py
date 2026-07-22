@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     REDIS_URL: str = Field(default="redis://localhost:6379/0")
     TEST_REDIS_URL: str = Field(default="redis://localhost:6379/1")
 
+    # ── Telegram ──────────────────────────────────────────────────────────────
+    TELEGRAM_BOT_TOKEN: str | None = Field(default=None)
+
     # ── Logging ───────────────────────────────────────────────────────────────
     LOG_LEVEL: str = Field(default="INFO")
     LOG_FORMAT: str = Field(default="console")  # "console" | "json"

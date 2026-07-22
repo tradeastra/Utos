@@ -80,6 +80,13 @@ class ApiClient {
     });
   }
 
+  async patch<T>(path: string, body?: unknown): Promise<T> {
+    return this.request<T>(path, {
+      method: 'PATCH',
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  }
+
   async delete<T>(path: string): Promise<T> {
     return this.request<T>(path, { method: 'DELETE' });
   }
@@ -650,6 +657,17 @@ class ApiClient {
       order_ids: string[]; levels_sold: number[]; price: string;
       total_quantity: string; total_value: string; side: string; message: string;
     }>(`/api/v1/trading-instances/${instanceId}/force-sell`, data);
+  }
+
+  // ─── Per-Coin Settings ──────────────────────────────────────
+
+  async updateCoinSettings(instanceId: string, data: {
+    avg_enabled?: boolean; non_stop?: boolean; partial_sell?: boolean; formula_mode?: string;
+  }) {
+    return this.patch<{
+      instance_id: string; avg_enabled: boolean; non_stop: boolean;
+      partial_sell: boolean; formula_mode: string; updated: boolean;
+    }>(`/api/v1/trading-instances/${instanceId}/coin-settings`, data);
   }
 
   // ─── Technical Analysis ─────────────────────────────────────

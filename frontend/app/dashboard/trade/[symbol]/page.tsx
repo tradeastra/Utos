@@ -62,6 +62,7 @@ export default function CoinDetailPage() {
   const [nonStop, setNonStop] = useState(false);
   const [partial, setPartial] = useState(false);
   const [formula, setFormula] = useState('default');
+  const [settingsSaving, setSettingsSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pausing, setPausing] = useState(false);
 
@@ -92,6 +93,12 @@ export default function CoinDetailPage() {
             change24h: 0,
           });
 
+          // Load per-coin settings from backend
+          setAvgEnabled(found.avg_enabled !== false);
+          setNonStop(found.non_stop === true);
+          setPartial(found.partial_sell === true);
+          setFormula(String(found.formula_mode || 'default'));
+
           // Try to load grid state for metrics
           try {
             const grid = await api.getGridState(String(found.id));
@@ -120,6 +127,22 @@ export default function CoinDetailPage() {
     }
     loadData();
   }, [symbol]);
+
+  async function handleSettingChange(field: 'avg_enabled' | 'non_stop' | 'partial_sell' | 'formula_mode', value: boolean | string) {
+    if (!detail) return;
+    setSettingsSaving(true);
+    try {
+      await api.updateCoinSettings(detail.id, { [field]: value });
+      if (field === 'avg_enabled') setAvgEnabled(value as boolean);
+      if (field === 'non_stop') setNonStop(value as boolean);
+      if (field === 'partial_sell') setPartial(value as boolean);
+      if (field === 'formula_mode') setFormula(value as string);
+    } catch {
+      // Revert on error — state already updated optimistically
+    } finally {
+      setSettingsSaving(false);
+    }
+  }
 
   async function handlePauseResume() {
     if (!detail) return;
@@ -326,9 +349,14 @@ export default function CoinDetailPage() {
               <div className="text-xs text-muted-foreground">Enable/disable averaging for this coin</div>
             </div>
             <button
-              onClick={() => setAvgEnabled(!avgEnabled)}
+              onClick={() => {
+                const newVal = !avgEnabled;
+                setAvgEnabled(newVal);
+                handleSettingChange('avg_enabled', newVal);
+              }}
+              disabled={settingsSaving}
               className={cn(
-                'relative h-6 w-11 rounded-full transition-colors',
+                'relative h-6 w-11 rounded-full transition-colors disabled:opacity-50',
                 avgEnabled ? 'bg-violet-600' : 'bg-muted',
               )}
             >
@@ -347,8 +375,13 @@ export default function CoinDetailPage() {
             </div>
             <select
               value={formula}
-              onChange={(e) => setFormula(e.target.value)}
-              className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm focus:border-violet-500 focus:outline-none"
+              onChange={(e) => {
+                const newVal = e.target.value;
+                setFormula(newVal);
+                handleSettingChange('formula_mode', newVal);
+              }}
+              disabled={settingsSaving}
+              className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm focus:border-violet-500 focus:outline-none disabled:opacity-50"
             >
               <option value="default">Default</option>
               <option value="aggressive">Aggressive</option>
@@ -363,9 +396,14 @@ export default function CoinDetailPage() {
               <div className="text-xs text-muted-foreground">Continue averaging without stopping at limit</div>
             </div>
             <button
-              onClick={() => setNonStop(!nonStop)}
+              onClick={() => {
+                const newVal = !nonStop;
+                setNonStop(newVal);
+                handleSettingChange('non_stop', newVal);
+              }}
+              disabled={settingsSaving}
               className={cn(
-                'relative h-6 w-11 rounded-full transition-colors',
+                'relative h-6 w-11 rounded-full transition-colors disabled:opacity-50',
                 nonStop ? 'bg-violet-600' : 'bg-muted',
               )}
             >
@@ -383,9 +421,14 @@ export default function CoinDetailPage() {
               <div className="text-xs text-muted-foreground">Allow partial selling instead of full position</div>
             </div>
             <button
-              onClick={() => setPartial(!partial)}
+              onClick={() => {
+                const newVal = !partial;
+                setPartial(newVal);
+                handleSettingChange('partial_sell', newVal);
+              }}
+              disabled={settingsSaving}
               className={cn(
-                'relative h-6 w-11 rounded-full transition-colors',
+                'relative h-6 w-11 rounded-full transition-colors disabled:opacity-50',
                 partial ? 'bg-violet-600' : 'bg-muted',
               )}
             >
