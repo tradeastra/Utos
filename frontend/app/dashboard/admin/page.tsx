@@ -148,7 +148,7 @@ export default function AdminSettingsPage() {
               </CardHeader>
               <CardContent className="space-y-2">
                 {coinGroups.map((g) => (
-                  <div key={g.id} className="flex items-center justify-between rounded-xl border border-border bg-card p-3">
+                  <div key={g.id} className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{g.name}</span>
@@ -196,7 +196,7 @@ export default function AdminSettingsPage() {
               </CardHeader>
               <CardContent className="space-y-2">
                 {mmPresets.map((p) => (
-                  <div key={p.id} className="flex items-center justify-between rounded-xl border border-border bg-card p-3">
+                  <div key={p.id} className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{p.name}</span>

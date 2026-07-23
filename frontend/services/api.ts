@@ -48,8 +48,8 @@ class ApiClient {
 
     if (!res.ok) {
       if (res.status === 401 && typeof window !== 'undefined') {
-        const isAuthEndpoint = path.includes('/auth/');
-        if (isAuthEndpoint && window.location.pathname !== '/login') {
+        const isLoginEndpoint = path.includes('/auth/login') || path.includes('/auth/register');
+        if (!isLoginEndpoint && window.location.pathname !== '/login') {
           localStorage.removeItem('access_token');
           window.location.href = '/login';
         }
@@ -159,6 +159,15 @@ class ApiClient {
     }>(`/api/v1/market/ticker/${exchange}/${symbol}`);
   }
 
+  async getMarketTickers(exchange: string, limit: number = 100) {
+    return this.get<{
+      symbol: string;
+      last: string;
+      volume: string;
+      quote_volume: string | null;
+    }[]>(`/api/v1/market/tickers/${exchange}?limit=${limit}`);
+  }
+
   async getMarketSnapshot() {
     return this.get<{
       running: boolean;
@@ -185,6 +194,10 @@ class ApiClient {
   }
 
   // Exchange accounts
+  async listSupportedExchanges() {
+    return this.get<{ exchanges: string[] }>('/api/v1/exchange-accounts/supported');
+  }
+
   async saveExchangeAccount(data: {
     exchange_name: string;
     api_key: string;

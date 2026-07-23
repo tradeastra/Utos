@@ -305,6 +305,16 @@ class IExchangeAdapter(ABC):
         """
         pass
 
+    async def get_tickers(self) -> list[TickerData]:
+        """Get tickers for all symbols, sorted by volume descending.
+
+        Subclasses should override this with an efficient batch API call.
+        The default implementation raises NotImplementedError.
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not support get_tickers"
+        )
+
     @abstractmethod
     async def get_order_book(self, symbol: str, depth: int = 20) -> OrderBook:
         """Get order book for a symbol.

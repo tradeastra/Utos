@@ -71,7 +71,7 @@ export default function SubscriptionPage() {
       {/* Plans */}
       <div>
         <h2 className="text-lg font-semibold mb-3">Plans</h2>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           {plans.map((plan) => (
             <Card key={plan.tier} className={plan.tier === 'pro' ? 'border-primary' : ''}>
               <CardHeader>
@@ -102,7 +102,7 @@ export default function SubscriptionPage() {
       <div>
         <h2 className="text-lg font-semibold mb-3">Add-ons</h2>
         <p className="text-sm text-muted-foreground mb-4">Enhance your plan with additional features</p>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {addons.length === 0 ? (
             <Card className="md:col-span-2 lg:col-span-3">
               <CardContent className="py-8 text-center text-sm text-muted-foreground">

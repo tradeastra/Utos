@@ -421,6 +421,7 @@ class TradingProcessManager:
             memory_snapshot=process.memory.to_dict(),
         )
         await self._persist_state(process)
+        await self.store.release_lock(instance.id)
         return instance
 
     async def resume(
@@ -432,7 +433,8 @@ class TradingProcessManager:
             instance.status, TradingInstanceStatus.RUNNING
         )
 
-        if not await self.store.refresh_lock(instance.id, self.worker_id, ttl=60):
+        await self.store.release_lock(instance.id)
+        if not await self.store.acquire_lock(instance.id, self.worker_id, ttl=60):
             raise InvalidStateTransition(
                 message="Cannot resume process; lock is held by another worker",
                 current_state=instance.status.value,

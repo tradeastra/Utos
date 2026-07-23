@@ -29,7 +29,7 @@ async def get_current_user_token(
     """Get current user from JWT token."""
     try:
         # Verify the token
-        payload = token_manager.verify_token(
+        payload = await token_manager.verify_token(
             credentials.credentials, token_type="access"
         )
 

@@ -190,26 +190,28 @@ export default function CoinDetailPage() {
   return (
     <div className="space-y-6">
       {/* Back button + header */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => router.push('/dashboard/trade')}
-          className="rounded-lg p-2 hover:bg-muted"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </button>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h2 className="text-xl font-bold tracking-tight">{detail.symbol}</h2>
-            <span className={cn('h-2 w-2 rounded-full', STATUS_COLORS[detail.status] ?? 'bg-muted')} />
-            <span className="text-xs capitalize text-muted-foreground">{detail.status}</span>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => router.push('/dashboard/trade')}
+            className="rounded-lg p-2 hover:bg-muted"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-bold tracking-tight">{detail.symbol}</h2>
+              <span className={cn('h-2 w-2 rounded-full', STATUS_COLORS[detail.status] ?? 'bg-muted')} />
+              <span className="text-xs capitalize text-muted-foreground">{detail.status}</span>
+            </div>
+            <p className="text-xs text-muted-foreground">{detail.exchange}</p>
           </div>
-          <p className="text-xs text-muted-foreground">{detail.exchange}</p>
         </div>
         <button
           disabled={pausing || (detail.status !== 'running' && detail.status !== 'paused')}
           onClick={handlePauseResume}
           className={cn(
-            'flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium text-white transition disabled:opacity-50',
+            'flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium text-white transition disabled:opacity-50',
             isRunning ? 'bg-amber-600 hover:bg-amber-700' : 'bg-emerald-600 hover:bg-emerald-700',
           )}
         >

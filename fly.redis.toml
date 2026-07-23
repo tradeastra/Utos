@@ -1,0 +1,21 @@
+# fly.toml for Redis instance
+app = 'utos-staging-redis'
+primary_region = 'sin'
+
+[build]
+  image = 'redis:7-alpine'
+
+[env]
+  REDIS_MAXMEMORY = '64mb'
+  REDIS_MAXMEMORY_POLICY = 'allkeys-lru'
+
+[[services]]
+  internal_port = 6379
+  protocol = 'tcp'
+
+  [[services.ports]]
+    port = 6379
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '256mb'

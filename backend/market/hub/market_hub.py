@@ -134,6 +134,13 @@ class MarketHub(IMarketHub):
             raise SymbolNotSupported(symbol, exchange)
         return ticker
 
+    async def get_tickers(self, exchange: str) -> list[TickerData]:
+        """Get all tickers for an exchange, sorted by volume descending."""
+        connector = self._connectors.get(exchange.lower())
+        if connector is None:
+            raise SymbolNotSupported("ALL", exchange)
+        return await connector.adapter.get_tickers()
+
     async def get_orderbook(self, exchange: str, symbol: str) -> OrderBook:
         orderbook = self.cache.get_orderbook(exchange, symbol)
         if orderbook is None:

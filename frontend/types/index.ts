@@ -202,6 +202,13 @@ export interface CoinGroup {
   is_active: boolean;
 }
 
+export interface TickerItem {
+  symbol: string;
+  last: string;
+  volume: string;
+  quote_volume: string | null;
+}
+
 export interface CoinSelectionLimit {
   tier: string;
   max_coin_selection: number;

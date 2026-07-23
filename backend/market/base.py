@@ -81,6 +81,10 @@ class IMarketHub(ABC):
     async def get_ticker(self, exchange: str, symbol: str) -> TickerData:
         """Get latest cached ticker data."""
 
+    async def get_tickers(self, exchange: str) -> list[TickerData]:
+        """Get all tickers for an exchange, sorted by volume descending."""
+        raise NotImplementedError
+
     @abstractmethod
     async def get_orderbook(self, exchange: str, symbol: str) -> OrderBook:
         """Get latest cached order book."""

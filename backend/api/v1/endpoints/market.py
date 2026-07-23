@@ -39,6 +39,13 @@ class TickerResponse(BaseModel):
     timestamp: str
 
 
+class TickerListItemResponse(BaseModel):
+    symbol: str
+    last: str
+    volume: str
+    quote_volume: str | None = None
+
+
 class OrderBookResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -171,6 +178,35 @@ async def get_ticker(exchange: str, symbol: str) -> TickerResponse:
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Symbol {symbol} not found on {exchange}",
         )
+
+
+@router.get("/tickers/{exchange}", response_model=list[TickerListItemResponse])
+async def get_tickers(
+    exchange: str,
+    limit: int = Query(100, ge=1, le=1000, description="Maximum tickers to return"),
+) -> list[TickerListItemResponse]:
+    """Get all tickers for an exchange, sorted by 24h volume descending."""
+    hub = _get_hub()
+    try:
+        tickers = await hub.get_tickers(exchange)
+    except SymbolNotSupported:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Exchange {exchange} not found in MarketHub",
+        )
+    except NotImplementedError:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail=f"Exchange {exchange} does not support batch ticker fetch",
+        )
+    return [
+        TickerListItemResponse(
+            symbol=t.symbol,
+            last=str(t.last),
+            volume=str(t.volume),
+        )
+        for t in tickers[:limit]
+    ]
 
 
 @router.get("/orderbook/{exchange}/{symbol}", response_model=OrderBookResponse)

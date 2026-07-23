@@ -74,17 +74,17 @@ export default function OrdersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold">Orders Feed</h1>
-        <div className="flex items-center gap-2">
-          <div className="relative">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 sm:flex-none">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
               value={symbolFilter}
               onChange={(e) => setSymbolFilter(e.target.value)}
               placeholder="Symbol..."
-              className="w-32 rounded-lg border border-border bg-background py-1.5 pl-8 pr-3 text-sm focus:border-violet-500 focus:outline-none"
+              className="w-full rounded-lg border border-border bg-background py-1.5 pl-8 pr-3 text-sm focus:border-violet-500 focus:outline-none sm:w-32"
             />
           </div>
           <select
@@ -122,59 +122,96 @@ export default function OrdersPage() {
               No orders found.
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left text-muted-foreground">
-                    <th className="pb-2">Symbol</th>
-                    <th className="pb-2">Side</th>
-                    <th className="pb-2">Type</th>
-                    <th className="pb-2">Qty</th>
-                    <th className="pb-2">Price</th>
-                    <th className="pb-2">Filled</th>
-                    <th className="pb-2">Status</th>
-                    <th className="pb-2">Time</th>
-                    <th className="pb-2"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {orders.map((o) => (
-                    <tr key={o.id} className="border-b hover:bg-muted/30">
-                      <td className="py-3 font-medium">{o.symbol}</td>
-                      <td className="py-3">
+            <>
+              {/* Mobile: card list */}
+              <div className="space-y-2 md:hidden">
+                {orders.map((o) => (
+                  <div key={o.id} className="rounded-lg border p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{o.symbol}</span>
                         <Badge variant={o.side === 'buy' ? 'success' : 'destructive'}>{o.side}</Badge>
-                      </td>
-                      <td className="py-3">{o.order_type}</td>
-                      <td className="py-3 tabular-nums">{formatNumber(Number(o.quantity))}</td>
-                      <td className="py-3 tabular-nums">{o.price ? `$${formatNumber(Number(o.price))}` : '—'}</td>
-                      <td className="py-3 tabular-nums">
-                        {Number(o.filled_quantity) > 0 ? `${formatNumber(Number(o.filled_quantity))}` : '—'}
-                        {o.average_fill_price && Number(o.filled_quantity) > 0 && (
-                          <span className="ml-1 text-xs text-muted-foreground">@ ${formatNumber(Number(o.average_fill_price))}</span>
-                        )}
-                      </td>
-                      <td className="py-3">
-                        <Badge variant={STATUS_VARIANTS[o.status] ?? 'default'}>
-                          {o.status.replace('_', ' ')}
-                        </Badge>
-                      </td>
-                      <td className="py-3 text-muted-foreground">{timeAgo(o.created_at)}</td>
-                      <td className="py-3">
-                        {(o.status === 'pending' || o.status === 'open' || o.status === 'partially_filled') && (
-                          <button
-                            onClick={() => handleCancel(o.id)}
-                            disabled={cancelling === o.id}
-                            className="rounded-lg px-2 py-1 text-xs font-medium text-red-500 hover:bg-red-500/10 disabled:opacity-50"
-                          >
-                            {cancelling === o.id ? '...' : 'Cancel'}
-                          </button>
-                        )}
-                      </td>
+                      </div>
+                      <Badge variant={STATUS_VARIANTS[o.status] ?? 'default'}>
+                        {o.status.replace('_', ' ')}
+                      </Badge>
+                    </div>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      <span>Type: <span className="text-foreground">{o.order_type}</span></span>
+                      <span>Qty: <span className="text-foreground tabular-nums">{formatNumber(Number(o.quantity))}</span></span>
+                      <span>Price: <span className="text-foreground tabular-nums">{o.price ? `$${formatNumber(Number(o.price))}` : '—'}</span></span>
+                      {Number(o.filled_quantity) > 0 && (
+                        <span>Filled: <span className="text-foreground tabular-nums">{formatNumber(Number(o.filled_quantity))}</span></span>
+                      )}
+                      <span>{timeAgo(o.created_at)}</span>
+                    </div>
+                    {(o.status === 'pending' || o.status === 'open' || o.status === 'partially_filled') && (
+                      <button
+                        onClick={() => handleCancel(o.id)}
+                        disabled={cancelling === o.id}
+                        className="rounded-lg px-2 py-1 text-xs font-medium text-red-500 hover:bg-red-500/10 disabled:opacity-50"
+                      >
+                        {cancelling === o.id ? 'Cancelling...' : 'Cancel'}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {/* Desktop: table */}
+              <div className="hidden overflow-x-auto md:block">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-muted-foreground">
+                      <th className="pb-2">Symbol</th>
+                      <th className="pb-2">Side</th>
+                      <th className="pb-2">Type</th>
+                      <th className="pb-2">Qty</th>
+                      <th className="pb-2">Price</th>
+                      <th className="pb-2">Filled</th>
+                      <th className="pb-2">Status</th>
+                      <th className="pb-2">Time</th>
+                      <th className="pb-2"></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {orders.map((o) => (
+                      <tr key={o.id} className="border-b hover:bg-muted/30">
+                        <td className="py-3 font-medium">{o.symbol}</td>
+                        <td className="py-3">
+                          <Badge variant={o.side === 'buy' ? 'success' : 'destructive'}>{o.side}</Badge>
+                        </td>
+                        <td className="py-3">{o.order_type}</td>
+                        <td className="py-3 tabular-nums">{formatNumber(Number(o.quantity))}</td>
+                        <td className="py-3 tabular-nums">{o.price ? `$${formatNumber(Number(o.price))}` : '—'}</td>
+                        <td className="py-3 tabular-nums">
+                          {Number(o.filled_quantity) > 0 ? `${formatNumber(Number(o.filled_quantity))}` : '—'}
+                          {o.average_fill_price && Number(o.filled_quantity) > 0 && (
+                            <span className="ml-1 text-xs text-muted-foreground">@ ${formatNumber(Number(o.average_fill_price))}</span>
+                          )}
+                        </td>
+                        <td className="py-3">
+                          <Badge variant={STATUS_VARIANTS[o.status] ?? 'default'}>
+                            {o.status.replace('_', ' ')}
+                          </Badge>
+                        </td>
+                        <td className="py-3 text-muted-foreground">{timeAgo(o.created_at)}</td>
+                        <td className="py-3">
+                          {(o.status === 'pending' || o.status === 'open' || o.status === 'partially_filled') && (
+                            <button
+                              onClick={() => handleCancel(o.id)}
+                              disabled={cancelling === o.id}
+                              className="rounded-lg px-2 py-1 text-xs font-medium text-red-500 hover:bg-red-500/10 disabled:opacity-50"
+                            >
+                              {cancelling === o.id ? '...' : 'Cancel'}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

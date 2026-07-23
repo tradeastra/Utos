@@ -6,11 +6,10 @@ import { Save, Pause, Play, Sliders, Bitcoin, Wallet, Activity } from 'lucide-re
 import { cn } from '@/lib/utils';
 import { api } from '@/services/api';
 import { StrategyModeSelector } from '@/components/settings/strategy-mode';
-import { CoinGroupsSelector } from '@/components/settings/coin-groups';
+import { CoinVolumeList } from '@/components/settings/coin-volume-list';
 import { MoneyManagementSection } from '@/components/settings/money-management';
 import { TechnicalAnalysisSettings } from '@/components/settings/technical-analysis';
 import type {
-  CoinGroup,
   CoinSelectionLimit,
   MMPreset,
   StrategyMode,
@@ -26,30 +25,28 @@ interface SettingInstance {
 
 export default function StrategySettingPage() {
   const [mode, setMode] = useState<StrategyMode>('B');
-  const [groups, setGroups] = useState<CoinGroup[]>([]);
   const [limits, setLimits] = useState<CoinSelectionLimit | null>(null);
   const [presets, setPresets] = useState<MMPreset[]>([]);
   const [capital, setCapital] = useState<number>(0);
   const [selectedPreset, setSelectedPreset] = useState<string>('');
-  const [selectedGroup, setSelectedGroup] = useState<string>('');
+  const [selectedCoins, setSelectedCoins] = useState<string[]>([]);
   const [indicators, setIndicators] = useState<TAIndicatorDescription[]>([]);
   const [taConfigs, setTaConfigs] = useState<TAConfig[]>([]);
   const [taEnabled, setTaEnabled] = useState(false);
   const [instances, setInstances] = useState<SettingInstance[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [updateMsg, setUpdateMsg] = useState<{ type: 'success' | 'info'; text: string } | null>(null);
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [grps, lim, prs, inds, insts] = await Promise.all([
-          api.getCoinGroups(),
+        const [lim, prs, inds, insts] = await Promise.all([
           api.getCoinSelectionLimits(),
           api.getMMPresets(),
           api.getTAIndicators(),
           api.getTradingInstances().catch(() => [] as Record<string, unknown>[]),
         ]);
-        setGroups(grps);
         setLimits(lim);
         setPresets(prs);
         setIndicators(inds);
@@ -60,7 +57,7 @@ export default function StrategySettingPage() {
         })));
         if (prs.length > 0) setSelectedPreset(prs[0].preset_type);
       } catch {
-        setGroups([]);
+        // ignore
       } finally {
         setLoading(false);
       }
@@ -73,20 +70,34 @@ export default function StrategySettingPage() {
 
   async function handleUpdate() {
     setUpdating(true);
+    setUpdateMsg(null);
     try {
-      await Promise.all(
-        instances.map((inst) =>
-          api.updateTAConfigs(inst.id, taConfigs.map((c) => ({
-            indicator: c.indicator,
-            time_frame: c.time_frame,
-            operator: c.operator,
-            params: c.params,
-            enabled: c.enabled && taEnabled,
-            priority: c.priority,
-            description: c.description ?? undefined,
-          }))),
-        ),
-      );
+      if (instances.length > 0) {
+        await Promise.all(
+          instances.map((inst) =>
+            api.updateTAConfigs(inst.id, taConfigs.map((c) => ({
+              indicator: c.indicator,
+              time_frame: c.time_frame,
+              operator: c.operator,
+              params: c.params,
+              enabled: c.enabled && taEnabled,
+              priority: c.priority,
+              description: c.description ?? undefined,
+            }))),
+          ),
+        );
+        setUpdateMsg({
+          type: 'success',
+          text: `TA configs saved to ${instances.length} instance${instances.length !== 1 ? 's' : ''}. Strategy mode, coin selection, and MM preset are saved locally until backend persistence is added.`,
+        });
+      } else {
+        setUpdateMsg({
+          type: 'info',
+          text: 'No trading instances found. Create one in the Trading page first, then Update will push TA configs to it.',
+        });
+      }
+    } catch {
+      setUpdateMsg({ type: 'info', text: 'Failed to save. Ensure the backend is running and you have trading instances.' });
     } finally {
       setUpdating(false);
     }
@@ -120,10 +131,10 @@ export default function StrategySettingPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-bold tracking-tight">Strategy Settings</h2>
-          <p className="text-sm text-muted-foreground">Configure strategy, coin groups, MM and TA</p>
+          <p className="text-sm text-muted-foreground">Configure strategy, coins, MM and TA</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -152,6 +163,13 @@ export default function StrategySettingPage() {
         {activeCount} active instance{activeCount !== 1 ? 's' : ''} · {instances.length} total
       </div>
 
+      {/* Update feedback */}
+      {updateMsg && (
+        <div className={`rounded-lg p-3 text-sm ${updateMsg.type === 'success' ? 'bg-green-500/10 text-green-600 dark:text-green-400' : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'}`}>
+          {updateMsg.text}
+        </div>
+      )}
+
       {/* Strategy Mode */}
       <Card glass>
         <CardHeader>
@@ -165,20 +183,20 @@ export default function StrategySettingPage() {
         </CardContent>
       </Card>
 
-      {/* Coin Groups */}
+      {/* Coin Selection */}
       <Card glass>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Bitcoin className="h-5 w-5 text-violet-500" />
-            Coin Groups
+            Coin Selection
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <CoinGroupsSelector
-            groups={groups}
-            selected={selectedGroup}
-            onChange={setSelectedGroup}
-            limit={limits?.max_coin_selection}
+          <CoinVolumeList
+            exchange="binance"
+            selectedCoins={selectedCoins}
+            onChange={setSelectedCoins}
+            maxSelection={limits?.max_coin_selection ?? 2}
           />
         </CardContent>
       </Card>
@@ -196,6 +214,7 @@ export default function StrategySettingPage() {
             presets={presets}
             capital={capital}
             selectedPreset={selectedPreset}
+            selectedCoinGroup={selectedCoins.length > 0 ? `${selectedCoins.length} coins` : undefined}
             onCapitalChange={(c) => setCapital(c > 0 ? c : 0)}
             onPresetChange={setSelectedPreset}
           />

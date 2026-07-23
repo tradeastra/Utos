@@ -17,12 +17,16 @@ logger = get_logger(__name__)
 def run_migrations():
     """Run all pending database migrations."""
     try:
-        # Get the directory containing this file
-        migrations_dir = os.path.dirname(os.path.abspath(__file__))
+        # __file__ = backend/database/migrations/__init__.py
+        # Need backend/ root, then join with alembic/
+        migrations_dir = os.path.dirname(os.path.abspath(__file__))  # backend/database/migrations
+        database_dir = os.path.dirname(migrations_dir)               # backend/database
+        backend_dir = os.path.dirname(database_dir)                  # backend
+        alembic_dir = os.path.join(backend_dir, "alembic")           # backend/alembic
 
         # Create Alembic configuration
         alembic_cfg = Config()
-        alembic_cfg.set_main_option("script_location", migrations_dir)
+        alembic_cfg.set_main_option("script_location", alembic_dir)
         alembic_cfg.set_main_option("sqlalchemy.url", get_database_url())
 
         # Run migrations
@@ -37,12 +41,14 @@ def run_migrations():
 def create_migration(message: str):
     """Create a new migration."""
     try:
-        # Get the directory containing this file
         migrations_dir = os.path.dirname(os.path.abspath(__file__))
+        database_dir = os.path.dirname(migrations_dir)
+        backend_dir = os.path.dirname(database_dir)
+        alembic_dir = os.path.join(backend_dir, "alembic")
 
         # Create Alembic configuration
         alembic_cfg = Config()
-        alembic_cfg.set_main_option("script_location", migrations_dir)
+        alembic_cfg.set_main_option("script_location", alembic_dir)
         alembic_cfg.set_main_option("sqlalchemy.url", get_database_url())
 
         # Create migration
@@ -57,12 +63,14 @@ def create_migration(message: str):
 def get_current_revision():
     """Get current database revision."""
     try:
-        # Get the directory containing this file
         migrations_dir = os.path.dirname(os.path.abspath(__file__))
+        database_dir = os.path.dirname(migrations_dir)
+        backend_dir = os.path.dirname(database_dir)
+        alembic_dir = os.path.join(backend_dir, "alembic")
 
         # Create Alembic configuration
         alembic_cfg = Config()
-        alembic_cfg.set_main_option("script_location", migrations_dir)
+        alembic_cfg.set_main_option("script_location", alembic_dir)
         alembic_cfg.set_main_option("sqlalchemy.url", get_database_url())
 
         # Get current revision

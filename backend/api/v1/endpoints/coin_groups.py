@@ -1,4 +1,4 @@
-"""Coin groups endpoints — list, create custom, seed builtins."""
+"""Coin selection endpoints — custom coin lists + subscription limits."""
 
 from typing import Any
 from uuid import UUID
@@ -14,34 +14,6 @@ from services.saas.license import _DEFAULT_LIMITS
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
-
-BUILTIN_GROUPS = [
-    {"name": "3 Kings", "description": "Top 3 coins by volume", "max_coins": 3, "coins": ["BTC", "ETH", "BNB"]},
-    {"name": "5 Kings", "description": "Top 5 coins by volume", "max_coins": 5, "coins": ["BTC", "ETH", "BNB", "SOL", "XRP"]},
-    {"name": "Top 10", "description": "Top 10 coins by volume", "max_coins": 10, "coins": ["BTC", "ETH", "BNB", "SOL", "XRP", "ADA", "DOGE", "AVAX", "DOT", "MATIC"]},
-    {"name": "Top 20", "description": "Top 20 coins by volume", "max_coins": 20, "coins": ["BTC", "ETH", "BNB", "SOL", "XRP", "ADA", "DOGE", "AVAX", "DOT", "MATIC", "LINK", "UNI", "ATOM", "LTC", "BCH", "NEAR", "APT", "FIL", "ARB", "OP"]},
-    {"name": "Top 50", "description": "Top 50 coins by volume", "max_coins": 50, "coins": []},
-    {"name": "All", "description": "All available coins", "max_coins": 999, "coins": []},
-]
-
-
-async def _ensure_builtin_groups(db: AsyncSession):
-    """Seed built-in coin groups if none exist."""
-    repo = CoinGroupRepository(db)
-    existing = await repo.get_builtin_groups()
-    if existing:
-        return
-    for g in BUILTIN_GROUPS:
-        db.add(CoinGroup(
-            name=g["name"],
-            description=g["description"],
-            max_coins=g["max_coins"],
-            coins=g["coins"],
-            is_builtin=True,
-            is_active=True,
-            user_id=None,
-        ))
-    await db.commit()
 
 
 class CoinGroupResponse(BaseModel):
@@ -73,8 +45,7 @@ async def list_coin_groups(
     current_user: UserResponse = Depends(get_current_user_from_token),
     db: AsyncSession = Depends(get_db),
 ) -> list[dict[str, Any]]:
-    """List all coin groups (built-in + user custom)."""
-    await _ensure_builtin_groups(db)
+    """List user's custom coin groups."""
     repo = CoinGroupRepository(db)
     groups = await repo.get_by_user_id(current_user.id)
     return [

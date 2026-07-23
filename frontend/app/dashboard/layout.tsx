@@ -33,16 +33,32 @@ export default function DashboardLayout({
   const router = useRouter();
   const pathname = usePathname();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const login = useAuthStore((s) => s.login);
   const [checked, setChecked] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    // Re-check token from localStorage on client (SSR may have false)
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+    if (token && !isAuthenticated) {
+      // Restore auth state from localStorage
+      login(token, {
+        id: '',
+        email: '',
+        full_name: null,
+        is_active: true,
+        is_verified: true,
+        role: 'user',
+        subscription_tier: 'free',
+        created_at: new Date().toISOString(),
+      });
+      setChecked(true);
+    } else if (!isAuthenticated && !token) {
       router.replace('/login');
     } else {
       setChecked(true);
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, router, login]);
 
   if (!checked) {
     return (

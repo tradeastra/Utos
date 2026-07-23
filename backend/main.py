@@ -49,7 +49,7 @@ grid_engine: GridEngine | None = None
 def _run_alembic(args: list[str], backend_dir: Path) -> subprocess.CompletedProcess:
     """Run an alembic command as subprocess."""
     return subprocess.run(
-        ["alembic", *args],
+        ["python", "-m", "alembic", *args],
         cwd=backend_dir,
         capture_output=True,
         text=True,
@@ -150,17 +150,23 @@ async def lifespan(app: FastAPI):
     await _recover_trading_processes()
     market_hub = MarketHub()
 
-    # Register Binance adapter (testnet by default for staging safety)
-    from exchanges.adapters.binance import BinanceSpotAdapter
+    # Register all exchange adapters (testnet by default for staging safety)
+    from exchanges.factory import ExchangeFactory
     from exchanges.adapter import ExchangeAdapterConfig
 
-    binance_adapter = BinanceSpotAdapter()
-    binance_config = ExchangeAdapterConfig(
-        exchange_name="binance",
-        is_testnet=settings.APP_ENV != "production",
-    )
-    await binance_adapter.initialize(binance_config)
-    market_hub.register_adapter("binance", binance_adapter)
+    is_testnet = settings.APP_ENV != "production"
+    for ex_name in ExchangeFactory.registered_exchanges():
+        try:
+            adapter = ExchangeFactory.create(ex_name)
+            ex_config = ExchangeAdapterConfig(
+                exchange_name=ex_name,
+                is_testnet=is_testnet,
+            )
+            await adapter.initialize(ex_config)
+            market_hub.register_adapter(ex_name, adapter)
+            logger.info(f"Registered {ex_name} adapter to MarketHub (testnet={is_testnet})")
+        except Exception as exc:
+            logger.warning(f"Failed to register {ex_name} adapter: {exc}")
 
     await market_hub.start()
     execution_engine = ExecutionEngine()
@@ -238,6 +244,18 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
 
 
 app.include_router(api_router, prefix="/api/v1")
+
+
+@app.get("/favicon.ico", tags=["static"])
+async def favicon():
+    from fastapi import Response
+
+    return Response(
+        content=b'\x00\x00\x01\x00\x01\x00\x10\x10\x00\x00\x01\x00\x20\x00\x68\x04\x00\x00\x16\x00\x00\x00'
+                b'\x28\x00\x00\x00\x10\x00\x00\x00\x20\x00\x00\x00\x01\x00\x20\x00\x00\x00\x00\x00\x40\x04'
+                b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' + b'\x00' * 1024,
+        media_type="image/x-icon",
+    )
 
 
 @app.get("/metrics", tags=["monitoring"])

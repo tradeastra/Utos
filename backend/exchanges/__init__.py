@@ -6,7 +6,13 @@ exchange-specific adapters will build on in later sprints.
 """
 
 from exchanges.adapter import IExchangeAdapter
-from exchanges.adapters import BinanceSpotAdapter
+from exchanges.adapters import (
+    BinanceSpotAdapter,
+    BybitAdapter,
+    HyperliquidAdapter,
+    MEXCAdapter,
+    OKXAdapter,
+)
 from exchanges.credential_manager import CredentialManager
 from exchanges.errors import ErrorMapper
 from exchanges.factory import ExchangeFactory
@@ -25,4 +31,8 @@ __all__ = [
     "HttpClient",
     "WebSocketManager",
     "BinanceSpotAdapter",
+    "BybitAdapter",
+    "OKXAdapter",
+    "MEXCAdapter",
+    "HyperliquidAdapter",
 ]

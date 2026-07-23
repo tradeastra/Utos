@@ -9,7 +9,8 @@ export default function Home() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   useEffect(() => {
-    if (isAuthenticated) {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+    if (token || isAuthenticated) {
       router.replace('/dashboard');
     } else {
       router.replace('/login');

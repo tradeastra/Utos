@@ -21,8 +21,11 @@ import {
   Settings,
   X,
   Sliders,
+  LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useRouter } from 'next/navigation';
+import { useAuthStore } from '@/stores/auth';
 
 const mainTabs = [
   { label: 'Home', href: '/dashboard', icon: Home },
@@ -47,7 +50,15 @@ const moreItems = [
 
 export function BottomNav() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { logout } = useAuthStore();
   const [moreOpen, setMoreOpen] = useState(false);
+
+  const handleLogout = () => {
+    logout();
+    setMoreOpen(false);
+    router.push('/login');
+  };
 
   const isActive = (href: string) =>
     pathname === href || (href !== '/dashboard' && pathname.startsWith(href));
@@ -135,6 +146,15 @@ export function BottomNav() {
                   </Link>
                 );
               })}
+            </div>
+            <div className="mt-4 border-t border-border pt-3">
+              <button
+                onClick={handleLogout}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-500/10 py-3 text-sm font-medium text-red-500 transition hover:bg-red-500/20"
+              >
+                <LogOut className="h-4 w-4" />
+                Logout
+              </button>
             </div>
           </div>
         </div>

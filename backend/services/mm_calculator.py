@@ -28,24 +28,24 @@ BUILTIN_PRESETS = {
         "steps": 30,
         "min_capital": Decimal("300"),
         "max_capital": None,
-        "description": "30-step money management — conservative, suitable for 3 Kings / 5 Kings",
-        "allowed_coin_groups": ["3 Kings", "5 Kings"],
+        "description": "30-step money management — conservative",
+        "allowed_coin_groups": [],
     },
     "mm50": {
         "name": "MM50",
         "steps": 50,
         "min_capital": Decimal("500"),
         "max_capital": None,
-        "description": "50-step money management — balanced, suitable for Top 10 / Top 20",
-        "allowed_coin_groups": ["Top 10", "Top 20"],
+        "description": "50-step money management — balanced",
+        "allowed_coin_groups": [],
     },
     "mm70": {
         "name": "MM70",
         "steps": 70,
         "min_capital": Decimal("700"),
         "max_capital": None,
-        "description": "70-step money management — aggressive, suitable for Top 20 / Top 50 / All",
-        "allowed_coin_groups": ["Top 20", "Top 50", "All"],
+        "description": "70-step money management — aggressive",
+        "allowed_coin_groups": [],
     },
 }
 
@@ -87,12 +87,6 @@ class MMCalculator:
                 )
             steps = preset["steps"]
             min_capital = preset["min_capital"]
-
-            if coin_group_name and preset.get("allowed_coin_groups"):
-                if coin_group_name not in preset["allowed_coin_groups"]:
-                    raise ValidationError(
-                        f"Preset {preset_type} is only compatible with {preset['allowed_coin_groups']}, got '{coin_group_name}'"
-                    )
 
         if capital < min_capital:
             raise ValidationError(

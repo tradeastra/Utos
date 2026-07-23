@@ -176,11 +176,11 @@ async def delete_exchange_account(
 
 
 async def _get_adapter_for_account(account: ExchangeAccount):
-    """Create and initialize a Binance adapter from a saved exchange account."""
+    """Create and initialize an adapter from a saved exchange account."""
     from core.domain_types import ExchangeAdapterConfig, ExchangeCredentials
-    from exchanges.adapters.binance import BinanceSpotAdapter
+    from exchanges.factory import ExchangeFactory
 
-    adapter = BinanceSpotAdapter()
+    adapter = ExchangeFactory.create(account.exchange_name)
     config = ExchangeAdapterConfig(
         exchange_name=account.exchange_name,
         is_testnet=account.is_testnet,
@@ -197,6 +197,14 @@ async def _get_adapter_for_account(account: ExchangeAccount):
     )
     await adapter.authenticate(credentials)
     return adapter
+
+
+@router.get("/supported")
+async def list_supported_exchanges():
+    """Return list of exchange names that have adapters registered."""
+    from exchanges.factory import ExchangeFactory
+
+    return {"exchanges": ExchangeFactory.registered_exchanges()}
 
 
 @router.get("/{account_id}/balance")

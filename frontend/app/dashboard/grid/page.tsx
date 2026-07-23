@@ -138,7 +138,7 @@ export default function GridPage() {
       {selectedInstance && (
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <CardTitle>
                   {gridState?.symbol || 'Loading...'}
@@ -174,9 +174,9 @@ export default function GridPage() {
                 {gridState.levels.map((level) => (
                   <div
                     key={level.index}
-                    className="flex items-center justify-between rounded-md border p-3"
+                    className="flex flex-col gap-2 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between"
                   >
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
                       <span className="text-sm text-muted-foreground">#{level.index}</span>
                       <Badge variant={level.side === 'buy' ? 'success' : 'destructive'}>
                         {level.side.toUpperCase()}
@@ -190,7 +190,7 @@ export default function GridPage() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
                       <span className="text-sm text-muted-foreground">
                         {level.quantity} {gridState.symbol.replace('USDT', '').replace('BUSD', '')}
                       </span>

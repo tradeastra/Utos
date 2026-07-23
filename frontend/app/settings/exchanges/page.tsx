@@ -46,6 +46,9 @@ interface OrderItem {
 }
 
 export default function ExchangesPage() {
+  const [supportedExchanges, setSupportedExchanges] = useState<string[]>([]);
+  const [selectedExchange, setSelectedExchange] = useState('');
+  const [isTestnet, setIsTestnet] = useState(true);
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<TestResult | null>(null);
   const [testedAt, setTestedAt] = useState<Date | null>(null);
@@ -69,20 +72,33 @@ export default function ExchangesPage() {
   }, []);
 
   useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.listSupportedExchanges();
+        const exchanges = res.exchanges || [];
+        setSupportedExchanges(exchanges);
+        if (exchanges.length > 0 && !selectedExchange) {
+          setSelectedExchange(exchanges[0]);
+        }
+      } catch {
+        setSupportedExchanges([]);
+      }
+    })();
     loadAccounts();
-  }, [loadAccounts]);
+  }, [loadAccounts, selectedExchange]);
 
   async function handleTestConnection() {
+    if (!selectedExchange) return;
     setTesting(true);
     setResult(null);
     try {
-      const res = await api.testExchangeConnection('binance');
+      const res = await api.testExchangeConnection(selectedExchange);
       setResult(res);
       setTestedAt(new Date());
     } catch (err) {
       setResult({
-        exchange: 'binance',
-        is_testnet: true,
+        exchange: selectedExchange,
+        is_testnet: isTestnet,
         connected: false,
         latency_ms: null,
         price_symbol: null,
@@ -96,14 +112,15 @@ export default function ExchangesPage() {
   }
 
   async function handleSaveKeys() {
+    if (!selectedExchange) return;
     setSaving(true);
     setSaveMsg(null);
     try {
       await api.saveExchangeAccount({
-        exchange_name: 'binance',
+        exchange_name: selectedExchange,
         api_key: apiKey,
         api_secret: apiSecret,
-        is_testnet: true,
+        is_testnet: isTestnet,
       });
       setSaveMsg({ type: 'success', text: 'API keys saved successfully!' });
       setApiKey('');
@@ -159,18 +176,60 @@ export default function ExchangesPage() {
         <p className="text-muted-foreground">Test and manage exchange connections</p>
       </div>
 
-      {/* Binance Testnet Status */}
+      {/* Exchange Selector + Connection Test */}
       <Card>
         <CardHeader>
-          <CardTitle>Binance Testnet</CardTitle>
+          <CardTitle>Exchange Connection</CardTitle>
           <CardDescription>
-            Test connectivity to Binance Spot Testnet (testnet.binance.vision).
-            No API keys required for public market data.
+            Select an exchange to test connectivity. No API keys required for public market data.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Exchange Selector */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Exchange</label>
+            <select
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              value={selectedExchange}
+              onChange={(e) => {
+                setSelectedExchange(e.target.value);
+                setResult(null);
+                setTestedAt(null);
+              }}
+            >
+              {supportedExchanges.length === 0 && (
+                <option value="" disabled>Loading exchanges...</option>
+              )}
+              {supportedExchanges.map((ex) => (
+                <option key={ex} value={ex}>
+                  {ex.charAt(0).toUpperCase() + ex.slice(1)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Testnet Toggle */}
           <div className="flex items-center gap-3">
-            <Badge variant="warning">testnet</Badge>
+            <label className="text-sm font-medium">Testnet Mode</label>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={isTestnet}
+              onClick={() => setIsTestnet(!isTestnet)}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                isTestnet ? 'bg-primary' : 'bg-input'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-background shadow-lg ring-0 transition-transform ${
+                  isTestnet ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {isTestnet && <Badge variant="warning">testnet</Badge>}
             {result?.connected && <Badge variant="success">connected</Badge>}
             {result && !result.connected && <Badge variant="destructive">failed</Badge>}
             {!result && <Badge variant="secondary">not tested</Badge>}
@@ -218,7 +277,7 @@ export default function ExchangesPage() {
             </div>
           )}
 
-          <Button onClick={handleTestConnection} disabled={testing} className="w-full">
+          <Button onClick={handleTestConnection} disabled={testing || !selectedExchange} className="w-full">
             {testing ? 'Testing...' : 'Test Connection'}
           </Button>
         </CardContent>
@@ -321,16 +380,7 @@ export default function ExchangesPage() {
         <CardHeader>
           <CardTitle>Add API Keys (Optional)</CardTitle>
           <CardDescription>
-            Add Binance Testnet API keys for authenticated trading (order placement, balance checks).
-            Get testnet keys at{' '}
-            <a
-              href="https://testnet.binance.vision/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary underline"
-            >
-              testnet.binance.vision
-            </a>
+            Add API keys for {selectedExchange || 'the selected exchange'} for authenticated trading (order placement, balance checks).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -338,7 +388,7 @@ export default function ExchangesPage() {
             <label className="text-sm font-medium">API Key</label>
             <Input
               type="password"
-              placeholder="Your Binance Testnet API key"
+              placeholder={`Your ${selectedExchange || 'exchange'} API key`}
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
             />
@@ -347,7 +397,7 @@ export default function ExchangesPage() {
             <label className="text-sm font-medium">API Secret</label>
             <Input
               type="password"
-              placeholder="Your Binance Testnet API secret"
+              placeholder={`Your ${selectedExchange || 'exchange'} API secret`}
               value={apiSecret}
               onChange={(e) => setApiSecret(e.target.value)}
             />
@@ -363,7 +413,7 @@ export default function ExchangesPage() {
               {saveMsg.text}
             </div>
           )}
-          <Button onClick={handleSaveKeys} disabled={saving || !apiKey || !apiSecret} className="w-full">
+          <Button onClick={handleSaveKeys} disabled={saving || !apiKey || !apiSecret || !selectedExchange} className="w-full">
             {saving ? 'Saving...' : 'Save & Authenticate'}
           </Button>
         </CardContent>

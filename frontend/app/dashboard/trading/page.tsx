@@ -291,7 +291,7 @@ export default function TradingPage() {
         <CardContent className="space-y-4">
           {showProfileForm && (
             <div className="rounded-md border p-4 space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label className="text-sm font-medium">Profile Name</label>
                   <Input value={profileName} onChange={(e) => setProfileName(e.target.value)} placeholder="My Grid" />
@@ -354,7 +354,7 @@ export default function TradingPage() {
           <CardDescription>Create and start your auto trading bot</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="text-sm font-medium">Symbol</label>
               <Input value={symbol} onChange={(e) => setSymbol(e.target.value)} placeholder="BTCUSDT" />
@@ -390,7 +390,7 @@ export default function TradingPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Plan comparison */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className={`rounded-lg border p-4 ${(!trailingAccess || !trailingAccess.has_access) ? 'border-primary' : 'border-muted'}`}>
               <div className="flex items-center justify-between mb-2">
                 <h4 className="font-semibold">Basic Grid</h4>
@@ -452,7 +452,7 @@ export default function TradingPage() {
               </label>
               {trailingEnabled && (
                 <>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <div>
                       <label className="text-sm font-medium">Trigger Profit (%)</label>
                       <Input type="number" step="0.1" value={triggerPct} onChange={(e) => setTriggerPct(Number(e.target.value))} placeholder="2.0" />

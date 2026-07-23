@@ -11,7 +11,7 @@ export default function AffiliatePage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Affiliate Dashboard</h1>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Total Referrals</CardTitle></CardHeader>
           <CardContent><p className="text-2xl font-bold">12</p></CardContent>
@@ -29,7 +29,7 @@ export default function AffiliatePage() {
       <Card>
         <CardHeader><CardTitle>Your Referral Link</CardTitle></CardHeader>
         <CardContent>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <Input value="https://utos.app/register?ref=UTOS-A1B2C3" readOnly />
             <Button>Copy</Button>
           </div>
