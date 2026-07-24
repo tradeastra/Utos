@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
   Home,
   CandlestickChart,
-  Grid3x3,
+  Sliders,
   Wallet,
   MoreHorizontal,
   ShoppingCart,
@@ -15,31 +15,30 @@ import {
   Users,
   Radio,
   Bell,
-  CreditCard,
   Receipt,
   UserPlus,
   Settings,
   X,
-  Sliders,
+  LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useRouter } from 'next/navigation';
+import { useAuthStore } from '@/stores/auth';
 
 const mainTabs = [
   { label: 'Home', href: '/dashboard', icon: Home },
   { label: 'Trade', href: '/dashboard/trade', icon: CandlestickChart },
-  { label: 'Grid', href: '/dashboard/trading', icon: Grid3x3 },
+  { label: 'Strategy', href: '/dashboard/strategy-setting', icon: Sliders },
   { label: 'Portfolio', href: '/dashboard/portfolio', icon: Wallet },
 ];
 
 const moreItems = [
   { label: 'Orders', href: '/dashboard/orders', icon: ShoppingCart },
-  { label: 'Strategy', href: '/dashboard/strategy-setting', icon: Sliders },
   { label: 'Risk', href: '/dashboard/risk', icon: Shield },
   { label: 'Recovery', href: '/dashboard/recovery', icon: RefreshCw },
   { label: 'Workers', href: '/dashboard/workers', icon: Users },
   { label: 'Events', href: '/dashboard/events', icon: Radio },
   { label: 'Notifications', href: '/dashboard/notifications', icon: Bell },
-  { label: 'Subscription', href: '/dashboard/subscription', icon: CreditCard },
   { label: 'Billing', href: '/dashboard/billing', icon: Receipt },
   { label: 'Affiliate', href: '/dashboard/affiliate', icon: UserPlus },
   { label: 'Exchanges', href: '/settings/exchanges', icon: Settings },
@@ -47,7 +46,15 @@ const moreItems = [
 
 export function BottomNav() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { logout } = useAuthStore();
   const [moreOpen, setMoreOpen] = useState(false);
+
+  const handleLogout = () => {
+    logout();
+    setMoreOpen(false);
+    router.push('/login');
+  };
 
   const isActive = (href: string) =>
     pathname === href || (href !== '/dashboard' && pathname.startsWith(href));
@@ -135,6 +142,15 @@ export function BottomNav() {
                   </Link>
                 );
               })}
+            </div>
+            <div className="mt-4 border-t border-border pt-3">
+              <button
+                onClick={handleLogout}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-500/10 py-3 text-sm font-medium text-red-500 transition hover:bg-red-500/20"
+              >
+                <LogOut className="h-4 w-4" />
+                Logout
+              </button>
             </div>
           </div>
         </div>

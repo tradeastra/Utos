@@ -3,32 +3,22 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { CandlestickChart, Coins, Check, Lock, Trash2, Wallet, Calculator, TrendingDown, Zap, Activity, Search, Layers } from 'lucide-react';
+import { CandlestickChart, Coins, Wallet, Trash2, TrendingDown, Zap, Activity, Search, Layers } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/services/api';
-import type { AveragingTemplateSummary, CoinGroup, CoinSelectionLimit, ForceBuyResult, ForceSellResult, MMCalculationResult, MMPreset, StrategyMode, TAConfig, TAIndicatorDescription } from '@/types';
+import type { AveragingTemplateSummary, CoinSelectionLimit, ForceBuyResult, ForceSellResult, MMPreset, TAConfig, TAIndicatorDescription } from '@/types';
 import { FilterChips, type FilterType } from '@/components/trade/filter-chips';
 import { CoinRow, type CoinRowData } from '@/components/trade/coin-row';
-import { useRouter } from 'next/navigation';
-
-const strategyModes: { mode: StrategyMode; label: string; dailyRange: string; riskLevel: string; color: string }[] = [
-  { mode: 'A', label: 'Super Bearish', dailyRange: '0.5% – 1.5%', riskLevel: 'Low', color: 'bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400' },
-  { mode: 'B', label: 'Conventional', dailyRange: '1.0% – 3.0%', riskLevel: 'Medium', color: 'bg-green-500/10 border-green-500/30 text-green-600 dark:text-green-400' },
-  { mode: 'C', label: 'Aggressive', dailyRange: '2.0% – 5.0%', riskLevel: 'High', color: 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400' },
-  { mode: 'D', label: 'Very Aggressive', dailyRange: '3.0% – 8.0%', riskLevel: 'Very High', color: 'bg-orange-500/10 border-orange-500/30 text-orange-600 dark:text-orange-400' },
-  { mode: 'U', label: 'Ultimate', dailyRange: '5.0% – 15.0%', riskLevel: 'Extreme', color: 'bg-violet-500/10 border-violet-500/30 text-violet-600 dark:text-violet-400' },
-];
+import { TradingBots } from '@/components/trade/trading-bots';
+import { TabNav } from '@/components/ui/tab-nav';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 export default function TradePage() {
-  const [selectedMode, setSelectedMode] = useState<StrategyMode>('B');
-  const [coinGroups, setCoinGroups] = useState<CoinGroup[]>([]);
-  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') === 'bots' ? 'bots' : 'manual');
+  const [selectedCoins, setSelectedCoins] = useState<string[]>([]);
   const [limits, setLimits] = useState<CoinSelectionLimit | null>(null);
   const [mmPresets, setMMPresets] = useState<MMPreset[]>([]);
-  const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
-  const [capital, setCapital] = useState<string>('');
-  const [calcResult, setCalcResult] = useState<MMCalculationResult | null>(null);
-  const [calculating, setCalculating] = useState(false);
   const [avgTemplate, setAvgTemplate] = useState<AveragingTemplateSummary | null>(null);
   const [showAvgConfig, setShowAvgConfig] = useState(false);
   const [forceInstanceId, setForceInstanceId] = useState<string>('');
@@ -52,15 +42,13 @@ export default function TradePage() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [groups, lim, presets, template, indicators, instances] = await Promise.all([
-          api.getCoinGroups(),
+        const [lim, presets, template, indicators, instances] = await Promise.all([
           api.getCoinSelectionLimits(),
           api.getMMPresets(),
           api.getAveragingTemplate(),
           api.getTAIndicators(),
           api.getTradingInstances().catch(() => [] as Record<string, unknown>[]),
         ]);
-        setCoinGroups(groups);
         setLimits(lim);
         setMMPresets(presets);
         setAvgTemplate(template);
@@ -83,15 +71,13 @@ export default function TradePage() {
         })));
         setExchanges(Array.from(new Set(instList.map((i) => String(i.exchange_name)).filter(Boolean))));
       } catch {
-        setCoinGroups([]);
+        // ignore
       } finally {
         setLoading(false);
       }
     }
     loadData();
   }, []);
-
-  const selectedGroupData = coinGroups.find((g) => g.id === selectedGroup);
 
   const filteredInstances = tradingInstances.filter((inst) => {
     if (searchQuery && !inst.symbol.toLowerCase().includes(searchQuery.toLowerCase())) return false;
@@ -119,7 +105,7 @@ export default function TradePage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold tracking-tight">Trade</h2>
-          <p className="text-sm text-muted-foreground">Strategy mode & coin selection</p>
+          <p className="text-sm text-muted-foreground">Manual trading & bot management</p>
         </div>
         {activeCount > 0 && (
           <Badge variant="success" className="text-sm">
@@ -128,6 +114,19 @@ export default function TradePage() {
         )}
       </div>
 
+      <TabNav
+        tabs={[
+          { key: 'manual', label: 'Manual' },
+          { key: 'bots', label: 'Bots' },
+        ]}
+        active={activeTab}
+        onChange={setActiveTab}
+      />
+
+      {activeTab === 'bots' ? (
+        <TradingBots />
+      ) : (
+        <>
       {/* Trading Table */}
       <Card glass>
         <CardHeader>
@@ -211,273 +210,83 @@ export default function TradePage() {
         </CardContent>
       </Card>
 
-      <Card glass>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CandlestickChart className="h-5 w-5 text-violet-500" />
-            Strategy Mode
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
-            {strategyModes.map((sm) => (
-              <button
-                key={sm.mode}
-                onClick={() => setSelectedMode(sm.mode)}
-                className={cn(
-                  'rounded-2xl border p-4 text-left transition-all active:scale-[0.98]',
-                  selectedMode === sm.mode
-                    ? sm.color + ' border-2'
-                    : 'border-border bg-card hover:bg-accent',
-                )}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-lg font-bold">{sm.mode}</span>
-                  {selectedMode === sm.mode && <Check className="h-4 w-4" />}
-                </div>
-                <p className="mt-1 text-sm font-medium">{sm.label}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{sm.dailyRange}</p>
-                <div className="mt-2">
-                  <span className="text-xs font-medium opacity-80">Risk: {sm.riskLevel}</span>
-                </div>
-              </button>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
+      {/* Current Strategy — read-only summary, configure in Strategy Settings */}
       <Card glass>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <span className="flex items-center gap-2">
-              <Coins className="h-5 w-5 text-violet-500" />
-              Coin Selection
+              <CandlestickChart className="h-5 w-5 text-violet-500" />
+              Current Strategy
             </span>
-            {limits && (
-              <Badge variant="new">
-                {limits.tier}: {limits.max_coin_selection >= 999 ? 'Unlimited' : `${limits.max_coin_selection} coins`}
-              </Badge>
-            )}
+            <button
+              onClick={() => router.push('/dashboard/strategy-setting')}
+              className="text-sm text-violet-500 hover:underline"
+            >
+              Configure →
+            </button>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent>
           {loading ? (
-            <div className="flex items-center justify-center py-8">
+            <div className="flex items-center justify-center py-6">
               <div className="h-6 w-6 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
             </div>
-          ) : coinGroups.length === 0 ? (
-            <div className="rounded-xl bg-amber-500/10 p-4 text-sm text-amber-600 dark:text-amber-400">
-              Backend not connected. Coin groups will appear here when the API is available.
-            </div>
           ) : (
-            <>
-              <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
-                {coinGroups.map((group) => (
-                  <button
-                    key={group.id}
-                    onClick={() => setSelectedGroup(group.id)}
-                    className={cn(
-                      'rounded-xl border p-3 text-left transition-all active:scale-[0.98]',
-                      selectedGroup === group.id
-                        ? 'border-violet-500 bg-violet-500/10'
-                        : 'border-border bg-card hover:bg-accent',
-                    )}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold">{group.name}</span>
-                      {selectedGroup === group.id && <Check className="h-3.5 w-3.5 text-violet-500" />}
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      {group.max_coins >= 999 ? 'All' : group.max_coins} coins
-                    </span>
-                  </button>
-                ))}
-              </div>
-
-              {selectedGroupData && (
-                <div className="rounded-xl border border-border bg-card p-4">
-                  <div className="mb-2 flex items-center justify-between">
-                    <h4 className="text-sm font-semibold">{selectedGroupData.name}</h4>
-                    {selectedGroupData.is_builtin ? (
-                      <Badge variant="secondary">Built-in</Badge>
-                    ) : (
-                      <button
-                        onClick={async () => {
-                          try {
-                            await api.deleteCoinGroup(selectedGroupData.id);
-                            setCoinGroups(coinGroups.filter((g) => g.id !== selectedGroupData.id));
-                            setSelectedGroup(null);
-                          } catch {}
-                        }}
-                        className="text-muted-foreground hover:text-red-500"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                  {selectedGroupData.coins.length > 0 ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {selectedGroupData.coins.map((coin) => (
-                        <Badge key={coin} variant="default">{coin}</Badge>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      Dynamic list — coins fetched from market data based on volume ranking.
+            <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
+              {/* Coin Selection */}
+              <div className="rounded-xl border border-border bg-card p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Coins className="h-4 w-4 text-violet-500" />
+                  <span className="text-xs font-medium text-muted-foreground">Coins</span>
+                </div>
+                {selectedCoins.length > 0 ? (
+                  <>
+                    <p className="text-sm font-semibold">{selectedCoins.length} selected</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {selectedCoins.slice(0, 4).join(', ') + (selectedCoins.length > 4 ? '...' : '')}
                     </p>
-                  )}
-                </div>
-              )}
-
-              {limits && limits.max_coin_selection < 999 && (
-                <div className="flex items-center gap-2 rounded-xl bg-violet-500/5 p-3 text-sm">
-                  <Lock className="h-4 w-4 text-violet-500" />
-                  <span className="text-muted-foreground">
-                    Your <span className="font-medium text-violet-500">{limits.tier}</span> plan allows selecting up to{' '}
-                    <span className="font-medium">{limits.max_coin_selection}</span> coins.
-                    Upgrade to select more.
-                  </span>
-                </div>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card glass>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Wallet className="h-5 w-5 text-violet-500" />
-            Money Management
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="h-6 w-6 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-            </div>
-          ) : mmPresets.length === 0 ? (
-            <div className="rounded-xl bg-amber-500/10 p-4 text-sm text-amber-600 dark:text-amber-400">
-              Backend not connected. MM presets will appear here when the API is available.
-            </div>
-          ) : (
-            <>
-              <div className="grid gap-2 grid-cols-2 sm:grid-cols-4">
-                {mmPresets.map((preset) => (
-                  <button
-                    key={preset.id}
-                    onClick={() => {
-                      setSelectedPreset(preset.id);
-                      setCalcResult(null);
-                    }}
-                    className={cn(
-                      'rounded-xl border p-3 text-left transition-all active:scale-[0.98]',
-                      selectedPreset === preset.id
-                        ? 'border-violet-500 bg-violet-500/10'
-                        : 'border-border bg-card hover:bg-accent',
-                    )}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold">{preset.name}</span>
-                      {selectedPreset === preset.id && <Check className="h-3.5 w-3.5 text-violet-500" />}
-                    </div>
-                    <span className="text-xs text-muted-foreground">{preset.steps} steps</span>
-                    <span className="mt-0.5 block text-xs text-muted-foreground">
-                      Min: ${Number(preset.min_capital).toLocaleString()}
-                    </span>
-                  </button>
-                ))}
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Not configured</p>
+                )}
               </div>
 
-              {selectedPreset && (
-                <div className="space-y-3 rounded-xl border border-border bg-card p-4">
-                  <div className="flex items-center gap-2">
-                    <Calculator className="h-4 w-4 text-violet-500" />
-                    <h4 className="text-sm font-semibold">Capital Calculator</h4>
-                  </div>
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <label className="mb-1 block text-xs text-muted-foreground">Total Capital (USDT)</label>
-                      <input
-                        type="number"
-                        value={capital}
-                        onChange={(e) => {
-                          setCapital(e.target.value);
-                          setCalcResult(null);
-                        }}
-                        placeholder="e.g. 500"
-                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
-                      />
-                    </div>
-                    <button
-                      disabled={!capital || calculating}
-                      onClick={async () => {
-                        const preset = mmPresets.find((p) => p.id === selectedPreset);
-                        if (!preset || !capital) return;
-                        setCalculating(true);
-                        try {
-                          const result = await api.calculateMM(
-                            preset.preset_type,
-                            Number(capital),
-                            selectedGroupData?.name,
-                          );
-                          setCalcResult(result);
-                        } catch {
-                          setCalcResult(null);
-                        } finally {
-                          setCalculating(false);
-                        }
-                      }}
-                      className="mt-5 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-violet-700 disabled:opacity-50"
-                    >
-                      {calculating ? 'Calculating...' : 'Calculate'}
-                    </button>
-                  </div>
-
-                  {calcResult && (
-                    <div className="grid grid-cols-2 gap-3 rounded-lg bg-violet-500/5 p-3 sm:grid-cols-4">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Buy Amount</p>
-                        <p className="text-sm font-bold text-violet-600 dark:text-violet-400">
-                          ${Number(calcResult.buy_amount).toFixed(2)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Max Coins</p>
-                        <p className="text-sm font-bold">{calcResult.max_coins}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Steps</p>
-                        <p className="text-sm font-bold">{calcResult.steps}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Min Volume</p>
-                        <p className="text-sm font-bold">
-                          ${Number(calcResult.min_volume_filter).toFixed(2)}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {(() => {
-                    const preset = mmPresets.find((p) => p.id === selectedPreset);
-                    if (!preset) return null;
-                    if (preset.allowed_coin_groups.length > 0 && selectedGroupData) {
-                      const compatible = preset.allowed_coin_groups.includes(selectedGroupData.name);
-                      if (!compatible) {
-                        return (
-                          <div className="rounded-lg bg-red-500/10 p-3 text-sm text-red-600 dark:text-red-400">
-                            <strong>{preset.name}</strong> is only compatible with: {preset.allowed_coin_groups.join(', ')}.
-                            Current selection: {selectedGroupData.name}.
-                          </div>
-                        );
-                      }
-                    }
-                    return null;
-                  })()}
+              {/* MM Preset */}
+              <div className="rounded-xl border border-border bg-card p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Wallet className="h-4 w-4 text-violet-500" />
+                  <span className="text-xs font-medium text-muted-foreground">Money Management</span>
                 </div>
-              )}
-            </>
+                {mmPresets.length > 0 ? (
+                  <>
+                    <p className="text-sm font-semibold">{mmPresets[0].name}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {mmPresets[0].steps} steps · Min: ${Number(mmPresets[0].min_capital).toLocaleString()}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Not configured</p>
+                )}
+              </div>
+
+              {/* Plan / Limits */}
+              <div className="rounded-xl border border-border bg-card p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Layers className="h-4 w-4 text-violet-500" />
+                  <span className="text-xs font-medium text-muted-foreground">Plan</span>
+                </div>
+                {limits ? (
+                  <>
+                    <p className="text-sm font-semibold">{limits.tier}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {limits.max_coin_selection >= 999 ? 'Unlimited coins' : `${limits.max_coin_selection} coins max`}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">—</p>
+                )}
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -579,7 +388,7 @@ export default function TradePage() {
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-amber-500 focus:outline-none"
               />
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               <div>
                 <label className="mb-1 block text-xs text-muted-foreground">Level (optional)</label>
                 <input
@@ -848,6 +657,8 @@ export default function TradePage() {
           )}
         </CardContent>
       </Card>
+        </>
+      )}
     </div>
   );
 }

@@ -9,10 +9,8 @@ import { useAuthStore } from '@/stores/auth';
 
 const pageTitles: Record<string, string> = {
   '/dashboard': 'Overview',
-  '/dashboard/trading': 'Trading',
   '/dashboard/trade': 'Trade',
-  '/dashboard/strategy-setting': 'Strategy Setting',
-  '/dashboard/grid': 'Grid',
+  '/dashboard/strategy-setting': 'Strategy',
   '/dashboard/orders': 'Orders',
   '/dashboard/portfolio': 'Portfolio',
   '/dashboard/risk': 'Risk',
@@ -20,7 +18,6 @@ const pageTitles: Record<string, string> = {
   '/dashboard/workers': 'Workers',
   '/dashboard/events': 'Events',
   '/dashboard/notifications': 'Notifications',
-  '/dashboard/subscription': 'Subscription',
   '/dashboard/billing': 'Billing',
   '/dashboard/affiliate': 'Affiliate',
 };

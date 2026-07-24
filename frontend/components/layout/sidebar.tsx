@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
   CandlestickChart,
-  Grid3x3,
   ShoppingCart,
   Wallet,
   Shield,
@@ -13,7 +12,6 @@ import {
   Users,
   Radio,
   Bell,
-  CreditCard,
   Receipt,
   UserPlus,
   Settings,
@@ -29,8 +27,7 @@ import { useAuthStore } from '@/stores/auth';
 const navItems = [
   { label: 'Overview', href: '/dashboard', icon: LayoutDashboard },
   { label: 'Trade', href: '/dashboard/trade', icon: CandlestickChart },
-  { label: 'Trading', href: '/dashboard/trading', icon: Grid3x3 },
-  { label: 'Strategy Setting', href: '/dashboard/strategy-setting', icon: Sliders },
+  { label: 'Strategy', href: '/dashboard/strategy-setting', icon: Sliders },
   { label: 'Orders', href: '/dashboard/orders', icon: ShoppingCart },
   { label: 'Portfolio', href: '/dashboard/portfolio', icon: Wallet },
   { label: 'Risk', href: '/dashboard/risk', icon: Shield },
@@ -41,7 +38,6 @@ const navItems = [
 ];
 
 const saasItems = [
-  { label: 'Subscription', href: '/dashboard/subscription', icon: CreditCard },
   { label: 'Billing', href: '/dashboard/billing', icon: Receipt },
   { label: 'Affiliate', href: '/dashboard/affiliate', icon: UserPlus },
 ];
