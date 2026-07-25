@@ -9,6 +9,9 @@ import json
 from typing import Any
 
 import redis.asyncio as aioredis
+from redis.retry import Retry
+from redis.backoff import ExponentialBackoff
+from redis.exceptions import ConnectionError, TimeoutError
 from core.config import get_redis_url
 from core.logging import get_logger
 
@@ -26,8 +29,11 @@ async def init_redis(redis_url: str | None = None) -> aioredis.Redis:  # type: i
         encoding="utf-8",
         decode_responses=True,
         max_connections=50,
-        socket_timeout=5,
-        socket_connect_timeout=5,
+        socket_timeout=2,
+        socket_connect_timeout=2,
+        retry_on_timeout=True,
+        retry_on_error=[ConnectionError, TimeoutError],
+        retry=Retry(ExponentialBackoff(), 2),
     )
     try:
         await _redis.ping()
