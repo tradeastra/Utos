@@ -34,6 +34,7 @@ async def init_redis(redis_url: str | None = None) -> aioredis.Redis:  # type: i
         retry_on_timeout=True,
         retry_on_error=[ConnectionError, TimeoutError],
         retry=Retry(ExponentialBackoff(), 2),
+        ssl_cert_reqs="none",
     )
     try:
         await _redis.ping()

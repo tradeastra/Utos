@@ -41,10 +41,16 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
     const res = await fetch(`${this.baseUrl}${path}`, {
       ...options,
       headers,
+      signal: options.signal ?? controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (!res.ok) {
       if (res.status === 401 && typeof window !== 'undefined') {
