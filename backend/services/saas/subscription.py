@@ -133,6 +133,7 @@ class SubscriptionService:
         if sub is None or not sub.is_active:
             return False
         if datetime.now(timezone.utc) > sub.end_date:
+            sub.is_active = False
             return False
         return True
 

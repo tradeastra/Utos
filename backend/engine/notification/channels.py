@@ -80,7 +80,7 @@ class EmailChannel(NotificationChannel):
 
 
 class TelegramChannel(NotificationChannel):
-    """Telegram notification channel."""
+    """Telegram notification channel — sends messages via Telegram Bot API."""
 
     @property
     def channel_name(self) -> str:
@@ -93,18 +93,54 @@ class TelegramChannel(NotificationChannel):
         message: str,
         data: dict[str, Any] | None = None,
     ) -> bool:
-        if self._send_fn is None:
-            logger.info(
-                "Telegram sent (stub)",
-                extra={"recipient": recipient, "title": title},
-            )
-            self._metrics["sent"] += 1
-            return True
+        if self._send_fn is not None:
+            try:
+                result = self._send_fn(recipient, title, message, data or {})
+                self._metrics["sent"] += 1
+                return bool(result)
+            except Exception as exc:
+                self._metrics["failed"] += 1
+                logger.error(f"Telegram send failed: {exc}", extra={"recipient": recipient})
+                return False
 
+        # Real Telegram Bot API implementation
         try:
-            result = self._send_fn(recipient, title, message, data or {})
-            self._metrics["sent"] += 1
-            return bool(result)
+            import httpx
+            from core.config import settings
+
+            bot_token = getattr(settings, "TELEGRAM_BOT_TOKEN", None)
+            if not bot_token:
+                logger.warning("Telegram bot token not configured — skipping send")
+                self._metrics["failed"] += 1
+                return False
+
+            # recipient is the chat_id
+            chat_id = recipient
+            text = f"*{title}*\n\n{message}"
+
+            payload: dict[str, Any] = {
+                "chat_id": chat_id,
+                "text": text,
+                "parse_mode": "Markdown",
+            }
+            if data and "reply_markup" in data:
+                payload["reply_markup"] = data["reply_markup"]
+
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(
+                    f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                    json=payload,
+                )
+                resp.raise_for_status()
+                result = resp.json()
+                if result.get("ok"):
+                    self._metrics["sent"] += 1
+                    return True
+                else:
+                    self._metrics["failed"] += 1
+                    logger.error(f"Telegram API error: {result.get('description')}")
+                    return False
+
         except Exception as exc:
             self._metrics["failed"] += 1
             logger.error(f"Telegram send failed: {exc}", extra={"recipient": recipient})
