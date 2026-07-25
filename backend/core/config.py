@@ -76,6 +76,9 @@ class Settings(BaseSettings):
     # ── Testing ───────────────────────────────────────────────────────────────
     TESTING: bool = Field(default=False)
 
+    # ── OpenTelemetry ──────────────────────────────────────────────────────────
+    OTEL_ENABLED: bool = Field(default=False)
+
 
 def get_settings() -> Settings:
     """Return the application settings singleton."""
