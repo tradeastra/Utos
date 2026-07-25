@@ -6,7 +6,7 @@ import { Save, Pause, Play, Sliders, Bitcoin, Wallet, Activity } from 'lucide-re
 import { cn } from '@/lib/utils';
 import { api } from '@/services/api';
 import { StrategyModeSelector } from '@/components/settings/strategy-mode';
-import { CoinVolumeList } from '@/components/settings/coin-volume-list';
+import { CoinGroupsSelector } from '@/components/settings/coin-groups';
 import { MoneyManagementSection } from '@/components/settings/money-management';
 import { TechnicalAnalysisSettings } from '@/components/settings/technical-analysis';
 import { GridLevels } from '@/components/strategy/grid-levels';

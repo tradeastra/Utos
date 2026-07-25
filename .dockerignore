@@ -16,7 +16,6 @@ Utos/
 *.md
 *.yml
 *.yaml
-*.toml
 *.cfg
 *.ini
 .env*

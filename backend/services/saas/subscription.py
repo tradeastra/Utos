@@ -8,8 +8,8 @@ Uses SubscriptionRepository for database access (mockable for tests).
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from core.exceptions import ValidationError
@@ -60,11 +60,9 @@ class SubscriptionService:
     ) -> SubscriptionInfo:
         tier = tier.lower()
         if tier not in PLAN_HIERARCHY:
-            raise ValidationError(
-                f"Invalid tier: {tier}. Must be one of {PLAN_HIERARCHY}"
-            )
+            raise ValidationError(f"Invalid tier: {tier}. Must be one of {PLAN_HIERARCHY}")
 
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)
         sub = SubscriptionInfo(
             id=str(uuid.uuid4()),
             user_id=user_id,
@@ -95,9 +93,7 @@ class SubscriptionService:
 
         current.tier = new_tier
         self._metrics["upgrades"] += 1
-        logger.info(
-            "Subscription upgraded", extra={"user_id": user_id, "new_tier": new_tier}
-        )
+        logger.info("Subscription upgraded", extra={"user_id": user_id, "new_tier": new_tier})
         return current
 
     async def downgrade(self, user_id: str, new_tier: str) -> SubscriptionInfo:
@@ -116,9 +112,7 @@ class SubscriptionService:
 
         current.tier = new_tier
         self._metrics["downgrades"] += 1
-        logger.info(
-            "Subscription downgraded", extra={"user_id": user_id, "new_tier": new_tier}
-        )
+        logger.info("Subscription downgraded", extra={"user_id": user_id, "new_tier": new_tier})
         return current
 
     async def cancel(self, user_id: str) -> bool:
@@ -138,8 +132,7 @@ class SubscriptionService:
         sub = self._subscriptions.get(user_id)
         if sub is None or not sub.is_active:
             return False
-        if datetime.now(UTC) > sub.end_date:
-            sub.is_active = False
+        if datetime.now(timezone.utc) > sub.end_date:
             return False
         return True
 
@@ -148,7 +141,7 @@ class SubscriptionService:
         if sub is None:
             raise ValidationError("No existing subscription")
 
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)
         base = max(sub.end_date, now)
         sub.end_date = base + timedelta(days=duration_days)
         sub.is_active = True
@@ -160,7 +153,10 @@ class SubscriptionService:
         return PLAN_PRICES.get(tier.lower(), 0.0)
 
     def get_all_plans(self) -> list[dict[str, Any]]:
-        return [{"tier": t, "price": PLAN_PRICES[t]} for t in PLAN_HIERARCHY]
+        return [
+            {"tier": t, "price": PLAN_PRICES[t]}
+            for t in PLAN_HIERARCHY
+        ]
 
     def get_metrics(self) -> dict[str, int]:
         return dict(self._metrics)

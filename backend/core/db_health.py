@@ -12,7 +12,6 @@ Collects database health metrics:
 import hashlib
 from datetime import UTC, datetime
 
-from core.backup import backup_manager
 from core.logging import get_logger
 from core.metrics import (
     utos_db_backup_age_hours,
@@ -124,6 +123,8 @@ class DatabaseHealthService:
     async def collect_backup_age(self) -> float | None:
         """Get age of latest backup in hours and update metric."""
         try:
+            from core.backup import backup_manager
+
             age = backup_manager.get_backup_age_hours()
             if age is not None:
                 utos_db_backup_age_hours.set(age)
