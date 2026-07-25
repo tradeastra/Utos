@@ -112,7 +112,7 @@ async def login(
 async def refresh_token(body: RefreshTokenRequest) -> dict:
     """Return a new access token given a valid refresh token."""
     try:
-        payload = token_manager.verify_token(body.refresh_token, token_type="refresh")
+        payload = await token_manager.verify_token(body.refresh_token, token_type="refresh")
     except AuthenticationError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

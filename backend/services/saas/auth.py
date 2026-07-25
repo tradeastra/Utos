@@ -110,7 +110,7 @@ class AuthService:
         )
 
     async def refresh_token(self, refresh_token: str) -> str:
-        payload = self._token.verify_token(refresh_token, token_type="refresh")
+        payload = await self._token.verify_token(refresh_token, token_type="refresh")
         new_access = self._token.create_access_token(
             {"sub": payload["sub"], "email": payload.get("email")}
         )

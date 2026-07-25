@@ -118,7 +118,7 @@ class TokenManager:
             raise AuthenticationError("Failed to create refresh token")
 
     @staticmethod
-    def verify_token(token: str, token_type: str = "access") -> dict[str, Any]:
+    async def verify_token(token: str, token_type: str = "access") -> dict[str, Any]:
         """Verify and decode a JWT token."""
         try:
             payload = jwt.decode(
@@ -137,7 +137,7 @@ class TokenManager:
             # Check blocklist (only for access tokens)
             if token_type == "access":
                 jti = payload.get("jti")
-                if jti and TokenManager.is_token_blacklisted(jti):
+                if jti and await TokenManager.is_token_blacklisted(jti):
                     raise AuthenticationError("Token has been revoked")
 
             return payload
@@ -154,7 +154,7 @@ class TokenManager:
             raise AuthenticationError("Failed to verify token")
 
     @staticmethod
-    def is_token_blacklisted(jti: str) -> bool:
+    async def is_token_blacklisted(jti: str) -> bool:
         """Check if a token's jti is in the Redis blocklist."""
         try:
             from database.redis_client import get_redis
@@ -162,7 +162,7 @@ class TokenManager:
             redis = get_redis()
             if redis is None:
                 return False
-            return bool(redis.exists(f"token_blocklist:{jti}"))
+            return bool(await redis.exists(f"token_blocklist:{jti}"))
         except Exception:
             return False
 

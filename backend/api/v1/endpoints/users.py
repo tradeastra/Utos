@@ -38,7 +38,7 @@ async def get_current_user_from_token(
             },
         )
     try:
-        payload = token_manager.verify_token(
+        payload = await token_manager.verify_token(
             credentials.credentials, token_type="access"
         )
     except AuthenticationError as exc:
