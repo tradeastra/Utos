@@ -16,8 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 router = APIRouter()
 
 BUILTIN_GROUPS = [
-    {"name": "3 Kings", "description": "Top 3 coins by volume", "max_coins": 3, "coins": ["BTC", "ETH", "BNB"]},
-    {"name": "5 Kings", "description": "Top 5 coins by volume", "max_coins": 5, "coins": ["BTC", "ETH", "BNB", "SOL", "XRP"]},
+    {"name": "Top 3", "description": "Top 3 coins by volume", "max_coins": 3, "coins": ["BTC", "ETH", "BNB"]},
+    {"name": "Top 5", "description": "Top 5 coins by volume", "max_coins": 5, "coins": ["BTC", "ETH", "BNB", "SOL", "XRP"]},
     {"name": "Top 10", "description": "Top 10 coins by volume", "max_coins": 10, "coins": ["BTC", "ETH", "BNB", "SOL", "XRP", "ADA", "DOGE", "AVAX", "DOT", "MATIC"]},
     {"name": "Top 20", "description": "Top 20 coins by volume", "max_coins": 20, "coins": ["BTC", "ETH", "BNB", "SOL", "XRP", "ADA", "DOGE", "AVAX", "DOT", "MATIC", "LINK", "UNI", "ATOM", "LTC", "BCH", "NEAR", "APT", "FIL", "ARB", "OP"]},
     {"name": "Top 50", "description": "Top 50 coins by volume", "max_coins": 50, "coins": []},

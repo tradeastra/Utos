@@ -1,26 +1,36 @@
 """
 MMCalculator — Money Management calculation service.
 
-Core formulas:
-  buy_amount = capital / steps
-  max_coins  = capital / buy_amount (= steps)
+Core formulas (per-coin DCA/averaging model):
+  steps       = preset steps (MM30=30, MM50=50, MM70=70) — averaging layers PER COIN
+  num_coins   = coin_group.max_coins (3, 5, 10, 20, 50, 999 for All)
+  buy_amount  = capital / (steps * num_coins)            — base amount per DCA layer
+  max_coins   = num_coins                                — from the selected coin group
+  min_volume  = buy_amount * 10                          — 24h volume filter per coin
+
+Each coin receives `steps` DCA layers of `buy_amount` each, so the total deployed
+capital when every coin reaches its full averaging ladder is:
+  total = buy_amount * steps * num_coins = capital
 
 Validation rules:
-  MM30: min_capital=$300, only for 3 Kings / 5 Kings / Top 5
+  MM30: min_capital=$300, only for Top 3 / Top 5
   MM50: min_capital=$500, for Top 10 / Top 20
   MM70: min_capital=$700, for Top 20 / Top 50 / All
   Custom: user-defined steps, min_capital=$100 (Pro+ only)
+  All presets: buy_amount must be >= MIN_BUY_AMOUNT ($15)
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import ROUND_DOWN, Decimal
 
 from core.exceptions import ValidationError
 from core.logging import get_logger
 
 logger = get_logger(__name__)
+
+MIN_BUY_AMOUNT = Decimal("15")
 
 BUILTIN_PRESETS = {
     "mm30": {
@@ -28,8 +38,8 @@ BUILTIN_PRESETS = {
         "steps": 30,
         "min_capital": Decimal("300"),
         "max_capital": None,
-        "description": "30-step money management — conservative, suitable for 3 Kings / 5 Kings",
-        "allowed_coin_groups": ["3 Kings", "5 Kings"],
+        "description": "30-step money management — conservative, suitable for Top 3 / Top 5",
+        "allowed_coin_groups": ["Top 3", "Top 5"],
     },
     "mm50": {
         "name": "MM50",
@@ -61,16 +71,29 @@ class MMCalculationResult:
 
 
 class MMCalculator:
-    """Calculate buy amount, max coins, and volume filter from MM preset + capital."""
+    """Calculate buy amount, max coins, and volume filter from MM preset + capital.
+
+    The coin group's `max_coins` is REQUIRED because each coin receives `steps`
+    DCA layers, so the per-layer buy amount depends on how many coins are traded.
+    """
 
     def calculate(
         self,
         preset_type: str,
         capital: Decimal,
         coin_group_name: str | None = None,
+        coin_group_max_coins: int | None = None,
         custom_steps: int | None = None,
     ) -> MMCalculationResult:
         preset_type = preset_type.lower()
+
+        if coin_group_max_coins is None or coin_group_max_coins < 1:
+            raise ValidationError(
+                "coin_group_max_coins is required and must be >= 1 — "
+                "each coin receives `steps` DCA layers, so the coin group size "
+                "determines the per-layer buy amount."
+            )
+        num_coins = coin_group_max_coins
 
         if preset_type == "custom":
             if custom_steps is None or custom_steps < 1:
@@ -99,9 +122,20 @@ class MMCalculator:
                 f"Capital {capital} is below minimum {min_capital} for preset {preset_type}"
             )
 
-        buy_amount = capital / Decimal(steps)
-        max_coins = steps
+        # Per-layer buy amount: capital spread across (steps layers * num_coins coins).
+        buy_amount = (capital / (Decimal(steps) * Decimal(num_coins))).quantize(
+            Decimal("0.01"), rounding=ROUND_DOWN
+        )
+        max_coins = num_coins
         min_volume_filter = buy_amount * Decimal("10")
+
+        if buy_amount < MIN_BUY_AMOUNT:
+            required = MIN_BUY_AMOUNT * Decimal(steps) * Decimal(num_coins)
+            raise ValidationError(
+                f"Per-layer buy amount {buy_amount} is below minimum {MIN_BUY_AMOUNT}. "
+                f"With {steps} steps × {num_coins} coins, capital must be at least "
+                f"${required} for preset {preset_type}."
+            )
 
         logger.info(
             "MM calculation",
@@ -110,6 +144,8 @@ class MMCalculator:
                 "capital": str(capital),
                 "buy_amount": str(buy_amount),
                 "max_coins": max_coins,
+                "steps": steps,
+                "num_coins": num_coins,
             },
         )
 

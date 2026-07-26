@@ -11,6 +11,7 @@ const API_BASE = resolveApiBase();
 class ApiClient {
   private baseUrl: string;
   private token: string | null = null;
+  private refreshPromise: Promise<string | null> | null = null;
 
   constructor(baseUrl: string = API_BASE) {
     this.baseUrl = baseUrl;
@@ -30,8 +31,64 @@ class ApiClient {
     }
   }
 
+  setRefreshToken(token: string | null) {
+    if (typeof window !== 'undefined') {
+      if (token) {
+        localStorage.setItem('refresh_token', token);
+      } else {
+        localStorage.removeItem('refresh_token');
+      }
+    }
+  }
+
+  getRefreshToken(): string | null {
+    return typeof window !== 'undefined' ? localStorage.getItem('refresh_token') : null;
+  }
+
   getToken(): string | null {
     return this.token;
+  }
+
+  private clearAuthAndRedirect() {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      this.token = null;
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
+    }
+  }
+
+  private async tryRefresh(): Promise<string | null> {
+    if (this.refreshPromise) return this.refreshPromise;
+
+    const refreshToken = this.getRefreshToken();
+    if (!refreshToken) return null;
+
+    this.refreshPromise = (async () => {
+      try {
+        const res = await fetch(`${this.baseUrl}/api/v1/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+        });
+        if (!res.ok) return null;
+        const json = await res.json();
+        const newToken = json.data?.access_token ?? json.access_token;
+        if (newToken) {
+          this.setToken(newToken);
+          return newToken;
+        }
+        return null;
+      } catch {
+        return null;
+      } finally {
+        this.refreshPromise = null;
+      }
+    })();
+
+    return this.refreshPromise;
   }
 
   private async request<T>(
@@ -52,7 +109,7 @@ class ApiClient {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-    const res = await fetch(`${this.baseUrl}${path}`, {
+    let res = await fetch(`${this.baseUrl}${path}`, {
       ...options,
       headers,
       signal: options.signal ?? controller.signal,
@@ -60,13 +117,28 @@ class ApiClient {
 
     clearTimeout(timeoutId);
 
+    // On 401, try to refresh the token and retry once
+    if (res.status === 401 && typeof window !== 'undefined' && !path.includes('/auth/')) {
+      const newToken = await this.tryRefresh();
+      if (newToken) {
+        headers['Authorization'] = `Bearer ${newToken}`;
+        const retryController = new AbortController();
+        const retryTimeoutId = setTimeout(() => retryController.abort(), 10000);
+        res = await fetch(`${this.baseUrl}${path}`, {
+          ...options,
+          headers,
+          signal: options.signal ?? retryController.signal,
+        });
+        clearTimeout(retryTimeoutId);
+      } else {
+        this.clearAuthAndRedirect();
+        throw new Error('Session expired. Please log in again.');
+      }
+    }
+
     if (!res.ok) {
       if (res.status === 401 && typeof window !== 'undefined') {
-        const isAuthEndpoint = path.includes('/auth/');
-        if (isAuthEndpoint && window.location.pathname !== '/login') {
-          localStorage.removeItem('access_token');
-          window.location.href = '/login';
-        }
+        this.clearAuthAndRedirect();
       }
       const error = await res.json().catch(() => ({ message: res.statusText }));
       throw new Error(error?.error?.message || error?.message || `HTTP ${res.status}`);
@@ -114,6 +186,7 @@ class ApiClient {
       expires_in: number;
     }>('/api/v1/auth/login', { email, password });
     this.setToken(data.access_token);
+    this.setRefreshToken(data.refresh_token);
     return data;
   }
 
@@ -123,6 +196,7 @@ class ApiClient {
 
   async logout() {
     this.setToken(null);
+    this.setRefreshToken(null);
   }
 
   // Trading
@@ -519,7 +593,7 @@ class ApiClient {
     }[]>('/api/v1/mm-presets');
   }
 
-  async calculateMM(presetType: string, capital: number, coinGroupName?: string, customSteps?: number) {
+  async calculateMM(presetType: string, capital: number, coinGroupName: string, customSteps?: number) {
     return this.post<{
       buy_amount: string;
       max_coins: number;

@@ -2,7 +2,7 @@
 CoinGroup model — coin selection groups.
 
 Replaces fixed "Coin Groups" with subscription-tier-limited selection.
-Built-in groups: 3 Kings, 5 Kings, Top 10, Top 20, Top 50, All.
+Built-in groups: Top 3, Top 5, Top 10, Top 20, Top 50, All.
 Users can also create custom groups (Pro+ tier).
 """
 

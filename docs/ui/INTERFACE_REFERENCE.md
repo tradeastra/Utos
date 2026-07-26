@@ -78,14 +78,14 @@
 ### Coin Groups (Radio Group)
 | Group | Coins | Option Button |
 |-------|-------|---------------|
-| 3 Kings | BTC, BNB, ETH | selected |
-| 5 Kings | BTC, BNB, ETH, SOL and XRP | — |
+| Top 3 | BTC, BNB, ETH | selected |
+| Top 5 | BTC, BNB, ETH, SOL and XRP | — |
 | Top 10 | BTC, BNB, ETH and more | Option |
 | Top 20 | BTC, BNB, ETH and more | Option |
 | Top 50 | BTC, BNB, ETH and more | Option |
 | All | All coins | — |
 
-- Group aktif: **3 Kings**
+- Group aktif: **Top 3**
 - Badge `New` muncul di area Coin Groups.
 - Timestamp filter: `*You have chosen this group coin filter at : 1970-01-01`
 
@@ -153,7 +153,7 @@
 ### Notes / Business Rules
 - Buy amount must be at least **15 USDT**.
 - Requires **Coin Group setup**.
-- **MM30** can only be selected if Coin Group is **3 Kings** or **Top 5**.
+- **MM30** can only be selected if Coin Group is **Top 3** or **Top 5**.
 
 ### UI Patterns
 - Input dengan icon prefix di kiri.
@@ -369,9 +369,15 @@
 
 ## Business Rules & Constraints Observed
 
-1. **Minimum buy amount:** 15 USDT.
-2. **MM30 restriction:** hanya untuk grup `3 Kings` atau `Top 5`.
-3. **Coin group setup required** sebelum Money Management bisa digunakan.
+1. **Minimum buy amount:** 15 USDT per DCA layer.
+2. **MM30 restriction:** hanya untuk grup `Top 3` atau `Top 5`.
+3. **Coin group setup required** sebelum Money Management bisa digunakan — `coin_group.max_coins` menentukan `max_coins` hasil kalkulasi.
+4. **Money Management formula (per-coin DCA):**
+   - `buy_amount = capital / (steps × max_coins)` — base amount per DCA layer per coin.
+   - `max_coins = coin_group.max_coins` (Top 3 = 3, Top 50 = 50, All = 999).
+   - `steps` = jumlah layer DCA per coin (MM30 = 30, MM50 = 50, MM70 = 70).
+   - Total maksimal modal terdeploy = `buy_amount × steps × max_coins = capital`.
+   - Contoh: $1200 + MM50 + Top 10 → `buy_amount = 1200 / (50 × 10) = $2.40` (di bawah $15 → reject; butuh min $7,500).
 4. **Withdrawal address** wajib ditambahkan jika belum ada (warning).
 5. **Strategy mode** menentukan rentang harian dan level risiko.
 6. **AVG (averaging)** bisa aktif/non-aktif per coin di Trade screen.

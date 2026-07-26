@@ -9,6 +9,7 @@ from database.base import get_db
 from fastapi import APIRouter, Depends, HTTPException, status
 from models.mm_preset import MMPreset
 from pydantic import BaseModel, ConfigDict, Field
+from repositories.coin_group_repository import CoinGroupRepository
 from repositories.mm_preset_repository import MMPresetRepository
 from schemas.auth import UserResponse
 from services.mm_calculator import BUILTIN_PRESETS, MMCalculator
@@ -17,6 +18,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 _mm_calc = MMCalculator()
+
+
+async def _ensure_builtin_coin_groups(db: AsyncSession) -> None:
+    """Seed built-in coin groups if none exist (needed for name lookup in /calculate)."""
+    from api.v1.endpoints.coin_groups import _ensure_builtin_groups
+
+    await _ensure_builtin_groups(db)
 
 
 async def _ensure_builtin_presets(db: AsyncSession):
@@ -59,7 +67,7 @@ class MMPresetResponse(BaseModel):
 class MMCalculationRequest(BaseModel):
     preset_type: str = Field(..., description="mm30, mm50, mm70, or custom")
     capital: float = Field(..., gt=0, description="Total capital to allocate")
-    coin_group_name: str | None = Field(None, description="Coin group name for compatibility validation")
+    coin_group_name: str = Field(..., description="Coin group name — required to derive max_coins for the per-coin DCA allocation")
     custom_steps: int | None = Field(None, ge=1, le=200, description="Steps for custom preset")
 
 
@@ -113,12 +121,26 @@ async def calculate_mm(
     current_user: UserResponse = Depends(get_current_user_from_token),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """Calculate buy amount, max coins, and volume filter from preset + capital."""
+    """Calculate buy amount, max coins, and volume filter from preset + capital.
+
+    The coin group is REQUIRED: each coin receives `steps` DCA layers, so the
+    per-layer buy amount is `capital / (steps * coin_group.max_coins)`.
+    """
+    await _ensure_builtin_coin_groups(db)
+    group_repo = CoinGroupRepository(db)
+    coin_group = await group_repo.get_by_name(data.coin_group_name)
+    if coin_group is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Coin group '{data.coin_group_name}' not found",
+        )
+
     try:
         result = _mm_calc.calculate(
             preset_type=data.preset_type,
             capital=Decimal(str(data.capital)),
             coin_group_name=data.coin_group_name,
+            coin_group_max_coins=coin_group.max_coins,
             custom_steps=data.custom_steps,
         )
     except ValueError as exc:

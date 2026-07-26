@@ -4,9 +4,10 @@ Money Management Preset model — capital allocation presets.
 Built-in presets: MM30 (30 steps), MM50 (50 steps), MM70 (70 steps).
 Users can create custom presets (Pro+ tier).
 
-Core formula:
-  buy_amount = capital / steps
-  max_coins  = capital / buy_amount
+Core formula (per-coin DCA):
+  buy_amount = capital / (steps * coin_group.max_coins)
+  max_coins  = coin_group.max_coins
+  steps      = preset steps (averaging layers PER COIN)
 """
 
 import uuid
