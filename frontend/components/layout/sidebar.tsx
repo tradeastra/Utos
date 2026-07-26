@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
-  CandlestickChart,
   ShoppingCart,
   Wallet,
   Shield,
@@ -26,7 +25,6 @@ import { useAuthStore } from '@/stores/auth';
 
 const navItems = [
   { label: 'Overview', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'Trade', href: '/dashboard/trade', icon: CandlestickChart },
   { label: 'Strategy', href: '/dashboard/strategy-setting', icon: Sliders },
   { label: 'Orders', href: '/dashboard/orders', icon: ShoppingCart },
   { label: 'Portfolio', href: '/dashboard/portfolio', icon: Wallet },
@@ -123,7 +121,7 @@ export function Sidebar({ collapsed, onToggle, mobile = false }: SidebarProps) {
       <div className="flex-1 overflow-y-auto p-2 no-scrollbar">
         {(!collapsed || mobile) && (
           <div className="mb-1 px-3 pt-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-            Trading
+            Strategy
           </div>
         )}
         <ul className="space-y-0.5">

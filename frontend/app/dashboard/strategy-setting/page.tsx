@@ -6,10 +6,11 @@ import { Save, Pause, Play, Sliders, Bitcoin, Wallet, Activity } from 'lucide-re
 import { cn } from '@/lib/utils';
 import { api } from '@/services/api';
 import { StrategyModeSelector } from '@/components/settings/strategy-mode';
-import { CoinGroupsSelector } from '@/components/settings/coin-groups';
 import { MoneyManagementSection } from '@/components/settings/money-management';
 import { TechnicalAnalysisSettings } from '@/components/settings/technical-analysis';
 import { GridLevels } from '@/components/strategy/grid-levels';
+import { PositionsTab } from '@/components/strategy/positions-tab';
+import { TradingBots } from '@/components/trade/trading-bots';
 import { TabNav } from '@/components/ui/tab-nav';
 import { useSearchParams } from 'next/navigation';
 import type {
@@ -28,7 +29,12 @@ interface SettingInstance {
 
 export default function StrategySettingPage() {
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState(searchParams.get('tab') === 'grid' ? 'grid' : 'config');
+  const validTabs = ['config', 'positions', 'bots', 'grid'] as const;
+  type TabKey = typeof validTabs[number];
+  const paramTab = searchParams.get('tab') as TabKey | null;
+  const [activeTab, setActiveTab] = useState<TabKey>(
+    paramTab && validTabs.includes(paramTab) ? paramTab : 'config'
+  );
   const [mode, setMode] = useState<StrategyMode>('B');
   const [limits, setLimits] = useState<CoinSelectionLimit | null>(null);
   const [presets, setPresets] = useState<MMPreset[]>([]);
@@ -98,7 +104,7 @@ export default function StrategySettingPage() {
       } else {
         setUpdateMsg({
           type: 'info',
-          text: 'No trading instances found. Create one in the Trading page first, then Update will push TA configs to it.',
+          text: 'No trading instances found. Create one in the Bots tab first, then Update will push TA configs to it.',
         });
       }
     } catch {
@@ -139,7 +145,7 @@ export default function StrategySettingPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-bold tracking-tight">Strategy</h2>
-          <p className="text-sm text-muted-foreground">Configure strategy & monitor grid levels</p>
+          <p className="text-sm text-muted-foreground">Configure strategy, manage positions & trading bots</p>
         </div>
         {activeTab === 'config' && (
         <div className="flex items-center gap-2">
@@ -168,14 +174,20 @@ export default function StrategySettingPage() {
       <TabNav
         tabs={[
           { key: 'config', label: 'Config' },
+          { key: 'positions', label: 'Positions' },
+          { key: 'bots', label: 'Bots' },
           { key: 'grid', label: 'Grid Levels' },
         ]}
         active={activeTab}
-        onChange={setActiveTab}
+        onChange={(key) => setActiveTab(key as typeof activeTab)}
       />
 
       {activeTab === 'grid' ? (
         <GridLevels />
+      ) : activeTab === 'positions' ? (
+        <PositionsTab />
+      ) : activeTab === 'bots' ? (
+        <TradingBots />
       ) : (
         <>
       {/* Active count */}
@@ -212,12 +224,11 @@ export default function StrategySettingPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <CoinVolumeList
-            exchange="binance"
-            selectedCoins={selectedCoins}
-            onChange={setSelectedCoins}
-            maxSelection={limits?.max_coin_selection ?? 2}
-          />
+          {limits && (
+            <p className="text-sm text-muted-foreground">
+              {limits.max_coin_selection >= 999 ? 'Unlimited coins' : `${limits.max_coin_selection} coins max`} — select coins in the Positions tab.
+            </p>
+          )}
         </CardContent>
       </Card>
 

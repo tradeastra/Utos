@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Home,
-  CandlestickChart,
   Sliders,
   Wallet,
   MoreHorizontal,
@@ -27,7 +26,6 @@ import { useAuthStore } from '@/stores/auth';
 
 const mainTabs = [
   { label: 'Home', href: '/dashboard', icon: Home },
-  { label: 'Trade', href: '/dashboard/trade', icon: CandlestickChart },
   { label: 'Strategy', href: '/dashboard/strategy-setting', icon: Sliders },
   { label: 'Portfolio', href: '/dashboard/portfolio', icon: Wallet },
 ];

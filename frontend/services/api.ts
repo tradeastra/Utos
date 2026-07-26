@@ -1,4 +1,12 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+function resolveApiBase(): string {
+  const raw = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:' && raw.startsWith('http://')) {
+    return raw.replace('http://', 'https://');
+  }
+  return raw;
+}
+
+const API_BASE = resolveApiBase();
 
 class ApiClient {
   private baseUrl: string;
@@ -165,6 +173,17 @@ class ApiClient {
     }>(`/api/v1/market/ticker/${exchange}/${symbol}`);
   }
 
+  async getMarketTickers(exchange: string, limit: number = 200) {
+    return this.get<Array<{
+      symbol: string;
+      last_price: string;
+      price_change_percent: string;
+      quote_volume: string;
+      high_price: string;
+      low_price: string;
+    }>>(`/api/v1/market/tickers/${exchange}?limit=${limit}`);
+  }
+
   async getMarketSnapshot() {
     return this.get<{
       running: boolean;
@@ -191,6 +210,17 @@ class ApiClient {
   }
 
   // Exchange accounts
+  async getSupportedExchanges() {
+    return this.get<Array<{
+      id: string;
+      name: string;
+      testnet_url: string;
+      has_testnet: boolean;
+      status: string;
+      requires_passphrase: boolean;
+    }>>('/api/v1/exchange-accounts/supported');
+  }
+
   async saveExchangeAccount(data: {
     exchange_name: string;
     api_key: string;

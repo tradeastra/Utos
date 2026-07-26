@@ -9,7 +9,6 @@ import { useAuthStore } from '@/stores/auth';
 
 const pageTitles: Record<string, string> = {
   '/dashboard': 'Overview',
-  '/dashboard/trade': 'Trade',
   '/dashboard/strategy-setting': 'Strategy',
   '/dashboard/orders': 'Orders',
   '/dashboard/portfolio': 'Portfolio',

@@ -8,10 +8,9 @@ Reports unhealthy components but does NOT recover — RecoveryCoordinator handle
 from __future__ import annotations
 
 import time
-from collections.abc import Callable, Coroutine
-from dataclasses import dataclass
-from datetime import UTC, datetime
-from typing import Any
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from typing import Any, Callable, Coroutine
 
 from core.logging import get_logger
 
@@ -59,7 +58,7 @@ class HeartbeatMonitor:
             return HealthCheckResult(
                 component=component,
                 healthy=False,
-                last_check=datetime.now(UTC),
+                last_check=datetime.now(timezone.utc),
                 response_time_ms=0.0,
                 error="Component not registered",
             )
@@ -75,13 +74,13 @@ class HeartbeatMonitor:
             elapsed_ms = (time.monotonic() - start) * 1000
             healthy = bool(result) if not isinstance(result, tuple) else bool(result[0])
             error = None
-            if isinstance(result, tuple) and len(result) > 1 and result[1]:
+            if isinstance(result, tuple) and len(result) > 1 and result[1] is not None:
                 error = str(result[1])
 
             hr = HealthCheckResult(
                 component=component,
                 healthy=healthy,
-                last_check=datetime.now(UTC),
+                last_check=datetime.now(timezone.utc),
                 response_time_ms=round(elapsed_ms, 2),
                 error=error,
             )
@@ -97,7 +96,7 @@ class HeartbeatMonitor:
             hr = HealthCheckResult(
                 component=component,
                 healthy=False,
-                last_check=datetime.now(UTC),
+                last_check=datetime.now(timezone.utc),
                 response_time_ms=round(elapsed_ms, 2),
                 error=str(exc),
             )

@@ -22,6 +22,89 @@ from api.dependencies import get_current_user_token
 router = APIRouter()
 
 
+SUPPORTED_EXCHANGES = [
+    {
+        "id": "binance",
+        "name": "Binance",
+        "testnet_url": "testnet.binance.vision",
+        "has_testnet": True,
+        "status": "active",
+        "requires_passphrase": False,
+    },
+    {
+        "id": "bybit",
+        "name": "Bybit",
+        "testnet_url": "testnet.bybit.com",
+        "has_testnet": True,
+        "status": "soon",
+        "requires_passphrase": False,
+    },
+    {
+        "id": "okx",
+        "name": "OKX",
+        "testnet_url": "",
+        "has_testnet": False,
+        "status": "soon",
+        "requires_passphrase": True,
+    },
+    {
+        "id": "kraken",
+        "name": "Kraken",
+        "testnet_url": "",
+        "has_testnet": False,
+        "status": "soon",
+        "requires_passphrase": False,
+    },
+    {
+        "id": "kucoin",
+        "name": "KuCoin",
+        "testnet_url": "",
+        "has_testnet": False,
+        "status": "soon",
+        "requires_passphrase": True,
+    },
+    {
+        "id": "mexc",
+        "name": "MEXC",
+        "testnet_url": "",
+        "has_testnet": False,
+        "status": "soon",
+        "requires_passphrase": False,
+    },
+    {
+        "id": "gate",
+        "name": "Gate.io",
+        "testnet_url": "",
+        "has_testnet": False,
+        "status": "soon",
+        "requires_passphrase": False,
+    },
+    {
+        "id": "hyperliquid",
+        "name": "Hyperliquid",
+        "testnet_url": "app.hyperliquid-testnet.xyz",
+        "has_testnet": True,
+        "status": "soon",
+        "requires_passphrase": False,
+    },
+]
+
+
+class SupportedExchangeResponse(BaseModel):
+    id: str
+    name: str
+    testnet_url: str
+    has_testnet: bool
+    status: str
+    requires_passphrase: bool
+
+
+@router.get("/supported", response_model=list[SupportedExchangeResponse])
+async def get_supported_exchanges():
+    """Return list of supported exchanges and their capabilities."""
+    return SUPPORTED_EXCHANGES
+
+
 def _get_fernet() -> Fernet:
     """Get Fernet cipher for encrypting API keys."""
     key = os.environ.get("ENCRYPTION_KEY", "")
