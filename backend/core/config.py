@@ -5,10 +5,11 @@ Loads all settings from environment variables / .env file using
 pydantic-settings v2. Never has hardcoded production secrets.
 """
 
-from typing import List, Optional
+from typing import Annotated, List, Optional
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings.sources import NoDecode
 
 
 class Settings(BaseSettings):
@@ -39,7 +40,13 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7)
 
     # ── CORS ─────────────────────────────────────────────────────────────────
-    CORS_ORIGINS: List[str] = Field(default=["http://localhost:3000"])
+    # NoDecode tells pydantic-settings' EnvSettingsSource to NOT JSON-parse the
+    # raw env string; the field_validator below then splits on commas. Without
+    # this, a comma-separated value like "https://a,http://b" raises
+    # SettingsError because the source tries json.loads first.
+    CORS_ORIGINS: Annotated[List[str], NoDecode] = Field(
+        default=["http://localhost:3000"]
+    )
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
