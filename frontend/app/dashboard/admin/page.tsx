@@ -54,6 +54,14 @@ export default function AdminSettingsPage() {
   const [breakerRateFilter, setBreakerRateFilter] = useState<number | 'all'>('all');
   const [breakerRescreening, setBreakerRescreening] = useState(false);
   const [breakerMsg, setBreakerMsg] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  // Inline edit state for resume config per-row.
+  const [editingResumeId, setEditingResumeId] = useState<string | null>(null);
+  const [resumeDraft, setResumeDraft] = useState<{
+    resume_mode: 'ta_confirm' | 'widen_step' | 'trailing_buy';
+    recovery_pct: number;
+    widen_multiplier: number;
+  }>({ resume_mode: 'ta_confirm', recovery_pct: 5, widen_multiplier: 2 });
+  const [resumeSaving, setResumeSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -128,6 +136,46 @@ export default function AdminSettingsPage() {
       });
     } finally {
       setBreakerRescreening(false);
+    }
+  };
+
+  // ── Resume config inline edit ──────────────────────────────────
+  const startEditResume = (t: AdminBreakerThreshold) => {
+    setEditingResumeId(t.id);
+    setResumeDraft({
+      resume_mode: t.resume_mode,
+      recovery_pct: t.recovery_pct,
+      widen_multiplier: t.widen_multiplier,
+    });
+  };
+
+  const cancelEditResume = () => {
+    setEditingResumeId(null);
+  };
+
+  const saveResumeConfig = async (t: AdminBreakerThreshold) => {
+    setResumeSaving(true);
+    try {
+      const updated = await api.adminUpdateBreakerResumeConfig(
+        t.symbol,
+        { rate: t.min_continuation_rate, exchange: t.exchange },
+        resumeDraft,
+      );
+      setBreakerThresholds(prev =>
+        prev.map(x => x.id === t.id ? { ...x, ...updated } : x),
+      );
+      setEditingResumeId(null);
+      setBreakerMsg({
+        type: 'success',
+        text: `Resume config updated for ${t.symbol} (${(t.min_continuation_rate * 100).toFixed(0)}%): ${resumeDraft.resume_mode}`,
+      });
+    } catch (e: unknown) {
+      setBreakerMsg({
+        type: 'error',
+        text: e instanceof Error ? e.message : 'Failed to update resume config',
+      });
+    } finally {
+      setResumeSaving(false);
     }
   };
 
@@ -647,6 +695,7 @@ export default function AdminSettingsPage() {
                             <th className="pb-2 font-medium">Source</th>
                             <th className="pb-2 font-medium">Candles</th>
                             <th className="pb-2 font-medium">Screened</th>
+                            <th className="pb-2 font-medium">Actions</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -668,7 +717,9 @@ export default function AdminSettingsPage() {
                                 t.resume_mode === 'widen_step' ? `Widen ${t.widen_multiplier}×` :
                                 t.resume_mode === 'trailing_buy' ? `Trail ${t.recovery_pct}%` :
                                 t.resume_mode;
+                              const isEditing = editingResumeId === t.id;
                               return (
+                              <>
                               <tr key={t.id} className="border-b border-border/50">
                                 <td className="py-2 font-medium">{t.symbol}</td>
                                 <td className="py-2">{tierLabel}</td>
@@ -676,7 +727,22 @@ export default function AdminSettingsPage() {
                                 <td className="py-2 text-muted-foreground">{t.continuation_window}d</td>
                                 <td className="py-2 text-muted-foreground">≥{t.min_future_drop_pct.toFixed(0)}%</td>
                                 <td className="py-2">
-                                  <Badge variant="secondary">{resumeLabel}</Badge>
+                                  {isEditing ? (
+                                    <select
+                                      value={resumeDraft.resume_mode}
+                                      onChange={(e) => setResumeDraft(d => ({
+                                        ...d,
+                                        resume_mode: e.target.value as typeof d.resume_mode,
+                                      }))}
+                                      className="rounded border border-border bg-background px-1 py-0.5 text-xs"
+                                    >
+                                      <option value="ta_confirm">TA Confirm</option>
+                                      <option value="widen_step">Widen Step</option>
+                                      <option value="trailing_buy">Trailing Buy</option>
+                                    </select>
+                                  ) : (
+                                    <Badge variant="secondary">{resumeLabel}</Badge>
+                                  )}
                                 </td>
                                 <td className="py-2">
                                   {t.used_fallback ? (
@@ -689,7 +755,83 @@ export default function AdminSettingsPage() {
                                 <td className="py-2 text-muted-foreground">
                                   {t.screened_at ? new Date(t.screened_at).toLocaleDateString() : '—'}
                                 </td>
+                                <td className="py-2">
+                                  {isEditing ? (
+                                    <div className="flex gap-1">
+                                      <button
+                                        onClick={() => saveResumeConfig(t)}
+                                        disabled={resumeSaving}
+                                        className="rounded bg-green-600 px-2 py-0.5 text-xs text-white hover:bg-green-700 disabled:opacity-50"
+                                      >
+                                        {resumeSaving ? '…' : 'Save'}
+                                      </button>
+                                      <button
+                                        onClick={cancelEditResume}
+                                        disabled={resumeSaving}
+                                        className="rounded border border-border px-2 py-0.5 text-xs hover:bg-muted"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      onClick={() => startEditResume(t)}
+                                      className="rounded border border-border px-2 py-0.5 text-xs hover:bg-muted"
+                                    >
+                                      Edit
+                                    </button>
+                                  )}
+                                </td>
                               </tr>
+                              {isEditing && (
+                                <tr key={`${t.id}-edit`} className="border-b border-border/50 bg-muted/20">
+                                  <td colSpan={10} className="py-3 px-4">
+                                    <div className="flex flex-wrap items-center gap-4">
+                                      <span className="text-xs font-medium">
+                                        Resume config for {t.symbol} ({tierLabel}):
+                                      </span>
+                                      {resumeDraft.resume_mode === 'trailing_buy' && (
+                                        <label className="flex items-center gap-2 text-xs">
+                                          Recovery %:
+                                          <input
+                                            type="range" min={1} max={20} step={0.5}
+                                            value={resumeDraft.recovery_pct}
+                                            onChange={(e) => setResumeDraft(d => ({
+                                              ...d, recovery_pct: parseFloat(e.target.value),
+                                            }))}
+                                            className="w-24"
+                                          />
+                                          <span className="font-semibold w-10">
+                                            {resumeDraft.recovery_pct.toFixed(1)}%
+                                          </span>
+                                        </label>
+                                      )}
+                                      {resumeDraft.resume_mode === 'widen_step' && (
+                                        <label className="flex items-center gap-2 text-xs">
+                                          Widen Multiplier:
+                                          <input
+                                            type="range" min={1} max={5} step={0.5}
+                                            value={resumeDraft.widen_multiplier}
+                                            onChange={(e) => setResumeDraft(d => ({
+                                              ...d, widen_multiplier: parseFloat(e.target.value),
+                                            }))}
+                                            className="w-24"
+                                          />
+                                          <span className="font-semibold w-10">
+                                            {resumeDraft.widen_multiplier.toFixed(1)}×
+                                          </span>
+                                        </label>
+                                      )}
+                                      {resumeDraft.resume_mode === 'ta_confirm' && (
+                                        <span className="text-xs text-muted-foreground">
+                                          No extra parameters — bot waits for 15m TA reversal signal.
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                              </>
                             );})}
                         </tbody>
                       </table>
