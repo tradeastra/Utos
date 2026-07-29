@@ -5,22 +5,28 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Sliders, Bitcoin, Wallet, Activity, ArrowRight, RefreshCw } from 'lucide-react';
+import { Sliders, Bitcoin, Wallet, Activity, ArrowRight, RefreshCw, ShieldAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/services/api';
-import { StrategyModeSelector } from '@/components/settings/strategy-mode';
+import { StrategyModeSelector, getModeSpacing } from '@/components/settings/strategy-mode';
+import type { ModeConfig } from '@/components/settings/strategy-mode';
 import { CoinGroupsSelector } from '@/components/settings/coin-groups';
 import { MoneyManagementSection } from '@/components/settings/money-management';
 import { TechnicalAnalysisSettings } from '@/components/settings/technical-analysis';
 import type {
+  BreakerResumeMode,
+  BreakerThreshold,
   CoinGroup,
   CoinSelectionLimit,
+  ContinuationRate,
+  GridSpacingResult,
   MMCalculationResult,
   MMPreset,
   StrategyMode,
   TAConfig,
   TAIndicatorDescription,
 } from '@/types';
+import { BREAKER_RESUME_MODES } from '@/types';
 
 // Persisted template — bridges Config tab to Bots creation flow.
 // Backend persistence is not yet available; localStorage keeps the
@@ -37,6 +43,15 @@ interface StrategyTemplate {
   lowerPrice: number;
   gridCount: number;
   investmentPerGrid: number;
+  // Circuit breaker: continuation rate the user wants to apply.
+  // 0.90 = conservative (only break on drops that historically
+  // continued 90% of the time). 0.70 = more sensitive.
+  continuationRate: ContinuationRate;
+  breakerEnabled: boolean;
+  // Resume behavior after the breaker triggers.
+  resumeMode: BreakerResumeMode;
+  recoveryPct: number;  // for trailing_buy mode (e.g. 5 = 5% recovery)
+  widenMultiplier: number;  // for widen_step mode (e.g. 2 = 2× wider)
 }
 
 const STORAGE_KEY = 'utos.strategy-template.v1';
@@ -53,6 +68,11 @@ const DEFAULT_TEMPLATE: StrategyTemplate = {
   lowerPrice: 40000,
   gridCount: 10,
   investmentPerGrid: 10,
+  continuationRate: 0.90,
+  breakerEnabled: true,
+  resumeMode: 'ta_confirm',
+  recoveryPct: 5,
+  widenMultiplier: 2,
 };
 
 function loadTemplate(): StrategyTemplate {
@@ -107,9 +127,16 @@ const STEPS = [
   { key: 'coins', label: 'Coin Group', icon: Bitcoin },
   { key: 'mm', label: 'Money Management', icon: Wallet },
   { key: 'grid', label: 'Grid Profile', icon: RefreshCw },
+  { key: 'breaker', label: 'Circuit Breaker', icon: ShieldAlert },
   { key: 'ta', label: 'Technical Analysis', icon: Activity },
   { key: 'launch', label: 'Launch Bot', icon: ArrowRight },
 ] as const;
+
+const CONTINUATION_RATES: { value: ContinuationRate; label: string; desc: string }[] = [
+  { value: 0.90, label: 'Patient — ≥15% in 30 days', desc: 'Only break on drops that historically led to ≥15% decline within 30 days. Keep averaging as long as possible. Largest threshold, fewest false triggers.' },
+  { value: 0.80, label: 'Balanced — ≥12% in 10 days', desc: 'Break on drops that led to ≥12% decline within 10 days. Middle ground between protection and patience.' },
+  { value: 0.70, label: 'Protective — ≥9% in 5 days', desc: 'Break on drops that led to ≥9% decline within 5 days. Stop averaging early — most protective against cascading drops.' },
+];
 
 interface SetupWizardProps {
   onInstanceCreated?: (instance: TradingInstance) => void;
@@ -124,11 +151,22 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
   const [presets, setPresets] = useState<MMPreset[]>([]);
   const [indicators, setIndicators] = useState<TAIndicatorDescription[]>([]);
   const [mmResult, setMMResult] = useState<MMCalculationResult | null>(null);
+  const [modeConfigs, setModeConfigs] = useState<ModeConfig[] | null>(null);
+  const [selectedCoins, setSelectedCoins] = useState<string[]>([]);
 
   const [accounts, setAccounts] = useState<ExchangeAccount[]>([]);
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [selectedAccount, setSelectedAccount] = useState('');
   const [selectedStrategy, setSelectedStrategy] = useState('');
+
+  // Circuit breaker thresholds for the selected symbol (all rates).
+  const [breakerThresholds, setBreakerThresholds] = useState<BreakerThreshold[]>([]);
+  const [breakerLoading, setBreakerLoading] = useState(false);
+  const [breakerError, setBreakerError] = useState<string | null>(null);
+
+  // Auto-calculated grid spacing (ATR-based) for the selected coin + mode.
+  const [gridSpacing, setGridSpacing] = useState<GridSpacingResult | null>(null);
+  const [spacingLoading, setSpacingLoading] = useState(false);
 
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
@@ -147,13 +185,14 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
   // Load reference data
   const loadReference = useCallback(async () => {
     try {
-      const [lim, groups, prs, inds, accs, strat] = await Promise.all([
+      const [lim, groups, prs, inds, accs, strat, modes] = await Promise.all([
         api.getCoinSelectionLimits().catch(() => null),
         api.getCoinGroups().catch(() => [] as CoinGroup[]),
         api.getMMPresets().catch(() => [] as MMPreset[]),
         api.getTAIndicators().catch(() => [] as TAIndicatorDescription[]),
         api.listExchangeAccounts().catch(() => [] as ExchangeAccount[]),
         api.listStrategies().catch(() => [] as Strategy[]),
+        api.listStrategyModes().catch(() => null),
       ]);
       setLimits(lim);
       setCoinGroups(groups || []);
@@ -161,6 +200,7 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
       setIndicators(inds || []);
       setAccounts(accs || []);
       setStrategies(strat || []);
+      if (modes) setModeConfigs(modes);
 
       // Auto-select first preset if template has none
       setTemplate((t) => {
@@ -183,6 +223,76 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
   useEffect(() => {
     loadReference();
   }, [loadReference]);
+
+  // Load breaker thresholds for the first selected coin (all rates).
+  // This lets the user see the pre-computed threshold before launching
+  // and pick the continuation rate that matches their risk appetite.
+  const breakerSymbol = selectedCoins[0] ?? '';
+  useEffect(() => {
+    if (!breakerSymbol) {
+      setBreakerThresholds([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setBreakerLoading(true);
+      setBreakerError(null);
+      try {
+        const rows = await api.getBreakerThresholds(breakerSymbol);
+        if (!cancelled) setBreakerThresholds(rows);
+      } catch (e: unknown) {
+        if (!cancelled) {
+          setBreakerThresholds([]);
+          setBreakerError(e instanceof Error ? e.message : 'No pre-computed threshold yet');
+        }
+      } finally {
+        if (!cancelled) setBreakerLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [breakerSymbol]);
+
+  // Auto-calculate grid_count from ATR-based spacing + price range.
+  // grid_count = (upper - lower) / (midpoint × spacing%)
+  // Spacing is fetched from /api/v1/strategies/grid-spacing/{symbol}?mode=X
+  // which computes max(TP_range, ATR(14) × adaptive_factor).
+  useEffect(() => {
+    if (!breakerSymbol || !template.mode) {
+      setGridSpacing(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setSpacingLoading(true);
+      try {
+        const result = await api.getGridSpacing(breakerSymbol, template.mode);
+        if (!cancelled) setGridSpacing(result);
+      } catch {
+        if (!cancelled) setGridSpacing(null);
+      } finally {
+        if (!cancelled) setSpacingLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [breakerSymbol, template.mode]);
+
+  useEffect(() => {
+    // Use ATR-based spacing if available, otherwise fall back to TP range.
+    const spacingPct = gridSpacing?.spacing_pct ?? getModeSpacing(template.mode, modeConfigs);
+    if (template.upperPrice > 0 && template.lowerPrice > 0 && template.upperPrice > template.lowerPrice) {
+      const midpoint = (template.upperPrice + template.lowerPrice) / 2;
+      const spacingAbs = midpoint * (spacingPct / 100);
+      if (spacingAbs > 0) {
+        const count = Math.max(2, Math.round((template.upperPrice - template.lowerPrice) / spacingAbs));
+        setTemplate((t) => (t.gridCount !== count ? { ...t, gridCount: count } : t));
+      }
+    }
+  }, [template.mode, template.upperPrice, template.lowerPrice, gridSpacing, modeConfigs]);
+
+  // When coin group changes, reset selected coins
+  useEffect(() => {
+    setSelectedCoins([]);
+  }, [template.coinGroupId]);
 
   // Recompute MM when relevant inputs change (lazy — only if user already calculated once)
   async function recalculateMM() {
@@ -246,43 +356,71 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
       }
       return;
     }
+    if (selectedCoins.length === 0) {
+      setMsg({ type: 'error', text: 'Select at least one coin from the Coin Group in the Grid Profile section.' });
+      if (typeof window !== 'undefined') {
+        document.getElementById('setup-grid')?.scrollIntoView({ behavior: 'smooth' });
+      }
+      return;
+    }
     setBusy(true);
     setMsg(null);
     try {
-      // Reuse existing grid profile if matching, else create new.
-      // For simplicity we always create a fresh profile from template.
+      // Create one grid profile (shared by all coins — same range & spacing).
       const gridProfileId = await handleCreateGridProfile();
       if (!gridProfileId) return;
 
-      const instance = await api.createTradingInstance({
-        exchange_account_id: selectedAccount,
-        strategy_id: selectedStrategy,
-        grid_profile_id: gridProfileId,
-        symbol: template.symbol.toUpperCase(),
-      });
-
-      // Push TA configs to the new instance if enabled
-      if (template.taEnabled && template.taConfigs.length > 0) {
+      // Create one bot per selected coin.
+      const created: string[] = [];
+      const failed: string[] = [];
+      for (const coin of selectedCoins) {
         try {
-          await api.updateTAConfigs(instance.id, template.taConfigs.map((c) => ({
-            indicator: c.indicator,
-            time_frame: c.time_frame,
-            operator: c.operator,
-            params: c.params,
-            enabled: c.enabled && template.taEnabled,
-            priority: c.priority,
-            description: c.description ?? undefined,
-          })));
-        } catch {
-          // Non-fatal — bot can still run without TA gate
+          const instance = await api.createTradingInstance({
+            exchange_account_id: selectedAccount,
+            strategy_id: selectedStrategy,
+            grid_profile_id: gridProfileId,
+            symbol: coin.toUpperCase(),
+            strategy_mode: template.mode,
+            selected_coins: selectedCoins,
+          });
+
+          // Push TA configs to the new instance if enabled
+          if (template.taEnabled && template.taConfigs.length > 0) {
+            try {
+              await api.updateTAConfigs(instance.id, template.taConfigs.map((c) => ({
+                indicator: c.indicator,
+                time_frame: c.time_frame,
+                operator: c.operator,
+                params: c.params,
+                enabled: c.enabled && template.taEnabled,
+                priority: c.priority,
+                description: c.description ?? undefined,
+              })));
+            } catch {
+              // Non-fatal — bot can still run without TA gate
+            }
+          }
+          created.push(coin.toUpperCase());
+        } catch (err) {
+          failed.push(coin.toUpperCase());
+          console.error(`Failed to create bot for ${coin}:`, err);
         }
       }
 
-      setMsg({
-        type: 'success',
-        text: `Trading bot created for ${template.symbol.toUpperCase()} (status: ${instance.status}). Go to the Bots list to Prepare & Start.`,
-      });
-      onInstanceCreated?.(instance);
+      if (created.length > 0 && failed.length === 0) {
+        setMsg({
+          type: 'success',
+          text: `Created ${created.length} bot${created.length > 1 ? 's' : ''}: ${created.join(', ')}. Go to the Bots list to Prepare & Start.`,
+        });
+      } else if (created.length > 0 && failed.length > 0) {
+        setMsg({
+          type: 'info',
+          text: `Created ${created.length} bots (${created.join(', ')}). Failed: ${failed.join(', ')}.`,
+        });
+      } else {
+        setMsg({ type: 'error', text: `Failed to create all ${failed.length} bots: ${failed.join(', ')}` });
+      }
+      if (created.length > 0) onInstanceCreated?.({} as TradingInstance);
     } catch (err) {
       setMsg({ type: 'error', text: err instanceof Error ? err.message : 'Failed to create bot' });
     } finally {
@@ -449,18 +587,63 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
             <RefreshCw className="h-5 w-5 text-violet-500" />
             Grid Profile
           </CardTitle>
-          <CardDescription>Price range & grid density for the bot</CardDescription>
+          <CardDescription>
+            Price range & grid density — spacing auto-calculated from ATR(14) + TP range ({gridSpacing ? `${gridSpacing.spacing_pct}%` : `${getModeSpacing(template.mode, modeConfigs)}% (TP fallback)`} per level)
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Coin multi-select from Coin Group */}
+          {template.coinGroupId && (() => {
+            const group = coinGroups.find((g) => g.id === template.coinGroupId);
+            if (!group || group.coins.length === 0) return null;
+            const maxSelect = limits?.max_coin_selection ?? group.coins.length;
+            const toggleCoin = (coin: string) => {
+              setSelectedCoins((prev) => {
+                if (prev.includes(coin)) return prev.filter((c) => c !== coin);
+                if (prev.length >= maxSelect) return prev;
+                return [...prev, coin];
+              });
+            };
+            return (
+              <div>
+                <label className="text-sm font-medium">
+                  Select Coins ({selectedCoins.length}/{Math.min(maxSelect, group.coins.length)})
+                </label>
+                <p className="text-xs text-muted-foreground mb-2">
+                  One bot will be created per selected coin. Max {maxSelect >= 999 ? 'unlimited' : maxSelect} coins.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {group.coins.map((coin) => {
+                    const selected = selectedCoins.includes(coin);
+                    return (
+                      <button
+                        key={coin}
+                        onClick={() => toggleCoin(coin)}
+                        className={cn(
+                          'rounded-lg border px-3 py-1.5 text-sm font-medium transition',
+                          selected
+                            ? 'border-violet-500 bg-violet-500/10 text-violet-600 dark:text-violet-400'
+                            : 'border-border bg-card hover:bg-accent',
+                        )}
+                      >
+                        {coin}
+                      </button>
+                    );
+                  })}
+                </div>
+                {selectedCoins.length > 0 && (
+                  <button
+                    onClick={() => setSelectedCoins([])}
+                    className="mt-2 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Clear selection
+                  </button>
+                )}
+              </div>
+            );
+          })()}
+
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className="text-sm font-medium">Symbol</label>
-              <Input
-                value={template.symbol}
-                onChange={(e) => patchTemplate({ symbol: e.target.value.toUpperCase() })}
-                placeholder="BTCUSDT"
-              />
-            </div>
             <div>
               <label className="text-sm font-medium">Investment Per Grid (USDT)</label>
               <Input
@@ -485,17 +668,39 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
                 onChange={(e) => patchTemplate({ lowerPrice: Number(e.target.value) })}
               />
             </div>
+            <div>
+              <label className="text-sm font-medium">Grid Spacing (auto from ATR + TP)</label>
+              <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
+                {spacingLoading ? (
+                  <span className="text-sm text-muted-foreground">Calculating…</span>
+                ) : (
+                  <>
+                    <span className="text-sm font-semibold">
+                      {gridSpacing ? `${gridSpacing.spacing_pct}%` : `${getModeSpacing(template.mode, modeConfigs)}% (TP)`}
+                    </span>
+                    <span className="text-xs text-muted-foreground">per level</span>
+                  </>
+                )}
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {gridSpacing
+                  ? `ATR ${gridSpacing.atr_pct}% × factor ${gridSpacing.adaptive_factor} vs TP ${gridSpacing.tp_range_pct}%${gridSpacing.used_fallback ? ' (fallback — insufficient candles)' : ''}`
+                  : `TP target for Mode ${template.mode}. Select a coin to compute ATR-based spacing.`}
+              </p>
+            </div>
             <div className="sm:col-span-2">
-              <label className="text-sm font-medium">Grid Count (layers)</label>
-              <Input
-                type="number"
-                value={template.gridCount}
-                onChange={(e) => patchTemplate({ gridCount: Number(e.target.value) })}
-              />
+              <label className="text-sm font-medium">Grid Count (auto-calculated)</label>
+              <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
+                <span className="text-sm font-semibold">{template.gridCount}</span>
+                <span className="text-xs text-muted-foreground">levels</span>
+              </div>
               <p className="mt-1 text-xs text-muted-foreground">
                 {template.gridCount} layers × ${template.investmentPerGrid}/layer
                 {' = '}
-                <strong>${(template.gridCount * template.investmentPerGrid).toFixed(2)}</strong> total grid capital.
+                <strong>${(template.gridCount * template.investmentPerGrid).toFixed(2)}</strong> total grid capital per coin.
+                {selectedCoins.length > 0 && (
+                  <> × {selectedCoins.length} coins = <strong>${(template.gridCount * template.investmentPerGrid * selectedCoins.length).toFixed(2)}</strong> total.</>
+                )}
               </p>
             </div>
           </div>
@@ -507,7 +712,227 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
         </CardContent>
       </Card>
 
-      {/* Section 5: Technical Analysis */}
+      {/* Section 5: Circuit Breaker */}
+      <Card glass id="setup-breaker" className="scroll-mt-20">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ShieldAlert className="h-5 w-5 text-violet-500" />
+            Daily Drop Circuit Breaker
+          </CardTitle>
+          <CardDescription>
+            Pause buy orders if a critical daily drop is reached, then resume only on a 15m TA reversal signal.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={template.breakerEnabled}
+              onChange={(e) => patchTemplate({ breakerEnabled: e.target.checked })}
+              className="h-4 w-4"
+            />
+            <span className="text-sm font-medium">Enable circuit breaker for this bot</span>
+          </label>
+
+          {template.breakerEnabled && (
+            <>
+              <div>
+                <label className="text-sm font-medium">Continuation Rate</label>
+                <p className="text-xs text-muted-foreground mb-2">
+                  The threshold is derived from historical daily candles: a drop &quot;continues&quot; if the price is still lower {`N`} days later. Higher rate = larger threshold = fewer triggers.
+                </p>
+                <div className="grid gap-2">
+                  {CONTINUATION_RATES.map((r) => (
+                    <label
+                      key={r.value}
+                      className={cn(
+                        'flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors',
+                        template.continuationRate === r.value
+                          ? 'border-violet-500 bg-violet-500/10'
+                          : 'border-border hover:bg-muted/40',
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name="continuationRate"
+                        value={r.value}
+                        checked={template.continuationRate === r.value}
+                        onChange={() => patchTemplate({ continuationRate: r.value })}
+                        className="mt-1"
+                      />
+                      <div>
+                        <div className="text-sm font-medium">{r.label}</div>
+                        <div className="text-xs text-muted-foreground">{r.desc}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Threshold preview table for the selected symbol */}
+              <div className="rounded-lg border border-border p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium">
+                    Pre-computed thresholds for {breakerSymbol.toUpperCase()}
+                  </span>
+                  {breakerLoading && <span className="text-xs text-muted-foreground">Loading…</span>}
+                </div>
+                {breakerError ? (
+                  <div className="rounded-md bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-400">
+                    {breakerError}. The bot will use a conservative fallback threshold until screening runs.
+                  </div>
+                ) : breakerThresholds.length === 0 ? (
+                  <div className="text-xs text-muted-foreground">No thresholds available yet.</div>
+                ) : (
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-left text-muted-foreground">
+                        <th className="pb-1 font-medium">Rate</th>
+                        <th className="pb-1 font-medium">Threshold</th>
+                        <th className="pb-1 font-medium">Source</th>
+                        <th className="pb-1 font-medium">Candles</th>
+                        <th className="pb-1 font-medium">Screened</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {breakerThresholds.map((t) => (
+                        <tr
+                          key={t.id}
+                          className={cn(
+                            'border-t border-border',
+                            template.continuationRate === t.min_continuation_rate && 'bg-violet-500/5',
+                          )}
+                        >
+                          <td className="py-1.5">{(t.min_continuation_rate * 100).toFixed(0)}%</td>
+                          <td className="py-1.5 font-semibold">{t.threshold_pct.toFixed(2)}%</td>
+                          <td className="py-1.5">
+                            {t.used_fallback ? (
+                              <span className="text-amber-600 dark:text-amber-400">fallback</span>
+                            ) : (
+                              <span className="text-green-600 dark:text-green-400">data-driven</span>
+                            )}
+                          </td>
+                          <td className="py-1.5">{t.candle_count}</td>
+                          <td className="py-1.5 text-muted-foreground">
+                            {t.screened_at ? new Date(t.screened_at).toLocaleDateString() : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+                {(() => {
+                  const selected = breakerThresholds.find(
+                    (t) => t.min_continuation_rate === template.continuationRate,
+                  );
+                  if (!selected) return null;
+                  return (
+                    <div className="mt-3 rounded-md bg-blue-500/10 p-2 text-xs text-blue-700 dark:text-blue-300">
+                      <strong>Selected:</strong> {template.continuationRate * 100}% rate → buys pause if {breakerSymbol.toUpperCase()} drops <strong>{selected.threshold_pct.toFixed(2)}%</strong> intraday from the day&apos;s open. {selected.used_fallback ? '(Fallback value — ask admin to run screening.)' : `(From ${selected.candle_count} daily candles, screened ${selected.screened_at ? new Date(selected.screened_at).toLocaleDateString() : 'recently'}.)`}
+                    </div>
+                  );
+                })()}
+
+                {/* Resume mode — what happens AFTER the breaker triggers */}
+                <div className="mt-4">
+                  <label className="text-sm font-medium">Resume Mode</label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    What should the bot do <em>after</em> the breaker triggers?
+                    This controls when buying resumes.
+                  </p>
+                  <div className="grid gap-2">
+                    {BREAKER_RESUME_MODES.map((m) => (
+                      <label
+                        key={m.value}
+                        className={cn(
+                          'flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors',
+                          template.resumeMode === m.value
+                            ? 'border-violet-500 bg-violet-500/10'
+                            : 'border-border hover:bg-muted/40',
+                        )}
+                      >
+                        <input
+                          type="radio"
+                          name="resumeMode"
+                          value={m.value}
+                          checked={template.resumeMode === m.value}
+                          onChange={() => patchTemplate({ resumeMode: m.value })}
+                          className="mt-1"
+                        />
+                        <div>
+                          <div className="text-sm font-medium">{m.label}</div>
+                          <div className="text-xs text-muted-foreground">{m.desc}</div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+
+                  {/* Conditional parameter for trailing_buy mode */}
+                  {template.resumeMode === 'trailing_buy' && (
+                    <div className="mt-3 rounded-lg border border-border p-3">
+                      <label className="text-sm font-medium">Recovery %</label>
+                      <p className="text-xs text-muted-foreground mb-2">
+                        Resume buying when price recovers this percentage from
+                        the intraday low. Lower = resume sooner (more
+                        aggressive). Higher = wait for a stronger bounce.
+                      </p>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="range"
+                          min={1}
+                          max={20}
+                          step={0.5}
+                          value={template.recoveryPct}
+                          onChange={(e) =>
+                            patchTemplate({ recoveryPct: parseFloat(e.target.value) })
+                          }
+                          className="flex-1"
+                        />
+                        <span className="w-16 text-right text-sm font-semibold">
+                          {template.recoveryPct.toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Conditional parameter for widen_step mode */}
+                  {template.resumeMode === 'widen_step' && (
+                    <div className="mt-3 rounded-lg border border-border p-3">
+                      <label className="text-sm font-medium">Widen Multiplier</label>
+                      <p className="text-xs text-muted-foreground mb-2">
+                        Multiply the grid spacing by this factor while the
+                        breaker is active. 2 = buy at every 2nd level (2×
+                        wider). 3 = every 3rd level. Higher = slower
+                        accumulation.
+                      </p>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="range"
+                          min={1}
+                          max={5}
+                          step={0.5}
+                          value={template.widenMultiplier}
+                          onChange={(e) =>
+                            patchTemplate({
+                              widenMultiplier: parseFloat(e.target.value),
+                            })
+                          }
+                          className="flex-1"
+                        />
+                        <span className="w-16 text-right text-sm font-semibold">
+                          {template.widenMultiplier.toFixed(1)}×
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Section 6: Technical Analysis */}
       <Card glass id="setup-ta" className="scroll-mt-20">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -530,7 +955,7 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
         </CardContent>
       </Card>
 
-      {/* Section 6: Launch — Exchange + Strategy + Create */}
+      {/* Section 7: Launch — Exchange + Strategy + Create */}
       <div id="setup-launch" className="scroll-mt-20 space-y-6">
         <Card glass>
           <CardHeader>
@@ -624,12 +1049,22 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
                 </dd>
               </div>
               <div className="flex justify-between rounded-md bg-muted/40 px-3 py-2">
-                <dt className="text-muted-foreground">Symbol</dt>
-                <dd className="font-medium">{template.symbol.toUpperCase()}</dd>
+                <dt className="text-muted-foreground">Selected Coins</dt>
+                <dd className="font-medium">
+                  {selectedCoins.length > 0
+                    ? `${selectedCoins.length} coin${selectedCoins.length > 1 ? 's' : ''}: ${selectedCoins.join(', ')}`
+                    : '— (select in Grid Profile)'}
+                </dd>
               </div>
               <div className="flex justify-between rounded-md bg-muted/40 px-3 py-2">
                 <dt className="text-muted-foreground">Grid Range</dt>
                 <dd className="font-medium">${template.lowerPrice} – ${template.upperPrice}</dd>
+              </div>
+              <div className="flex justify-between rounded-md bg-muted/40 px-3 py-2">
+                <dt className="text-muted-foreground">Grid Spacing</dt>
+                <dd className="font-medium">
+                  {gridSpacing ? `${gridSpacing.spacing_pct}% (ATR)` : `${getModeSpacing(template.mode, modeConfigs)}% (TP)`} — Mode {template.mode}
+                </dd>
               </div>
               <div className="flex justify-between rounded-md bg-muted/40 px-3 py-2">
                 <dt className="text-muted-foreground">Grid Layers</dt>

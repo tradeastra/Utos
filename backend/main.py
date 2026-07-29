@@ -2,6 +2,7 @@
 UTOS Trading Engine — FastAPI application entry point.
 """
 
+import asyncio
 import os
 import subprocess
 from contextlib import asynccontextmanager
@@ -136,6 +137,73 @@ async def _recover_trading_processes() -> None:
         logger.error(f"Process recovery failed: {exc}")
 
 
+async def _screen_breaker_thresholds() -> None:
+    """Background task: pre-compute circuit breaker thresholds for all coins.
+
+    Runs after Market Hub starts. Fetches all coins from active coin groups,
+    screens them for continuation rates 70% / 80% / 90%, and persists results
+    to the ``breaker_thresholds`` table. This makes thresholds available
+    immediately when users open the setup wizard or admin page.
+
+    Failures are logged but do not crash startup — the bot still works with
+    fallback thresholds until the next re-screen.
+    """
+    from decimal import Decimal
+
+    from repositories.coin_group_repository import CoinGroupRepository
+    from services.breaker_screening_store import BreakerScreeningStore
+
+    try:
+        engine = get_engine()
+        if engine is None or market_hub is None:
+            logger.warning("Skipping breaker screening: engine or market hub not ready")
+            return
+
+        session_factory = async_sessionmaker(
+            engine, class_=AsyncSession, expire_on_commit=False
+        )
+        async with session_factory() as session:
+            # Gather all coins from active coin groups.
+            cg_repo = CoinGroupRepository(session)
+            groups = await cg_repo.get_all(limit=500)
+            symbols: list[str] = []
+            for g in groups:
+                if not g.is_active:
+                    continue
+                for c in (g.coins or []):
+                    sym = c.upper()
+                    # Coin groups store base symbols (BTC, ETH) — append USDT
+                    # for screening since the bot trades XXXUSDT pairs.
+                    if not sym.endswith("USDT"):
+                        sym = sym + "USDT"
+                    if sym not in symbols:
+                        symbols.append(sym)
+
+            if not symbols:
+                logger.warning("Skipping breaker screening: no active coin groups with coins")
+                return
+
+            logger.info(
+                "Starting breaker threshold screening",
+                extra={"symbol_count": len(symbols), "rates": [0.70, 0.80, 0.90]},
+            )
+
+            store = BreakerScreeningStore(market_hub)
+            await store.rescreen_for_rates(
+                db=session,
+                symbols=symbols,
+                rates=[Decimal("0.70"), Decimal("0.80"), Decimal("0.90")],
+            )
+            await session.commit()
+
+            logger.info("Breaker threshold screening completed on startup")
+    except asyncio.CancelledError:
+        logger.info("Breaker screening cancelled during shutdown")
+        raise
+    except Exception as exc:  # noqa: BLE001
+        logger.error(f"Breaker screening failed: {exc}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup: init DB engine + Redis, recover trading processes, start Market Hub and Execution Engine. Shutdown: close all."""
@@ -168,8 +236,20 @@ async def lifespan(app: FastAPI):
     grid_engine = GridEngine(execution_engine, profit_lock_engine=profit_lock_engine)
     if settings.OTEL_ENABLED:
         init_telemetry(app)
+
+    # Kick off breaker threshold screening in the background.
+    # This pre-computes daily-drop circuit breaker thresholds for all
+    # coins in active coin groups so the wizard / admin page has data
+    # immediately. Runs async — does not block startup.
+    screening_task = asyncio.create_task(_screen_breaker_thresholds())
+
     yield
     logger.info("Shutting down UTOS Trading Engine")
+    screening_task.cancel()
+    try:
+        await screening_task
+    except asyncio.CancelledError:
+        pass
     if settings.OTEL_ENABLED:
         shutdown_telemetry()
     if market_hub is not None:

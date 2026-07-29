@@ -7,6 +7,7 @@ All 12 models per DATABASE.md §2.
 from .affiliate import Affiliate
 from .averaging_config import AveragingConfig
 from .balance import Balance
+from .breaker_threshold import BreakerThreshold
 from .coin_group import CoinGroup
 from .exchange_account import ExchangeAccount, ExchangeName
 from .grid_profile import GridProfile
@@ -15,6 +16,7 @@ from .notification import Notification, NotificationType
 from .order import Order
 from .position import Position
 from .strategy import Strategy
+from .strategy_mode import StrategyMode
 from .subscription import Subscription
 from .technical_analysis import TechnicalAnalysisConfig
 from .trading_instance import TradingInstance
@@ -39,9 +41,11 @@ __all__ = [
     "Notification",
     "NotificationType",
     "Balance",
+    "BreakerThreshold",
     "CoinGroup",
     "UserAddOn",
     "MMPreset",
     "AveragingConfig",
     "TechnicalAnalysisConfig",
+    "StrategyMode",
 ]

@@ -1,3 +1,5 @@
+import type { BreakerThreshold } from '@/types';
+
 function resolveApiBase(): string {
   const raw = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
   if (typeof window !== 'undefined' && window.location.protocol === 'https:' && raw.startsWith('http://')) {
@@ -368,6 +370,29 @@ class ApiClient {
     }>>('/api/v1/strategies/');
   }
 
+  async listStrategyModes() {
+    return this.get<Array<{
+      mode: string;
+      label: string;
+      tp_range_min: number;
+      tp_range_max: number;
+      risk_level: string;
+      is_active: boolean;
+      sort_order: number;
+    }>>('/api/v1/strategies/modes');
+  }
+
+  async getGridSpacing(symbol: string, mode: string, exchange?: string) {
+    const qs = new URLSearchParams({ mode });
+    if (exchange) qs.set('exchange', exchange);
+    return this.get<{
+      symbol: string; exchange: string; mode: string;
+      tp_range_pct: number; atr_pct: number; avg_atr_pct: number;
+      adaptive_factor: number; spacing_pct: number;
+      used_fallback: boolean; candle_count: number;
+    }>(`/api/v1/strategies/grid-spacing/${symbol.toUpperCase()}?${qs.toString()}`);
+  }
+
   // Grid Profiles
   async listGridProfiles() {
     return this.get<Array<{
@@ -424,6 +449,8 @@ class ApiClient {
     start_price?: number | null;
     base_currency?: string;
     quote_currency?: string;
+    strategy_mode?: string;
+    selected_coins?: string[];
   }) {
     return this.post<{
       id: string;
@@ -682,16 +709,92 @@ class ApiClient {
 
   async adminListStrategyModes() {
     return this.get<{
-      mode: string; label: string; daily_range_min: number; daily_range_max: number; risk_level: string;
+      mode: string; label: string; tp_range_min: number; tp_range_max: number; risk_level: string;
     }[]>('/api/v1/admin/strategy-modes');
   }
 
   async adminUpdateStrategyMode(mode: string, data: {
-    label?: string; daily_range_min?: number; daily_range_max?: number; risk_level?: string;
+    label?: string; tp_range_min?: number; tp_range_max?: number; risk_level?: string;
   }) {
     return this.put<{
-      mode: string; label: string; daily_range_min: number; daily_range_max: number; risk_level: string;
+      mode: string; label: string; tp_range_min: number; tp_range_max: number; risk_level: string;
     }>(`/api/v1/admin/strategy-modes/${mode}`, data);
+  }
+
+  // ─── Admin: Circuit Breaker Thresholds ──────────────────────
+
+  async adminListBreakerThresholds(params?: { rate?: number; exchange?: string }) {
+    const qs = new URLSearchParams();
+    if (params?.rate !== undefined) qs.set('rate', String(params.rate));
+    if (params?.exchange) qs.set('exchange', params.exchange);
+    const q = qs.toString();
+    return this.get<{
+      id: string; exchange: string; symbol: string; min_continuation_rate: number;
+      threshold_pct: number; continuation_window: number; min_future_drop_pct: number;
+      lookback_days: number; candle_count: number; used_fallback: boolean;
+      note: string | null; screened_at: string | null; created_at: string | null;
+      updated_at: string | null;
+    }[]>(`/api/v1/admin/breaker-thresholds${q ? `?${q}` : ''}`);
+  }
+
+  async adminGetBreakerThreshold(symbol: string, params?: { rate?: number; exchange?: string }) {
+    const qs = new URLSearchParams();
+    if (params?.rate !== undefined) qs.set('rate', String(params.rate));
+    if (params?.exchange) qs.set('exchange', params.exchange);
+    const q = qs.toString();
+    return this.get<any>(`/api/v1/admin/breaker-thresholds/${symbol.toUpperCase()}${q ? `?${q}` : ''}`);
+  }
+
+  async adminBreakerHealthSummary() {
+    return this.get<{
+      total_rows: number; distinct_symbols: number;
+      per_rate: Record<string, { count: number; fallback_count: number }>;
+      oldest_screened_at: string | null; newest_screened_at: string | null;
+      fallback_total: number;
+    }>('/api/v1/admin/breaker-thresholds/health/summary');
+  }
+
+  async adminRescreenBreakerThresholds(data: {
+    symbols?: string[];
+    rates?: number[];
+    lookback_days?: number;
+    continuation_window?: number;
+    min_future_drop_pct?: number;
+  }) {
+    return this.post<{
+      screened_symbols: number; rates: number[];
+      results: Record<string, {
+        symbol_count: number; fallback_count: number; data_driven_count: number; symbols: string[];
+      }>;
+    }>('/api/v1/admin/breaker-thresholds/rescreen', data);
+  }
+
+  async adminUpdateBreakerResumeConfig(
+    symbol: string,
+    params: { rate: number; exchange?: string },
+    data: {
+      resume_mode?: 'ta_confirm' | 'widen_step' | 'trailing_buy';
+      recovery_pct?: number;
+      widen_multiplier?: number;
+    },
+  ) {
+    const qs = new URLSearchParams();
+    qs.set('rate', String(params.rate));
+    if (params.exchange) qs.set('exchange', params.exchange);
+    return this.patch<BreakerThreshold>(
+      `/api/v1/admin/breaker-thresholds/${symbol.toUpperCase()}/resume-config?${qs.toString()}`,
+      data,
+    );
+  }
+
+  // ─── User-facing: Circuit Breaker Thresholds (read-only) ────
+
+  async getBreakerThresholds(symbol: string, params?: { rate?: number; exchange?: string }) {
+    const qs = new URLSearchParams();
+    if (params?.rate !== undefined) qs.set('rate', String(params.rate));
+    if (params?.exchange) qs.set('exchange', params.exchange);
+    const q = qs.toString();
+    return this.get<BreakerThreshold[]>(`/api/v1/breaker-thresholds/${symbol.toUpperCase()}${q ? `?${q}` : ''}`);
   }
 
   // ─── Averaging Config ──────────────────────────────────────

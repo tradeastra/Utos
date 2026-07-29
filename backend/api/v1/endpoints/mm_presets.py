@@ -5,6 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from api.v1.endpoints.users import get_current_user_from_token
+from core.exceptions import ValidationError
 from database.base import get_db
 from fastapi import APIRouter, Depends, HTTPException, status
 from models.mm_preset import MMPreset
@@ -28,24 +29,53 @@ async def _ensure_builtin_coin_groups(db: AsyncSession) -> None:
 
 
 async def _ensure_builtin_presets(db: AsyncSession):
-    """Seed built-in MM presets if none exist."""
+    """Seed built-in MM presets if missing, and sync their fields with the
+    source of truth in services.mm_calculator.BUILTIN_PRESETS.
+
+    Self-healing: if a built-in row already exists but its description /
+    allowed_coin_groups / steps / min_capital drifted from BUILTIN_PRESETS
+    (e.g. because a rename migration forgot to update the description),
+    the row is updated in place. This prevents stale labels like
+    "3 Kings / 5 Kings" from persisting in the DB.
+    """
     repo = MMPresetRepository(db)
     existing = await repo.get_builtin_presets()
-    if existing:
-        return
+    existing_by_type = {p.preset_type: p for p in existing}
+
     for key, p in BUILTIN_PRESETS.items():
-        db.add(MMPreset(
-            name=p["name"],
-            preset_type=key,
-            steps=p["steps"],
-            min_capital=p["min_capital"],
-            max_capital=p["max_capital"],
-            description=p["description"],
-            allowed_coin_groups=p["allowed_coin_groups"],
-            is_builtin=True,
-            is_active=True,
-            user_id=None,
-        ))
+        row = existing_by_type.get(key)
+        if row is None:
+            db.add(MMPreset(
+                name=p["name"],
+                preset_type=key,
+                steps=p["steps"],
+                min_capital=p["min_capital"],
+                max_capital=p["max_capital"],
+                description=p["description"],
+                allowed_coin_groups=p["allowed_coin_groups"],
+                is_builtin=True,
+                is_active=True,
+                user_id=None,
+            ))
+            continue
+        # Sync drifted fields on existing built-in rows.
+        drifted = (
+            row.description != p["description"]
+            or row.allowed_coin_groups != p["allowed_coin_groups"]
+            or row.steps != p["steps"]
+            or row.name != p["name"]
+        )
+        # min_capital is Numeric; compare as Decimal to avoid float noise.
+        if str(row.min_capital) != str(p["min_capital"]):
+            drifted = True
+        if drifted:
+            row.name = p["name"]
+            row.steps = p["steps"]
+            row.min_capital = p["min_capital"]
+            row.max_capital = p["max_capital"]
+            row.description = p["description"]
+            row.allowed_coin_groups = p["allowed_coin_groups"]
+
     await db.commit()
 
 
@@ -143,7 +173,7 @@ async def calculate_mm(
             coin_group_max_coins=coin_group.max_coins,
             custom_steps=data.custom_steps,
         )
-    except ValueError as exc:
+    except ValidationError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
