@@ -317,6 +317,10 @@ class TradingProcessManager:
         total_investment: float = 0.0,
         base_currency: str = "",
         quote_currency: str = "",
+        strategy_mode: str | None = None,
+        selected_coins: list[str] | None = None,
+        continuation_rate: float | None = None,
+        breaker_enabled: bool = True,
     ) -> TradingInstance:
         account = await self.account_repo.get_by_id(exchange_account_id)
         if account is None or account.user_id != user_id:
@@ -341,6 +345,10 @@ class TradingProcessManager:
             total_investment=total_investment,
             base_currency=(base_currency or "").upper(),
             quote_currency=(quote_currency or "").upper(),
+            strategy_mode=strategy_mode,
+            selected_coins=selected_coins,
+            continuation_rate=continuation_rate,
+            breaker_enabled=breaker_enabled,
         )
         return instance
 
@@ -389,6 +397,13 @@ class TradingProcessManager:
         process.set_status(TradingInstanceStatus.RUNNING)
 
         await self._register(process)
+
+        # ── Wire grid engine + market hub + circuit breaker ──────────
+        # These are global singletons initialized in main.py lifespan.
+        # We import lazily to avoid circular imports and to keep tests
+        # working without a running MarketHub/GridEngine.
+        await self._wire_grid_and_market(instance, process)
+
         await self._persist_instance(
             instance,
             status=TradingInstanceStatus.RUNNING,
@@ -399,6 +414,129 @@ class TradingProcessManager:
         )
         await self._persist_state(process)
         return instance
+
+    async def _wire_grid_and_market(
+        self, instance: TradingInstance, process: TradingProcess
+    ) -> None:
+        """Initialize grid, activate it, install circuit breaker, and
+        subscribe to MarketHub price updates.
+
+        Failures here are logged but do NOT prevent the bot from starting
+        — the grid engine may be unavailable in test environments. The
+        subscription id is stored on the process so stop()/pause() can
+        unsubscribe cleanly.
+        """
+        try:
+            from main import grid_engine, market_hub
+        except ImportError:
+            return  # tests / no main module
+
+        if grid_engine is None or market_hub is None:
+            return  # not initialized yet
+
+        from decimal import Decimal
+
+        # 1. Load grid profile and initialize grid levels.
+        grid_profile = await self.grid_profile_repo.get_by_id(instance.grid_profile_id)
+        if grid_profile is None:
+            logger.warning(
+                "Grid profile not found, skipping grid init",
+                extra={"instance_id": str(instance.id), "grid_profile_id": str(instance.grid_profile_id)},
+            )
+            return
+
+        try:
+            await grid_engine.initialize_grid(
+                instance_id=str(instance.id),
+                exchange_account_id=instance.exchange_account_id,
+                symbol=instance.symbol,
+                upper_price=Decimal(str(grid_profile.upper_price)),
+                lower_price=Decimal(str(grid_profile.lower_price)),
+                grid_count=int(grid_profile.grid_count),
+                investment_per_grid=Decimal(str(grid_profile.investment_per_grid)),
+            )
+
+            # 2. Fetch current price and activate grid (place initial buys).
+            current_price = await market_hub.get_price(
+                process.exchange_name, instance.symbol
+            )
+            await grid_engine.activate_grid(str(instance.id), current_price)
+
+            # 3. Install circuit breaker if enabled.
+            if instance.breaker_enabled and instance.continuation_rate is not None:
+                from services.breaker_screening_store import BreakerScreeningStore
+                breaker_store = BreakerScreeningStore()
+                await breaker_store.setup_breaker_for_instance(
+                    db=self.session,
+                    grid_engine=grid_engine,
+                    instance_id=str(instance.id),
+                    symbol=instance.symbol,
+                    min_continuation_rate=Decimal(str(instance.continuation_rate)),
+                    exchange=process.exchange_name,
+                    day_open_price=current_price,
+                )
+
+            # 4. Subscribe to MarketHub ticker stream → forward to grid engine.
+            async def _price_callback(exchange: str, symbol: str, channel: str, data: Any) -> None:
+                from core.domain_types import TickerData
+                if isinstance(data, TickerData):
+                    await grid_engine.on_price_update(
+                        str(instance.id), Decimal(str(data.last_price))
+                    )
+
+            sub_id = await market_hub.subscribe(
+                process.exchange_name, instance.symbol, "ticker", _price_callback
+            )
+            process.subscription_id = sub_id  # type: ignore[attr-defined]
+
+            logger.info(
+                "Grid wired and subscribed to market data",
+                extra={
+                    "instance_id": str(instance.id),
+                    "symbol": instance.symbol,
+                    "current_price": str(current_price),
+                    "subscription_id": sub_id,
+                },
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.error(
+                "Failed to wire grid/market for instance: %s",
+                exc,
+                extra={"instance_id": str(instance.id)},
+            )
+
+    async def _unwire_grid_and_market(
+        self, instance: TradingInstance, process: TradingProcess
+    ) -> None:
+        """Unsubscribe from MarketHub and pause the grid.
+
+        Called by stop() and pause() so price updates stop flowing to the
+        grid engine and open orders are cancelled.
+        """
+        # Unsubscribe from MarketHub
+        sub_id = getattr(process, "subscription_id", None)
+        if sub_id is not None:
+            try:
+                from main import market_hub
+                if market_hub is not None:
+                    await market_hub.unsubscribe(sub_id)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "Failed to unsubscribe from market hub: %s", exc,
+                    extra={"instance_id": str(instance.id), "subscription_id": sub_id},
+                )
+            process.subscription_id = None  # type: ignore[attr-defined]
+
+        # Pause grid (cancel open orders)
+        try:
+            from main import grid_engine
+            if grid_engine is not None:
+                await grid_engine.pause_grid(str(instance.id))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Failed to pause grid: %s", exc,
+                extra={"instance_id": str(instance.id)},
+            )
 
     async def pause(
         self, instance_id: uuid.UUID, user_id: uuid.UUID
@@ -414,6 +552,7 @@ class TradingProcessManager:
             process = await self._build_process_from_instance(instance)
             await self._register(process)
 
+        await self._unwire_grid_and_market(instance, process)
         process.set_status(TradingInstanceStatus.PAUSED)
         await self._persist_instance(
             instance,
@@ -466,6 +605,7 @@ class TradingProcessManager:
         process = await self._get_process(instance.id)
         if process is not None:
             process.set_status(TradingInstanceStatus.STOPPING)
+            await self._unwire_grid_and_market(instance, process)
             try:
                 await process.adapter.disconnect()
             except Exception as exc:  # noqa: BLE001

@@ -377,6 +377,7 @@ class ApiClient {
       tp_range_min: number;
       tp_range_max: number;
       risk_level: string;
+      description: string | null;
       is_active: boolean;
       sort_order: number;
     }>>('/api/v1/strategies/modes');
@@ -451,6 +452,9 @@ class ApiClient {
     quote_currency?: string;
     strategy_mode?: string;
     selected_coins?: string[];
+    continuation_rate?: number;
+    breaker_enabled?: boolean;
+    auto_start?: boolean;
   }) {
     return this.post<{
       id: string;
@@ -709,15 +713,15 @@ class ApiClient {
 
   async adminListStrategyModes() {
     return this.get<{
-      mode: string; label: string; tp_range_min: number; tp_range_max: number; risk_level: string;
+      mode: string; label: string; tp_range_min: number; tp_range_max: number; risk_level: string; description: string | null;
     }[]>('/api/v1/admin/strategy-modes');
   }
 
   async adminUpdateStrategyMode(mode: string, data: {
-    label?: string; tp_range_min?: number; tp_range_max?: number; risk_level?: string;
+    label?: string; tp_range_min?: number; tp_range_max?: number; risk_level?: string; description?: string;
   }) {
     return this.put<{
-      mode: string; label: string; tp_range_min: number; tp_range_max: number; risk_level: string;
+      mode: string; label: string; tp_range_min: number; tp_range_max: number; risk_level: string; description: string | null;
     }>(`/api/v1/admin/strategy-modes/${mode}`, data);
   }
 

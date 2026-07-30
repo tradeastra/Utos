@@ -382,6 +382,9 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
             symbol: coin.toUpperCase(),
             strategy_mode: template.mode,
             selected_coins: selectedCoins,
+            continuation_rate: template.breakerEnabled ? template.continuationRate : undefined,
+            breaker_enabled: template.breakerEnabled,
+            auto_start: true,
           });
 
           // Push TA configs to the new instance if enabled

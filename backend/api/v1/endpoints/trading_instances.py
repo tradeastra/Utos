@@ -10,7 +10,7 @@ from typing import Any, NoReturn
 from uuid import UUID
 
 from api.v1.endpoints.users import get_current_user_from_token
-from core.domain_types import TradingInstanceStatus
+from core.domain_types import StrategyMode, TradingInstanceStatus
 from core.exceptions import (
     AuthenticationError,
     AuthorizationError,
@@ -37,6 +37,11 @@ class TradingInstanceCreate(BaseModel):
     total_investment: float | None = Field(None, description="Total investment — auto-calculated from grid profile if omitted")
     base_currency: str = Field("", description="Base currency")
     quote_currency: str = Field("", description="Quote currency")
+    strategy_mode: str | None = Field(None, description="Strategy mode (A/B/C/D/U) — determines grid spacing")
+    selected_coins: list[str] | None = Field(None, description="Coins selected from coin group (for audit/multi-bot)")
+    continuation_rate: float | None = Field(None, description="Circuit breaker continuation rate (0.70/0.80/0.90)")
+    breaker_enabled: bool = Field(True, description="Enable circuit breaker")
+    auto_start: bool = Field(False, description="If true, automatically start the bot after creation (skip manual Start)")
 
 
 class TradingInstanceResponse(BaseModel):
@@ -77,6 +82,17 @@ class TradingInstanceStatusResponse(BaseModel):
 
     id: str
     status: str
+
+
+def _parse_strategy_mode(mode: str | None) -> StrategyMode | None:
+    """Convert frontend mode letter (A/B/C/D/U) to StrategyMode enum."""
+    if not mode:
+        return None
+    mode_upper = mode.upper()
+    try:
+        return StrategyMode[mode_upper]
+    except KeyError:
+        return None
 
 
 def _to_response(instance: Any) -> dict[str, Any]:
@@ -174,7 +190,18 @@ async def create_trading_instance(
             total_investment=total_inv,
             base_currency=data.base_currency,
             quote_currency=data.quote_currency,
+            strategy_mode=_parse_strategy_mode(data.strategy_mode),
+            selected_coins=data.selected_coins,
+            continuation_rate=data.continuation_rate,
+            breaker_enabled=data.breaker_enabled,
         )
+
+        # Auto-start: skip the CREATED → READY → RUNNING manual steps.
+        # The setup wizard uses this so users get a running bot in one click.
+        if data.auto_start:
+            instance = await manager.prepare(instance.id, current_user.id)
+            instance = await manager.start(instance.id, current_user.id)
+
         return _to_response(instance)
     except Exception as exc:
         _handle_manager_exception(exc)
