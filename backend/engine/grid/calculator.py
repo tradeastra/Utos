@@ -14,7 +14,14 @@ from core.exceptions import ValidationError
 
 
 class GridCalculator:
-    """Calculate grid levels from upper/lower price, grid count, and investment."""
+    """Calculate grid levels from upper/lower price, grid count, and investment.
+
+    Take-profit multiplier: sell price = buy price + spacing × 2.5.
+    This gives 2.5× the grid spacing as profit per level, so tighter
+    grids still earn meaningful profit per trade.
+    """
+
+    TP_MULTIPLIER = Decimal("2.5")
 
     @staticmethod
     def validate_parameters(
@@ -55,7 +62,7 @@ class GridCalculator:
 
         Each level ``i`` has:
         - buy_price  = lower + i * spacing  (the price at which we buy)
-        - sell_price = buy_price + spacing   (the price at which we sell after buy fills)
+        - sell_price = buy_price + spacing × 2.5  (TP = 2.5× grid spacing)
         - quantity   = investment_per_grid / buy_price
         """
         cls.validate_parameters(
@@ -67,7 +74,7 @@ class GridCalculator:
 
         for i in range(grid_count):
             buy_price = lower_price + spacing * Decimal(i)
-            sell_price = buy_price + spacing
+            sell_price = buy_price + spacing * cls.TP_MULTIPLIER
             if sell_price > upper_price:
                 sell_price = upper_price
             quantity = (

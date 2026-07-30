@@ -5,7 +5,7 @@ Computes adaptive grid spacing from historical daily candles using ATR
 volatility conditions.
 
 Formula:
-    spacing_pct = max(tp_range_pct, atr_pct × adaptive_factor)
+    spacing_pct = min(max(tp_range_pct, atr_pct × adaptive_factor), 1.0)
 
 Where:
     atr_pct = ATR(14) / current_price × 100
@@ -17,8 +17,12 @@ increases → wider spacing → fewer trades (cautious). When volatility
 is contracting, the factor decreases → tighter spacing → more trades
 (aggressive capture of small oscillations).
 
+Spacing is hard-capped at 1.0% so the grid stays active even during
+high volatility — frequent trades is the core goal of the autotrader.
+
 TP range per strategy mode (take-profit target per grid level):
-    A=0.3%, B=0.6%, C=0.9%, D=1.5%, U=3.0%
+    A=0.3%, B=0.6%, C=0.9%
+Actual sell TP = spacing × 2.5 (see GridCalculator).
 """
 
 from __future__ import annotations
@@ -39,6 +43,11 @@ AVG_ATR_PERIOD = 30
 _BASE_FACTOR = 1.5
 _MIN_FACTOR = 0.8
 _MAX_FACTOR = 2.5
+
+# Hard cap on spacing percentage — prevents the bot from going idle when
+# volatility spikes. Even with ATR expansion, spacing never exceeds this
+# so the grid stays active (frequent trades is the core goal).
+_MAX_SPACING_PCT = 1.0
 
 # Minimum candles needed for a meaningful ATR calculation.
 _MIN_CANDLES = ATR_PERIOD + 1
@@ -176,6 +185,9 @@ def calculate_spacing(
     avg_atr_pct = float(avg_atr / latest_close * Decimal("100"))
     atr_based_spacing = atr_pct * factor
     spacing_pct = max(tp_range_pct, atr_based_spacing)
+    # Hard cap — never exceed _MAX_SPACING_PCT so the grid stays active
+    # even during high volatility (frequent trades is the core goal).
+    spacing_pct = min(spacing_pct, _MAX_SPACING_PCT)
 
     logger.info(
         "Grid spacing calculated",
