@@ -18,10 +18,6 @@ import {
   UserPlus,
   Settings,
   X,
-<<<<<<< HEAD
-  Sliders,
-=======
->>>>>>> develop
   LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';

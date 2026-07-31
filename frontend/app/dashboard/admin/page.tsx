@@ -113,7 +113,7 @@ export default function AdminSettingsPage() {
       'Re-screen all breaker thresholds? This fetches 365 daily candles for every symbol and may take 1-2 minutes. Existing thresholds will be updated.',
     )) return;
     setBreakerRescreening(true);
-    setBreakerMsg({ type: 'info', text: 'Screening in progress… (this may take 1-2 minutes)' });
+    setBreakerMsg({ type: 'info', text: 'Screening in progressâ€¦ (this may take 1-2 minutes)' });
     try {
       const result = await api.adminRescreenBreakerThresholds({
         rates: [0.70, 0.80, 0.90],
@@ -126,7 +126,7 @@ export default function AdminSettingsPage() {
       );
       setBreakerMsg({
         type: 'success',
-        text: `Re-screened ${result.screened_symbols} symbols × ${result.rates.length} rates. ${totalDataDriven} data-driven, ${totalFallback} fallback.`,
+        text: `Re-screened ${result.screened_symbols} symbols Ã— ${result.rates.length} rates. ${totalDataDriven} data-driven, ${totalFallback} fallback.`,
       });
       await loadBreakerData();
     } catch (e: unknown) {
@@ -139,7 +139,7 @@ export default function AdminSettingsPage() {
     }
   };
 
-  // ── Resume config inline edit ──────────────────────────────────
+  // â”€â”€ Resume config inline edit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const startEditResume = (t: AdminBreakerThreshold) => {
     setEditingResumeId(t.id);
     setResumeDraft({
@@ -335,10 +335,6 @@ export default function AdminSettingsPage() {
               </CardHeader>
               <CardContent className="space-y-2">
                 {coinGroups.map((g) => (
-<<<<<<< HEAD
-                  <div key={g.id} className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex-1">
-=======
                   <div key={g.id} className="rounded-xl border border-border bg-card p-4">
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
                       <div>
@@ -364,7 +360,7 @@ export default function AdminSettingsPage() {
                         <input
                           type="text"
                           value={g.description ?? ''}
-                          placeholder="—"
+                          placeholder="â€”"
                           onChange={(e) => updateCoinGroup(g.id, 'description', e.target.value)}
                           className="w-full rounded-lg border border-border bg-background px-2 py-1 text-sm focus:border-violet-500 focus:outline-none"
                         />
@@ -382,7 +378,6 @@ export default function AdminSettingsPage() {
                       </div>
                     </div>
                     <div className="mt-3 flex items-center justify-between">
->>>>>>> develop
                       <div className="flex items-center gap-2">
                         {g.is_builtin && <Badge variant="secondary">Built-in</Badge>}
                         {!g.is_active && <Badge variant="destructive">Inactive</Badge>}
@@ -424,10 +419,6 @@ export default function AdminSettingsPage() {
               </CardHeader>
               <CardContent className="space-y-2">
                 {mmPresets.map((p) => (
-<<<<<<< HEAD
-                  <div key={p.id} className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex-1">
-=======
                   <div key={p.id} className="rounded-xl border border-border bg-card p-4">
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
                       <div>
@@ -464,7 +455,7 @@ export default function AdminSettingsPage() {
                           type="number"
                           step="0.01"
                           value={p.max_capital ? Number(p.max_capital) : ''}
-                          placeholder="—"
+                          placeholder="â€”"
                           onChange={(e) => updateMMPreset(p.id, 'max_capital', Number(e.target.value))}
                           className="w-full rounded-lg border border-border bg-background px-2 py-1 text-sm focus:border-violet-500 focus:outline-none"
                         />
@@ -474,14 +465,13 @@ export default function AdminSettingsPage() {
                         <input
                           type="text"
                           value={p.description ?? ''}
-                          placeholder="—"
+                          placeholder="â€”"
                           onChange={(e) => updateMMPreset(p.id, 'description', e.target.value)}
                           className="w-full rounded-lg border border-border bg-background px-2 py-1 text-sm focus:border-violet-500 focus:outline-none"
                         />
                       </div>
                     </div>
                     <div className="mt-3 flex items-center justify-between">
->>>>>>> develop
                       <div className="flex items-center gap-2">
                         <Badge variant="default">{p.preset_type}</Badge>
                         {p.is_builtin && <Badge variant="secondary">Built-in</Badge>}
@@ -607,7 +597,7 @@ export default function AdminSettingsPage() {
                       )}
                     >
                       <RefreshCw className={cn('h-3.5 w-3.5', breakerRescreening && 'animate-spin')} />
-                      {breakerRescreening ? 'Screening…' : 'Re-screen All'}
+                      {breakerRescreening ? 'Screeningâ€¦' : 'Re-screen All'}
                     </button>
                   </CardTitle>
                 </CardHeader>
@@ -648,28 +638,28 @@ export default function AdminSettingsPage() {
                         <div className="text-sm font-medium">
                           {breakerHealth.newest_screened_at
                             ? new Date(breakerHealth.newest_screened_at).toLocaleString()
-                            : '—'}
+                            : 'â€”'}
                         </div>
                       </div>
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground">Loading health summary…</p>
+                    <p className="text-sm text-muted-foreground">Loading health summaryâ€¦</p>
                   )}
                   {breakerHealth && breakerHealth.fallback_total > 0 && (
                     <div className="mt-3 rounded-lg bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400">
-                      <strong>⚠ {breakerHealth.fallback_total} thresholds are using fallback values</strong> — these symbols have no real historical data. Run &quot;Re-screen All&quot; to fetch candles and compute data-driven thresholds.
+                      <strong>âš  {breakerHealth.fallback_total} thresholds are using fallback values</strong> â€” these symbols have no real historical data. Run &quot;Re-screen All&quot; to fetch candles and compute data-driven thresholds.
                     </div>
                   )}
                   {breakerHealth && breakerHealth.oldest_screened_at && (
                     <div className="mt-2 text-xs text-muted-foreground">
                       Oldest screening: {new Date(breakerHealth.oldest_screened_at).toLocaleString()}
-                      {' · '}
+                      {' Â· '}
                       {(() => {
                         const ageMs = Date.now() - new Date(breakerHealth.oldest_screened_at).getTime();
                         const days = Math.floor(ageMs / (1000 * 60 * 60 * 24));
                         return days > 7
-                          ? <span className="text-amber-600 dark:text-amber-400">({days} days ago — consider re-screening)</span>
-                          : <span className="text-green-600">({days} days ago — fresh)</span>;
+                          ? <span className="text-amber-600 dark:text-amber-400">({days} days ago â€” consider re-screening)</span>
+                          : <span className="text-green-600">({days} days ago â€” fresh)</span>;
                       })()}
                     </div>
                   )}
@@ -734,7 +724,7 @@ export default function AdminSettingsPage() {
                                 `${(t.min_continuation_rate * 100).toFixed(0)}%`;
                               const resumeLabel =
                                 t.resume_mode === 'ta_confirm' ? 'TA Confirm' :
-                                t.resume_mode === 'widen_step' ? `Widen ${t.widen_multiplier}×` :
+                                t.resume_mode === 'widen_step' ? `Widen ${t.widen_multiplier}Ã—` :
                                 t.resume_mode === 'trailing_buy' ? `Trail ${t.recovery_pct}%` :
                                 t.resume_mode;
                               const isEditing = editingResumeId === t.id;
@@ -745,7 +735,7 @@ export default function AdminSettingsPage() {
                                 <td className="py-2">{tierLabel}</td>
                                 <td className="py-2 font-semibold">{t.threshold_pct.toFixed(2)}%</td>
                                 <td className="py-2 text-muted-foreground">{t.continuation_window}d</td>
-                                <td className="py-2 text-muted-foreground">≥{t.min_future_drop_pct.toFixed(0)}%</td>
+                                <td className="py-2 text-muted-foreground">â‰¥{t.min_future_drop_pct.toFixed(0)}%</td>
                                 <td className="py-2">
                                   {isEditing ? (
                                     <select
@@ -773,7 +763,7 @@ export default function AdminSettingsPage() {
                                 </td>
                                 <td className="py-2 text-muted-foreground">{t.candle_count}</td>
                                 <td className="py-2 text-muted-foreground">
-                                  {t.screened_at ? new Date(t.screened_at).toLocaleDateString() : '—'}
+                                  {t.screened_at ? new Date(t.screened_at).toLocaleDateString() : 'â€”'}
                                 </td>
                                 <td className="py-2">
                                   {isEditing ? (
@@ -783,7 +773,7 @@ export default function AdminSettingsPage() {
                                         disabled={resumeSaving}
                                         className="rounded bg-green-600 px-2 py-0.5 text-xs text-white hover:bg-green-700 disabled:opacity-50"
                                       >
-                                        {resumeSaving ? '…' : 'Save'}
+                                        {resumeSaving ? 'â€¦' : 'Save'}
                                       </button>
                                       <button
                                         onClick={cancelEditResume}
@@ -838,13 +828,13 @@ export default function AdminSettingsPage() {
                                             className="w-24"
                                           />
                                           <span className="font-semibold w-10">
-                                            {resumeDraft.widen_multiplier.toFixed(1)}×
+                                            {resumeDraft.widen_multiplier.toFixed(1)}Ã—
                                           </span>
                                         </label>
                                       )}
                                       {resumeDraft.resume_mode === 'ta_confirm' && (
                                         <span className="text-xs text-muted-foreground">
-                                          No extra parameters — bot waits for 15m TA reversal signal.
+                                          No extra parameters â€” bot waits for 15m TA reversal signal.
                                         </span>
                                       )}
                                     </div>

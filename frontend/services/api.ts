@@ -14,8 +14,8 @@ class ApiClient {
   private refreshPromise: Promise<string | null> | null = null;
 
   constructor(baseUrl?: string) {
-    // Lazy evaluation — resolveApiBase() runs at runtime (in the browser),
-    // NOT at build time. This ensures the http→https upgrade works even
+    // Lazy evaluation â€” resolveApiBase() runs at runtime (in the browser),
+    // NOT at build time. This ensures the httpâ†’https upgrade works even
     // if the bundler pre-evaluates module-level constants.
     this.baseUrl = baseUrl ?? resolveApiBase();
     if (typeof window !== 'undefined') {
@@ -141,15 +141,7 @@ class ApiClient {
 
     if (!res.ok) {
       if (res.status === 401 && typeof window !== 'undefined') {
-<<<<<<< HEAD
-        const isLoginEndpoint = path.includes('/auth/login') || path.includes('/auth/register');
-        if (!isLoginEndpoint && window.location.pathname !== '/login') {
-          localStorage.removeItem('access_token');
-          window.location.href = '/login';
-        }
-=======
         this.clearAuthAndRedirect();
->>>>>>> develop
       }
       const error = await res.json().catch(() => ({ message: res.statusText }));
       throw new Error(error?.error?.message || error?.message || `HTTP ${res.status}`);
@@ -258,15 +250,6 @@ class ApiClient {
     }>(`/api/v1/market/ticker/${exchange}/${symbol}`);
   }
 
-<<<<<<< HEAD
-  async getMarketTickers(exchange: string, limit: number = 100) {
-    return this.get<{
-      symbol: string;
-      last: string;
-      volume: string;
-      quote_volume: string | null;
-    }[]>(`/api/v1/market/tickers/${exchange}?limit=${limit}`);
-=======
   async getMarketTickers(exchange: string, limit: number = 200) {
     return this.get<Array<{
       symbol: string;
@@ -276,7 +259,6 @@ class ApiClient {
       high_price: string;
       low_price: string;
     }>>(`/api/v1/market/tickers/${exchange}?limit=${limit}`);
->>>>>>> develop
   }
 
   async getMarketSnapshot() {
@@ -305,10 +287,6 @@ class ApiClient {
   }
 
   // Exchange accounts
-<<<<<<< HEAD
-  async listSupportedExchanges() {
-    return this.get<{ exchanges: string[] }>('/api/v1/exchange-accounts/supported');
-=======
   async getSupportedExchanges() {
     return this.get<Array<{
       id: string;
@@ -318,7 +296,6 @@ class ApiClient {
       status: string;
       requires_passphrase: boolean;
     }>>('/api/v1/exchange-accounts/supported');
->>>>>>> develop
   }
 
   async saveExchangeAccount(data: {
@@ -678,7 +655,7 @@ class ApiClient {
     return this.delete(`/api/v1/mm-presets/${presetId}`);
   }
 
-  // ─── Admin endpoints ───────────────────────────────────────
+  // â”€â”€â”€ Admin endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async adminListCoinGroups() {
     return this.get<{
@@ -750,7 +727,7 @@ class ApiClient {
     }>(`/api/v1/admin/strategy-modes/${mode}`, data);
   }
 
-  // ─── Admin: Circuit Breaker Thresholds ──────────────────────
+  // â”€â”€â”€ Admin: Circuit Breaker Thresholds â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async adminListBreakerThresholds(params?: { rate?: number; exchange?: string }) {
     const qs = new URLSearchParams();
@@ -816,7 +793,7 @@ class ApiClient {
     );
   }
 
-  // ─── User-facing: Circuit Breaker Thresholds (read-only) ────
+  // â”€â”€â”€ User-facing: Circuit Breaker Thresholds (read-only) â”€â”€â”€â”€
 
   async getBreakerThresholds(symbol: string, params?: { rate?: number; exchange?: string }) {
     const qs = new URLSearchParams();
@@ -826,7 +803,7 @@ class ApiClient {
     return this.get<BreakerThreshold[]>(`/api/v1/breaker-thresholds/${symbol.toUpperCase()}${q ? `?${q}` : ''}`);
   }
 
-  // ─── Averaging Config ──────────────────────────────────────
+  // â”€â”€â”€ Averaging Config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async getAveragingConfig(instanceId: string) {
     return this.get<{
@@ -881,7 +858,7 @@ class ApiClient {
     }>('/api/v1/admin/averaging-config/template', { steps });
   }
 
-  // ─── Force Buy / Force Sell ────────────────────────────────
+  // â”€â”€â”€ Force Buy / Force Sell â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async forceBuy(instanceId: string, data: {
     level?: number; price?: number; quantity?: number;
@@ -901,7 +878,7 @@ class ApiClient {
     }>(`/api/v1/trading-instances/${instanceId}/force-sell`, data);
   }
 
-  // ─── Per-Coin Settings ──────────────────────────────────────
+  // â”€â”€â”€ Per-Coin Settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async updateCoinSettings(instanceId: string, data: {
     avg_enabled?: boolean; non_stop?: boolean; partial_sell?: boolean; formula_mode?: string;
@@ -912,7 +889,7 @@ class ApiClient {
     }>(`/api/v1/trading-instances/${instanceId}/coin-settings`, data);
   }
 
-  // ─── Technical Analysis ─────────────────────────────────────
+  // â”€â”€â”€ Technical Analysis â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async getTAConfigs(instanceId: string) {
     return this.get<{
@@ -955,10 +932,10 @@ class ApiClient {
   }
 }
 
-// Lazy singleton — the ApiClient (and thus resolveApiBase()) is only
+// Lazy singleton â€” the ApiClient (and thus resolveApiBase()) is only
 // instantiated on first property access, which happens in the browser
 // at runtime where window.location.protocol is available for the
-// http→https upgrade. This avoids the bundler pre-evaluating the
+// httpâ†’https upgrade. This avoids the bundler pre-evaluating the
 // singleton at build time where window is undefined.
 let _apiInstance: ApiClient | null = null;
 

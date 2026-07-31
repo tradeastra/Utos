@@ -46,7 +46,12 @@ export function CoinVolumeList({
     setError(null);
     try {
       const data = await api.getMarketTickers(exchange, 200);
-      setTickers(data);
+      setTickers(data.map((d: Record<string, string>) => ({
+        symbol: d.symbol,
+        last: d.last_price ?? d.last ?? '',
+        volume: d.quote_volume ?? d.volume ?? '',
+        quote_volume: d.quote_volume ?? null,
+      })));
     } catch {
       setError(`Failed to load tickers from ${exchange}`);
       setTickers([]);
