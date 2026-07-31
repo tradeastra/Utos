@@ -191,6 +191,14 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
       setAccounts(accs || []);
       setStrategies(strat || []);
 
+      // Auto-pick the first active strategy (strategy selector is hidden
+      // from the UI — all strategies run the same averaging engine, so the
+      // choice is cosmetic. strategy_id is still required by the backend
+      // as a foreign key, so we send the first available one.)
+      if (strat && strat.length > 0) {
+        setSelectedStrategy((prev) => prev || strat[0].id);
+      }
+
       // Auto-select first preset if template has none
       setTemplate((t) => {
         if (t.presetType && prs?.some((p) => p.preset_type === t.presetType)) return t;
@@ -328,13 +336,6 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
       }
       return;
     }
-    if (!selectedStrategy) {
-      setMsg({ type: 'error', text: 'Select a strategy in the Launch section below.' });
-      if (typeof window !== 'undefined') {
-        document.getElementById('setup-launch')?.scrollIntoView({ behavior: 'smooth' });
-      }
-      return;
-    }
     if (selectedCoins.length === 0) {
       setMsg({ type: 'error', text: 'Select at least one coin in the Coins Selection section.' });
       if (typeof window !== 'undefined') {
@@ -362,7 +363,7 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
             exchange_account_id: selectedAccount,
             strategy_id: selectedStrategy,
             grid_profile_id: gridProfileId,
-            symbol: coin.toUpperCase(),
+            symbol: `${coin.toUpperCase()}USDT`,
             strategy_mode: template.mode,
             selected_coins: selectedCoins,
             continuation_rate: template.breakerEnabled ? template.continuationRate : undefined,
