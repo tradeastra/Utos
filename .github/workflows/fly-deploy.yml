@@ -1,0 +1,86 @@
+name: Fly.io Deploy
+
+on:
+  push:
+    branches: [develop]
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options: [staging, production]
+
+env:
+  FLY_BACKEND_APP: utos-staging-backend
+  FLY_FRONTEND_APP: utos-staging-frontend
+
+jobs:
+  deploy-backend:
+    name: Deploy Backend to Fly.io
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'staging' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Determine app name
+        id: app
+        run: |
+          ENV="${{ inputs.environment || 'staging' }}"
+          if [ "$ENV" = "production" ]; then
+            echo "backend=utos-backend" >> $GITHUB_OUTPUT
+            echo "frontend=utos-frontend" >> $GITHUB_OUTPUT
+          else
+            echo "backend=utos-staging-backend" >> $GITHUB_OUTPUT
+            echo "frontend=utos-staging-frontend" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy backend
+        run: |
+          flyctl deploy \
+            --app ${{ steps.app.outputs.backend }} \
+            --dockerfile Dockerfile.backend \
+            --remote-only \
+            --yes
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  deploy-frontend:
+    name: Deploy Frontend to Fly.io
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'staging' }}
+    needs: deploy-backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Determine app name and API URL
+        id: app
+        run: |
+          ENV="${{ inputs.environment || 'staging' }}"
+          if [ "$ENV" = "production" ]; then
+            echo "frontend=utos-frontend" >> $GITHUB_OUTPUT
+            echo "api_url=https://utos-backend.fly.dev" >> $GITHUB_OUTPUT
+          else
+            echo "frontend=utos-staging-frontend" >> $GITHUB_OUTPUT
+            echo "api_url=https://utos-staging-backend.fly.dev" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy frontend
+        run: |
+          flyctl deploy \
+            --app ${{ steps.app.outputs.frontend }} \
+            --dockerfile docker/frontend.Dockerfile \
+            --build-arg NEXT_PUBLIC_API_URL=${{ steps.app.outputs.api_url }} \
+            --remote-only \
+            --yes
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
