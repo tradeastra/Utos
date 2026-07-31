@@ -7,7 +7,7 @@ plaintext keys never persist.
 """
 
 import base64
-import hashlib
+import os
 
 from core.config import settings
 from core.exceptions import AuthenticationError
@@ -22,15 +22,18 @@ class CredentialManager:
 
     def __init__(self, secret_key: str | None = None) -> None:
         """Initialize with a secret key; defaults to `settings.SECRET_KEY`."""
-        self._secret = (secret_key or settings.SECRET_KEY).encode("utf-8")
-        self._cipher = self._make_fernet(self._secret)
+        self._cipher = self._make_fernet(secret_key)
 
     @staticmethod
-    def _make_fernet(secret: bytes) -> Fernet:
-        """Derive a 32-byte base64 URL-safe key from the secret."""
-        digest = hashlib.sha256(secret).digest()
-        key = base64.urlsafe_b64encode(digest)
-        return Fernet(key)
+    def _make_fernet(secret_key: str | None = None) -> Fernet:
+        """Derive a Fernet key using the same method as exchange_accounts._get_fernet()."""
+        key = os.environ.get("ENCRYPTION_KEY", "")
+        if not key:
+            raw = (secret_key or settings.SECRET_KEY).encode("utf-8")[:32]
+            key = base64.urlsafe_b64encode(raw.ljust(32, b"0")).decode()
+        else:
+            key = key if isinstance(key, str) else key.decode()
+        return Fernet(key.encode() if isinstance(key, str) else key)
 
     def encrypt(self, plaintext: str) -> str:
         """Encrypt a plaintext string and return a base64-encoded token."""
