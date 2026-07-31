@@ -129,9 +129,9 @@ const STEPS = [
 ] as const;
 
 const CONTINUATION_RATES: { value: ContinuationRate; label: string; desc: string }[] = [
-  { value: 0.90, label: 'Fearless', desc: 'Bot tetap averaging selama mungkin. Baru berhenti beli kalau 90% data historis mengatakan harga akan terus jatuh. Paling berani, paling sedikit false alarm.' },
-  { value: 0.80, label: 'Balanced', desc: 'Butuh 80% keyakinan dari data historis sebelum bot berhenti beli. Seimbang antara aman dan tetap averaging.' },
-  { value: 0.70, label: 'Protective', desc: 'Cukup 70% yakin harga akan jatuh, bot sudah berhenti beli. Paling cepat keluar dari pasar — aman dari kerugian besar, tapi sering berhenti padahal harga cuma turun sebentar.' },
+  { value: 0.90, label: 'Fearless', desc: '' },
+  { value: 0.80, label: 'Balanced', desc: '' },
+  { value: 0.70, label: 'Protective', desc: '' },
 ];
 
 interface SetupWizardProps {
@@ -257,6 +257,13 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
     if (!selected || !template.capital) return;
     const group = coinGroups.find((g) => g.id === template.coinGroupId);
     if (!group?.name) {
+      setMMResult(null);
+      return;
+    }
+    // Skip API call if capital is below the preset's minimum — avoids
+    // repeated 400 errors while the user is still typing.
+    const minCapital = Number(selected.min_capital) || 0;
+    if (minCapital > 0 && template.capital < minCapital) {
       setMMResult(null);
       return;
     }
@@ -636,7 +643,7 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
               <div>
                 <label className="text-sm font-medium">Continuation Rate</label>
                 <p className="text-xs text-muted-foreground mb-2">
-                  Bot menghitung dari data historis: berapa persen drop yang berlanjut turun. Pilih persentase yang lebih tinggi = bot lebih yakin dulu sebelum berhenti beli.
+                  Pilih tingkat sensitivitas.
                 </p>
                 <div className="grid gap-2">
                   {CONTINUATION_RATES.map((r) => (

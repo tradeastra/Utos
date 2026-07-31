@@ -144,7 +144,7 @@ class ApiClient {
         this.clearAuthAndRedirect();
       }
       const error = await res.json().catch(() => ({ message: res.statusText }));
-      throw new Error(error?.error?.message || error?.message || `HTTP ${res.status}`);
+      throw new Error(error?.error?.message || error?.message || error?.detail || `HTTP ${res.status}`);
     }
 
     const json = await res.json();
