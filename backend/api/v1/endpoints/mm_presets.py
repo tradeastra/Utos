@@ -99,6 +99,7 @@ class MMCalculationRequest(BaseModel):
     capital: float = Field(..., gt=0, description="Total capital to allocate")
     coin_group_name: str = Field(..., description="Coin group name — required to derive max_coins for the per-coin DCA allocation")
     custom_steps: int | None = Field(None, ge=1, le=200, description="Steps for custom preset")
+    num_coins: int | None = Field(None, ge=1, description="Number of coins the user actually selected — overrides coin group max so capital is allocated across only the chosen coins")
 
 
 class MMCalculationResponse(BaseModel):
@@ -172,6 +173,7 @@ async def calculate_mm(
             coin_group_name=data.coin_group_name,
             coin_group_max_coins=coin_group.max_coins,
             custom_steps=data.custom_steps,
+            num_coins=data.num_coins,
         )
     except ValidationError as exc:
         raise HTTPException(

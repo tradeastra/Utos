@@ -73,6 +73,44 @@ class TestMMCalculatorBasic:
         )
         assert result.buy_amount == Decimal("15.00")
 
+    def test_num_coins_override_allocates_across_selected_only(self) -> None:
+        # User picks Top 3 (max=3) but only trades 1 coin (BTC).
+        # Without num_coins: $1350 / (30 * 3) = $15.00
+        # With num_coins=1:  $1350 / (30 * 1) = $45.00  ← larger per-layer
+        result = self.calc.calculate(
+            preset_type="mm30",
+            capital=Decimal("1350"),
+            coin_group_name="Top 3",
+            coin_group_max_coins=3,
+            num_coins=1,
+        )
+        assert result.buy_amount == Decimal("45.00")
+        assert result.max_coins == 1
+
+    def test_num_coins_2_from_top3(self) -> None:
+        # $1000 / (30 * 2) = $16.666... → quantized down to $16.66
+        # Still passes $15 min with only 2 coins (vs $11.11 if split across 3)
+        result = self.calc.calculate(
+            preset_type="mm30",
+            capital=Decimal("1000"),
+            coin_group_name="Top 3",
+            coin_group_max_coins=3,
+            num_coins=2,
+        )
+        assert result.buy_amount == Decimal("16.66")
+        assert result.max_coins == 2
+
+    def test_num_coins_none_falls_back_to_group_max(self) -> None:
+        # No num_coins → use coin_group_max_coins (backward compat)
+        result = self.calc.calculate(
+            preset_type="mm30",
+            capital=Decimal("1350"),
+            coin_group_name="Top 3",
+            coin_group_max_coins=3,
+        )
+        assert result.buy_amount == Decimal("15.00")
+        assert result.max_coins == 3
+
 
 class TestMMCalculatorValidation:
     def setup_method(self) -> None:

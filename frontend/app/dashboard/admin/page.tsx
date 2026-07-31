@@ -680,9 +680,9 @@ export default function AdminSettingsPage() {
                       className="rounded-lg border border-border bg-background px-2 py-1 text-xs focus:border-violet-500 focus:outline-none"
                     >
                       <option value="all">All Tiers</option>
-                      <option value="0.7">Protective (≥9% / 5d)</option>
-                      <option value="0.8">Balanced (≥12% / 10d)</option>
-                      <option value="0.9">Patient (≥15% / 30d)</option>
+                      <option value="0.7">Protective (70%)</option>
+                      <option value="0.8">Balanced (80%)</option>
+                      <option value="0.9">Fearless (90%)</option>
                     </select>
                   </CardTitle>
                 </CardHeader>
@@ -720,7 +720,7 @@ export default function AdminSettingsPage() {
                               const tierLabel =
                                 t.min_continuation_rate === 0.7 ? 'Protective' :
                                 t.min_continuation_rate === 0.8 ? 'Balanced' :
-                                t.min_continuation_rate === 0.9 ? 'Patient' :
+                                t.min_continuation_rate === 0.9 ? 'Fearless' :
                                 `${(t.min_continuation_rate * 100).toFixed(0)}%`;
                               const resumeLabel =
                                 t.resume_mode === 'ta_confirm' ? 'TA Confirm' :

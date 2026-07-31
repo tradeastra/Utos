@@ -14,7 +14,7 @@ Three tiers map continuation rate → window + future decline target:
   ├──────────────┼──────┼─────────┼────────────────┼──────────────────────┤
   │ Protective   │ 70%  │ 5 days  │ ≥ 9%           │ Stop averaging early │
   │ Balanced     │ 80%  │ 10 days │ ≥ 12%          │ Middle ground        │
-  │ Patient      │ 90%  │ 30 days │ ≥ 15%          │ Keep averaging long  │
+  │ Fearless     │ 90%  │ 30 days │ ≥ 15%          │ Keep averaging long  │
   └──────────────┴──────┴─────────┴────────────────┴──────────────────────┘
 
 Algorithm (multi-day continuation with fixed future decline target):
@@ -81,7 +81,7 @@ _FALLBACK_THRESHOLDS = {
 # Tier configs: continuation rate → (window days, future decline %).
 # Protective (70%): 5-day window, ≥9% future decline — trigger early.
 # Balanced  (80%): 10-day window, ≥12% future decline — middle ground.
-# Patient   (90%): 30-day window, ≥15% future decline — keep averaging.
+# Fearless   (90%): 30-day window, ≥15% future decline — keep averaging.
 TIER_CONFIGS: dict[Decimal, tuple[int, Decimal]] = {
     Decimal("0.70"): (5, Decimal("9.0")),
     Decimal("0.80"): (10, Decimal("12.0")),

@@ -90,7 +90,14 @@ class MMCalculator:
         coin_group_name: str | None = None,
         coin_group_max_coins: int | None = None,
         custom_steps: int | None = None,
+        num_coins: int | None = None,
     ) -> MMCalculationResult:
+        """Calculate buy amount, max coins, and volume filter.
+
+        ``num_coins`` (if provided) overrides ``coin_group_max_coins`` — this
+        lets the user trade fewer coins than the group's maximum (e.g. pick
+        only BTC from Top 3) and get a larger per-layer buy amount.
+        """
         preset_type = preset_type.lower()
 
         if coin_group_max_coins is None or coin_group_max_coins < 1:
@@ -99,7 +106,9 @@ class MMCalculator:
                 "each coin receives `steps` DCA layers, so the coin group size "
                 "determines the per-layer buy amount."
             )
-        num_coins = coin_group_max_coins
+        # User-selected coin count overrides the group max — trading 1 coin
+        # from Top 3 should allocate capital for 1 coin, not 3.
+        effective_coins = num_coins if (num_coins and num_coins >= 1) else coin_group_max_coins
 
         if preset_type == "custom":
             if custom_steps is None or custom_steps < 1:
@@ -123,23 +132,31 @@ class MMCalculator:
                         f"Preset {preset_type} is only compatible with {preset['allowed_coin_groups']}, got '{coin_group_name}'"
                     )
 
+        # Adjust min_capital for the actual number of coins selected.
+        # The preset's min_capital is derived from the smallest allowed group,
+        # but if the user trades fewer coins, the real minimum is lower:
+        #   min_capital = MIN_BUY_AMOUNT × steps × effective_coins
+        if num_coins and num_coins >= 1 and num_coins < coin_group_max_coins:
+            min_capital = MIN_BUY_AMOUNT * Decimal(steps) * Decimal(effective_coins)
+
         if capital < min_capital:
             raise ValidationError(
-                f"Capital {capital} is below minimum {min_capital} for preset {preset_type}"
+                f"Capital {capital} is below minimum {min_capital} for preset {preset_type} "
+                f"({steps} steps × {effective_coins} coins × ${MIN_BUY_AMOUNT}/layer)"
             )
 
-        # Per-layer buy amount: capital spread across (steps layers * num_coins coins).
-        buy_amount = (capital / (Decimal(steps) * Decimal(num_coins))).quantize(
+        # Per-layer buy amount: capital spread across (steps layers * effective_coins coins).
+        buy_amount = (capital / (Decimal(steps) * Decimal(effective_coins))).quantize(
             Decimal("0.01"), rounding=ROUND_DOWN
         )
-        max_coins = num_coins
+        max_coins = effective_coins
         min_volume_filter = buy_amount * Decimal("10")
 
         if buy_amount < MIN_BUY_AMOUNT:
-            required = MIN_BUY_AMOUNT * Decimal(steps) * Decimal(num_coins)
+            required = MIN_BUY_AMOUNT * Decimal(steps) * Decimal(effective_coins)
             raise ValidationError(
                 f"Per-layer buy amount {buy_amount} is below minimum {MIN_BUY_AMOUNT}. "
-                f"With {steps} steps × {num_coins} coins, capital must be at least "
+                f"With {steps} steps × {effective_coins} coins, capital must be at least "
                 f"${required} for preset {preset_type}."
             )
 
@@ -151,7 +168,7 @@ class MMCalculator:
                 "buy_amount": str(buy_amount),
                 "max_coins": max_coins,
                 "steps": steps,
-                "num_coins": num_coins,
+                "num_coins": effective_coins,
             },
         )
 

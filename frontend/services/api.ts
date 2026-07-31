@@ -625,7 +625,7 @@ class ApiClient {
     }[]>('/api/v1/mm-presets');
   }
 
-  async calculateMM(presetType: string, capital: number, coinGroupName: string, customSteps?: number) {
+  async calculateMM(presetType: string, capital: number, coinGroupName: string, customSteps?: number, numCoins?: number) {
     return this.post<{
       buy_amount: string;
       max_coins: number;
@@ -638,6 +638,7 @@ class ApiClient {
       capital,
       coin_group_name: coinGroupName,
       custom_steps: customSteps,
+      num_coins: numCoins,
     });
   }
 

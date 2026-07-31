@@ -69,7 +69,7 @@ class BreakerScreeningResult:
 class ScreenerConfig:
     """Configuration for the circuit breaker screener.
 
-    For the 3 standard tiers (Protective/Balanced/Patient), use
+    For the 3 standard tiers (Protective/Balanced/Fearless), use
     ``ScreenerConfig.for_tier(rate)`` which auto-fills window and
     future_drop from ``TIER_CONFIGS``.
     """

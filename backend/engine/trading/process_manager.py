@@ -435,8 +435,16 @@ class TradingProcessManager:
             return  # not initialized yet
 
         from decimal import Decimal
+        from sqlalchemy import select
+        from models.averaging_config import AveragingConfig
+        from services.averaging_template import get_default_averaging_template
 
-        # 1. Load grid profile and initialize grid levels.
+        # 1. Load grid profile (for investment_per_grid) and averaging config.
+        # Auto-trading mode: if the instance has averaging configs (or we fall
+        # back to the default template), grid levels are generated from the
+        # current market price + per-step drop rates — NOT from a fixed
+        # upper/lower price range. This is the correct mode for auto-trading
+        # because the bot enters at the current market price and averages down.
         grid_profile = await self.grid_profile_repo.get_by_id(instance.grid_profile_id)
         if grid_profile is None:
             logger.warning(
@@ -445,21 +453,53 @@ class TradingProcessManager:
             )
             return
 
+        investment_per_grid = Decimal(str(grid_profile.investment_per_grid))
+
+        # Load per-instance averaging config from DB; fall back to default
+        # 35-step template if none configured. This is the auto-trading mode:
+        # grid levels are derived from start_price (= market price) + drop
+        # rates, so the bot enters at the current price and averages down.
+        avg_result = await self.session.execute(
+            select(AveragingConfig)
+            .where(AveragingConfig.trading_instance_id == instance.id)
+            .order_by(AveragingConfig.step_number)
+        )
+        avg_rows = list(avg_result.scalars().all())
+        if avg_rows:
+            averaging_steps = [
+                {
+                    "step_number": r.step_number,
+                    "drop_rate": Decimal(str(r.drop_rate)),
+                    "multiple_buy_amount": Decimal(str(r.multiple_buy_amount)),
+                    "take_profit": Decimal(str(r.take_profit)),
+                }
+                for r in avg_rows
+            ]
+        else:
+            # No per-instance config → use default 35-step template.
+            averaging_steps = get_default_averaging_template()
+
         try:
+            # Fetch current price FIRST — in averaging mode this becomes
+            # the start_price (upper_price param) for grid initialization.
+            current_price = await market_hub.get_price(
+                process.exchange_name, instance.symbol
+            )
+
             await grid_engine.initialize_grid(
                 instance_id=str(instance.id),
                 exchange_account_id=instance.exchange_account_id,
                 symbol=instance.symbol,
-                upper_price=Decimal(str(grid_profile.upper_price)),
-                lower_price=Decimal(str(grid_profile.lower_price)),
-                grid_count=int(grid_profile.grid_count),
-                investment_per_grid=Decimal(str(grid_profile.investment_per_grid)),
+                upper_price=current_price,  # start_price = market price
+                lower_price=Decimal("0"),   # derived from averaging steps
+                grid_count=len(averaging_steps),
+                investment_per_grid=investment_per_grid,
+                averaging_steps=averaging_steps,
             )
 
-            # 2. Fetch current price and activate grid (place initial buys).
-            current_price = await market_hub.get_price(
-                process.exchange_name, instance.symbol
-            )
+            # 2. Activate grid: place initial buy orders for levels below
+            # current price. In averaging mode, step 0 buys at start_price
+            # (= current price), so the first entry is at market price.
             await grid_engine.activate_grid(str(instance.id), current_price)
 
             # 3. Install circuit breaker if enabled.

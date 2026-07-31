@@ -10,7 +10,7 @@ berbeda. Tiga tier standar (lihat TIER_CONFIGS di daily_drop_analyzer.py):
   ├──────────────┼──────┼─────────┼────────────────┼──────────────────────┤
   │ Protective   │ 70%  │ 5 hari  │ ≥ 9%           │ Stop averaging awal   │
   │ Balanced     │ 80%  │ 10 hari │ ≥ 12%          │ Jalan tengah          │
-  │ Patient      │ 90%  │ 30 hari │ ≥ 15%          │ Terus averaging lama  │
+  │ Fearless     │ 90%  │ 30 hari │ ≥ 15%          │ Terus averaging lama  │
   └──────────────┴──────┴─────────┴────────────────┴──────────────────────┘
 
 Setiap skenario membangun candle harian BTCUSDT buatan dengan pola:
@@ -215,11 +215,11 @@ class TestScenarioBalanced80:
 
 
 # ---------------------------------------------------------------------------
-# Skenario 3 — Patient (90%): window=30 hari, future decline ≥ 15%.
+# Skenario 3 — Fearless (90%): window=30 hari, future decline ≥ 15%.
 # ---------------------------------------------------------------------------
 
-class TestScenarioPatient90:
-    """Tier Patient: trigger paling lambat, threshold paling besar.
+class TestScenarioFearless90:
+    """Tier Fearless: trigger paling lambat, threshold paling besar.
 
     Data BTCUSDT:
       - Killer 4% & 4.5%: drop lalu recover → tidak continue.
@@ -242,7 +242,7 @@ class TestScenarioPatient90:
         closes += _continue(Decimal("5"), self.window, self.future_drop)
         return _candles_from_closes(closes)
 
-    def test_patient_threshold_is_5_pct(self) -> None:
+    def test_fearless_threshold_is_5_pct(self) -> None:
         candles = self._build_candles()
         result = self.analyzer.analyze(
             candles,
@@ -253,7 +253,7 @@ class TestScenarioPatient90:
         )
         assert result == Decimal("5.0")
 
-    def test_patient_killer_4pct_does_not_qualify(self) -> None:
+    def test_fearless_killer_4pct_does_not_qualify(self) -> None:
         closes = _killer(Decimal("4"), self.window)
         candles = _candles_from_closes(closes)
 
@@ -295,7 +295,7 @@ class TestSingleCoinThreeTiers:
             (Decimal("0.80"), Decimal("4.0")),
             (Decimal("0.90"), Decimal("5.0")),
         ],
-        ids=["protective-70", "balanced-80", "patient-90"],
+        ids=["protective-70", "balanced-80", "fearless-90"],
     )
     def test_three_tiers_yield_three_thresholds(
         self, rate: Decimal, expected: Decimal

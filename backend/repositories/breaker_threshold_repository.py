@@ -17,7 +17,7 @@ sa_func_now = sa_func.now()
 # that happen to be tier-bundled for convenience.
 #   - Protective (70%): trailing_buy 5% — recover quickly, conservative re-entry.
 #   - Balanced  (80%): ta_confirm     — middle ground, wait for TA.
-#   - Patient   (90%): widen_step 2×  — keep averaging, just slower.
+#   - Fearless  (90%): widen_step 2×  — keep averaging, just slower.
 TIER_RESUME_DEFAULTS: dict[Decimal, dict[str, object]] = {
     Decimal("0.70"): {"resume_mode": "trailing_buy", "recovery_pct": 5.0, "widen_multiplier": 2.0},
     Decimal("0.80"): {"resume_mode": "ta_confirm", "recovery_pct": 5.0, "widen_multiplier": 2.0},

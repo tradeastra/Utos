@@ -3,13 +3,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Sliders, Bitcoin, Wallet, Activity, ArrowRight, RefreshCw, ShieldAlert } from 'lucide-react';
+import { Sliders, Bitcoin, Wallet, Activity, ArrowRight, ShieldAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/services/api';
-import { StrategyModeSelector, getModeSpacing } from '@/components/settings/strategy-mode';
-import type { ModeConfig } from '@/components/settings/strategy-mode';
+import { StrategyModeSelector } from '@/components/settings/strategy-mode';
 import { CoinGroupsSelector } from '@/components/settings/coin-groups';
 import { MoneyManagementSection } from '@/components/settings/money-management';
 import { TechnicalAnalysisSettings } from '@/components/settings/technical-analysis';
@@ -19,7 +17,6 @@ import type {
   CoinGroup,
   CoinSelectionLimit,
   ContinuationRate,
-  GridSpacingResult,
   MMCalculationResult,
   MMPreset,
   StrategyMode,
@@ -124,18 +121,17 @@ interface TradingInstance {
 
 const STEPS = [
   { key: 'mode', label: 'Strategy Mode', icon: Sliders },
-  { key: 'coins', label: 'Coin Group', icon: Bitcoin },
+  { key: 'coins', label: 'Coins Selection', icon: Bitcoin },
   { key: 'mm', label: 'Money Management', icon: Wallet },
-  { key: 'grid', label: 'Grid Profile', icon: RefreshCw },
   { key: 'breaker', label: 'Circuit Breaker', icon: ShieldAlert },
   { key: 'ta', label: 'Technical Analysis', icon: Activity },
   { key: 'launch', label: 'Launch Bot', icon: ArrowRight },
 ] as const;
 
 const CONTINUATION_RATES: { value: ContinuationRate; label: string; desc: string }[] = [
-  { value: 0.90, label: 'Patient — ≥15% in 30 days', desc: 'Only break on drops that historically led to ≥15% decline within 30 days. Keep averaging as long as possible. Largest threshold, fewest false triggers.' },
-  { value: 0.80, label: 'Balanced — ≥12% in 10 days', desc: 'Break on drops that led to ≥12% decline within 10 days. Middle ground between protection and patience.' },
-  { value: 0.70, label: 'Protective — ≥9% in 5 days', desc: 'Break on drops that led to ≥9% decline within 5 days. Stop averaging early — most protective against cascading drops.' },
+  { value: 0.90, label: 'Fearless', desc: 'Bot tetap averaging selama mungkin. Baru berhenti beli kalau 90% data historis mengatakan harga akan terus jatuh. Paling berani, paling sedikit false alarm.' },
+  { value: 0.80, label: 'Balanced', desc: 'Butuh 80% keyakinan dari data historis sebelum bot berhenti beli. Seimbang antara aman dan tetap averaging.' },
+  { value: 0.70, label: 'Protective', desc: 'Cukup 70% yakin harga akan jatuh, bot sudah berhenti beli. Paling cepat keluar dari pasar — aman dari kerugian besar, tapi sering berhenti padahal harga cuma turun sebentar.' },
 ];
 
 interface SetupWizardProps {
@@ -151,7 +147,6 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
   const [presets, setPresets] = useState<MMPreset[]>([]);
   const [indicators, setIndicators] = useState<TAIndicatorDescription[]>([]);
   const [mmResult, setMMResult] = useState<MMCalculationResult | null>(null);
-  const [modeConfigs, setModeConfigs] = useState<ModeConfig[] | null>(null);
   const [selectedCoins, setSelectedCoins] = useState<string[]>([]);
 
   const [accounts, setAccounts] = useState<ExchangeAccount[]>([]);
@@ -163,10 +158,6 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
   const [breakerThresholds, setBreakerThresholds] = useState<BreakerThreshold[]>([]);
   const [breakerLoading, setBreakerLoading] = useState(false);
   const [breakerError, setBreakerError] = useState<string | null>(null);
-
-  // Auto-calculated grid spacing (ATR-based) for the selected coin + mode.
-  const [gridSpacing, setGridSpacing] = useState<GridSpacingResult | null>(null);
-  const [spacingLoading, setSpacingLoading] = useState(false);
 
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
@@ -185,14 +176,13 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
   // Load reference data
   const loadReference = useCallback(async () => {
     try {
-      const [lim, groups, prs, inds, accs, strat, modes] = await Promise.all([
+      const [lim, groups, prs, inds, accs, strat] = await Promise.all([
         api.getCoinSelectionLimits().catch(() => null),
         api.getCoinGroups().catch(() => [] as CoinGroup[]),
         api.getMMPresets().catch(() => [] as MMPreset[]),
         api.getTAIndicators().catch(() => [] as TAIndicatorDescription[]),
         api.listExchangeAccounts().catch(() => [] as ExchangeAccount[]),
         api.listStrategies().catch(() => [] as Strategy[]),
-        api.listStrategyModes().catch(() => null),
       ]);
       setLimits(lim);
       setCoinGroups(groups || []);
@@ -200,7 +190,6 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
       setIndicators(inds || []);
       setAccounts(accs || []);
       setStrategies(strat || []);
-      if (modes) setModeConfigs(modes);
 
       // Auto-select first preset if template has none
       setTemplate((t) => {
@@ -252,42 +241,10 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
     return () => { cancelled = true; };
   }, [breakerSymbol]);
 
-  // Auto-calculate grid_count from ATR-based spacing + price range.
-  // grid_count = (upper - lower) / (midpoint × spacing%)
-  // Spacing is fetched from /api/v1/strategies/grid-spacing/{symbol}?mode=X
-  // which computes max(TP_range, ATR(14) × adaptive_factor).
-  useEffect(() => {
-    if (!breakerSymbol || !template.mode) {
-      setGridSpacing(null);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      setSpacingLoading(true);
-      try {
-        const result = await api.getGridSpacing(breakerSymbol, template.mode);
-        if (!cancelled) setGridSpacing(result);
-      } catch {
-        if (!cancelled) setGridSpacing(null);
-      } finally {
-        if (!cancelled) setSpacingLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [breakerSymbol, template.mode]);
-
-  useEffect(() => {
-    // Use ATR-based spacing if available, otherwise fall back to TP range.
-    const spacingPct = gridSpacing?.spacing_pct ?? getModeSpacing(template.mode, modeConfigs);
-    if (template.upperPrice > 0 && template.lowerPrice > 0 && template.upperPrice > template.lowerPrice) {
-      const midpoint = (template.upperPrice + template.lowerPrice) / 2;
-      const spacingAbs = midpoint * (spacingPct / 100);
-      if (spacingAbs > 0) {
-        const count = Math.max(2, Math.round((template.upperPrice - template.lowerPrice) / spacingAbs));
-        setTemplate((t) => (t.gridCount !== count ? { ...t, gridCount: count } : t));
-      }
-    }
-  }, [template.mode, template.upperPrice, template.lowerPrice, gridSpacing, modeConfigs]);
+  // NOTE: Grid spacing auto-calc (ATR-based) was removed — in averaging
+  // mode, grid levels are derived from market price + per-step drop rates
+  // at runtime (see process_manager._wire_grid_and_market). The frontend
+  // no longer needs to compute grid_count or spacing.
 
   // When coin group changes, reset selected coins
   useEffect(() => {
@@ -304,34 +261,49 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
       return;
     }
     try {
+      // Pass num_coins = number of coins the user actually selected, so
+      // capital is allocated across only the chosen coins (e.g. 1 coin
+      // from Top 3 → larger per-layer buy amount, not split across 3).
       const result = await api.calculateMM(
         selected.preset_type,
         template.capital,
         group.name,
+        undefined,
+        selectedCoins.length > 0 ? selectedCoins.length : undefined,
       );
       setMMResult(result);
+      // Sync investment_per_grid from MM result — used when auto-creating
+      // the grid profile (averaging mode ignores upper/lower/grid_count).
+      if (result.buy_amount) {
+        patchTemplate({ investmentPerGrid: Number(result.buy_amount) });
+      }
     } catch {
       setMMResult(null);
     }
   }
 
-  // Auto-recompute MM when capital, preset, or coin group changes (only if user already calculated once)
+  // Auto-recompute MM when capital, preset, coin group, or selected coins change
   useEffect(() => {
-    if (mmResult) recalculateMM();
+    if (mmResult || template.capital > 0) recalculateMM();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [template.capital, template.presetType, template.coinGroupId]);
+  }, [template.capital, template.presetType, template.coinGroupId, selectedCoins]);
 
   function patchTemplate(p: Partial<StrategyTemplate>) {
     setTemplate((t) => ({ ...t, ...p }));
   }
 
-  async function handleCreateGridProfile(): Promise<string | null> {
+  async function handleCreateGridProfile(coin: string): Promise<string | null> {
     try {
+      // Auto-trading mode: grid levels are generated from the market price
+      // + averaging steps at runtime (see process_manager._wire_grid_and_market).
+      // The grid profile here only stores investment_per_grid; upper/lower/
+      // grid_count are placeholders that are IGNORED in averaging mode.
+      const steps = mmResult?.steps ?? template.gridCount;
       const profile = await api.createGridProfile({
-        name: `${template.symbol} ${template.lowerPrice}-${template.upperPrice}`,
-        upper_price: template.upperPrice,
-        lower_price: template.lowerPrice,
-        grid_count: template.gridCount,
+        name: `${coin} auto (avg ${steps} steps)`,
+        upper_price: 100000,  // placeholder — ignored in averaging mode
+        lower_price: 1,       // placeholder — ignored in averaging mode
+        grid_count: steps,
         investment_per_grid: template.investmentPerGrid,
       });
       return profile.id;
@@ -357,24 +329,28 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
       return;
     }
     if (selectedCoins.length === 0) {
-      setMsg({ type: 'error', text: 'Select at least one coin from the Coin Group in the Grid Profile section.' });
+      setMsg({ type: 'error', text: 'Select at least one coin in the Coins Selection section.' });
       if (typeof window !== 'undefined') {
-        document.getElementById('setup-grid')?.scrollIntoView({ behavior: 'smooth' });
+        document.getElementById('setup-coins')?.scrollIntoView({ behavior: 'smooth' });
       }
       return;
     }
     setBusy(true);
     setMsg(null);
     try {
-      // Create one grid profile (shared by all coins — same range & spacing).
-      const gridProfileId = await handleCreateGridProfile();
-      if (!gridProfileId) return;
-
-      // Create one bot per selected coin.
+      // Create one bot per selected coin. Each coin gets its own grid profile
+      // (investment_per_grid from MM calculation; upper/lower are placeholders
+      // ignored in averaging mode — grid levels are derived from market price).
       const created: string[] = [];
       const failed: string[] = [];
       for (const coin of selectedCoins) {
         try {
+          const gridProfileId = await handleCreateGridProfile(coin);
+          if (!gridProfileId) {
+            failed.push(coin.toUpperCase());
+            continue;
+          }
+
           const instance = await api.createTradingInstance({
             exchange_account_id: selectedAccount,
             strategy_id: selectedStrategy,
@@ -505,48 +481,98 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
         </CardContent>
       </Card>
 
-      {/* Section 2: Coin Group */}
+      {/* Section 2: Coins Selection — pick a group then select specific coins */}
       <Card glass id="setup-coins" className="scroll-mt-20">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Bitcoin className="h-5 w-5 text-violet-500" />
-            Coin Group
+            Coins Selection
           </CardTitle>
           <CardDescription>
             {limits
-              ? `${limits.max_coin_selection >= 999 ? 'Unlimited' : limits.max_coin_selection} coins max — ${limits.tier} tier`
-              : 'Choose which coins the bot can trade'}
+              ? `${limits.max_coin_selection >= 999 ? 'Unlimited' : limits.max_coin_selection} coins max — ${limits.tier} tier. Pick a group, then select which coins to trade.`
+              : 'Pick a group, then select which coins to trade'}
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           {coinGroups.length === 0 ? (
             <p className="text-sm text-muted-foreground">No coin groups available. Contact admin or check backend connection.</p>
           ) : (
-            <CoinGroupsSelector
-              groups={coinGroups.map((g) => ({
-                id: g.id,
-                name: g.name,
-                description: g.description,
-                count: g.coins.length,
-              }))}
-              selected={template.coinGroupId}
-              onChange={(id) => patchTemplate({ coinGroupId: id })}
-              limit={limits?.max_coin_selection}
-            />
-          )}
-          {template.coinGroupId && (
-            <div className="mt-3 rounded-md bg-muted/40 p-3 text-xs text-muted-foreground">
-              {(() => {
-                const g = coinGroups.find((x) => x.id === template.coinGroupId);
-                if (!g) return null;
+            <>
+              {/* Step 2a: Pick a coin group */}
+              <CoinGroupsSelector
+                groups={coinGroups.map((g) => ({
+                  id: g.id,
+                  name: g.name,
+                  description: g.description,
+                  count: g.coins.length,
+                }))}
+                selected={template.coinGroupId}
+                onChange={(id) => {
+                  patchTemplate({ coinGroupId: id });
+                  setSelectedCoins([]);  // reset selection when group changes
+                }}
+                limit={limits?.max_coin_selection}
+              />
+
+              {/* Step 2b: Select specific coins from the group */}
+              {template.coinGroupId && (() => {
+                const group = coinGroups.find((g) => g.id === template.coinGroupId);
+                if (!group || group.coins.length === 0) {
+                  return (
+                    <div className="rounded-md bg-muted/40 p-3 text-xs text-muted-foreground">
+                      This group has no pre-defined coins. Coins will be resolved at runtime.
+                    </div>
+                  );
+                }
+                const maxSelect = limits?.max_coin_selection ?? group.coins.length;
+                const toggleCoin = (coin: string) => {
+                  setSelectedCoins((prev) => {
+                    if (prev.includes(coin)) return prev.filter((c) => c !== coin);
+                    if (prev.length >= maxSelect) return prev;
+                    return [...prev, coin];
+                  });
+                };
                 return (
-                  <>
-                    <strong className="text-foreground">{g.name}</strong>: {g.coins.slice(0, 8).join(', ')}
-                    {g.coins.length > 8 && ` … (+${g.coins.length - 8} more)`}
-                  </>
+                  <div>
+                    <label className="text-sm font-medium">
+                      Select Coins ({selectedCoins.length}/{Math.min(maxSelect, group.coins.length)})
+                    </label>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      One bot will be created per selected coin. Max {maxSelect >= 999 ? 'unlimited' : maxSelect} coins.
+                      Fewer coins = larger buy amount per layer.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {group.coins.map((coin) => {
+                        const selected = selectedCoins.includes(coin);
+                        return (
+                          <button
+                            key={coin}
+                            onClick={() => toggleCoin(coin)}
+                            className={cn(
+                              'rounded-lg border px-3 py-1.5 text-sm font-medium transition',
+                              selected
+                                ? 'border-violet-500 bg-violet-500/10 text-violet-600 dark:text-violet-400'
+                                : 'border-border bg-card hover:bg-accent',
+                            )}
+                          >
+                            {coin}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {selectedCoins.length > 0 && (
+                      <button
+                        onClick={() => setSelectedCoins([])}
+                        className="mt-2 text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        Clear selection
+                      </button>
+                    )}
+                  </div>
                 );
               })()}
-            </div>
+            </>
           )}
         </CardContent>
       </Card>
@@ -583,139 +609,7 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
         </CardContent>
       </Card>
 
-      {/* Section 4: Grid Profile */}
-      <Card glass id="setup-grid" className="scroll-mt-20">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <RefreshCw className="h-5 w-5 text-violet-500" />
-            Grid Profile
-          </CardTitle>
-          <CardDescription>
-            Price range & grid density — spacing auto-calculated from ATR(14) + TP range ({gridSpacing ? `${gridSpacing.spacing_pct}%` : `${getModeSpacing(template.mode, modeConfigs)}% (TP fallback)`} per level)
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Coin multi-select from Coin Group */}
-          {template.coinGroupId && (() => {
-            const group = coinGroups.find((g) => g.id === template.coinGroupId);
-            if (!group || group.coins.length === 0) return null;
-            const maxSelect = limits?.max_coin_selection ?? group.coins.length;
-            const toggleCoin = (coin: string) => {
-              setSelectedCoins((prev) => {
-                if (prev.includes(coin)) return prev.filter((c) => c !== coin);
-                if (prev.length >= maxSelect) return prev;
-                return [...prev, coin];
-              });
-            };
-            return (
-              <div>
-                <label className="text-sm font-medium">
-                  Select Coins ({selectedCoins.length}/{Math.min(maxSelect, group.coins.length)})
-                </label>
-                <p className="text-xs text-muted-foreground mb-2">
-                  One bot will be created per selected coin. Max {maxSelect >= 999 ? 'unlimited' : maxSelect} coins.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {group.coins.map((coin) => {
-                    const selected = selectedCoins.includes(coin);
-                    return (
-                      <button
-                        key={coin}
-                        onClick={() => toggleCoin(coin)}
-                        className={cn(
-                          'rounded-lg border px-3 py-1.5 text-sm font-medium transition',
-                          selected
-                            ? 'border-violet-500 bg-violet-500/10 text-violet-600 dark:text-violet-400'
-                            : 'border-border bg-card hover:bg-accent',
-                        )}
-                      >
-                        {coin}
-                      </button>
-                    );
-                  })}
-                </div>
-                {selectedCoins.length > 0 && (
-                  <button
-                    onClick={() => setSelectedCoins([])}
-                    className="mt-2 text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    Clear selection
-                  </button>
-                )}
-              </div>
-            );
-          })()}
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className="text-sm font-medium">Investment Per Grid (USDT)</label>
-              <Input
-                type="number"
-                value={template.investmentPerGrid}
-                onChange={(e) => patchTemplate({ investmentPerGrid: Number(e.target.value) })}
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Upper Price</label>
-              <Input
-                type="number"
-                value={template.upperPrice}
-                onChange={(e) => patchTemplate({ upperPrice: Number(e.target.value) })}
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Lower Price</label>
-              <Input
-                type="number"
-                value={template.lowerPrice}
-                onChange={(e) => patchTemplate({ lowerPrice: Number(e.target.value) })}
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Grid Spacing (auto from ATR + TP)</label>
-              <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
-                {spacingLoading ? (
-                  <span className="text-sm text-muted-foreground">Calculating…</span>
-                ) : (
-                  <>
-                    <span className="text-sm font-semibold">
-                      {gridSpacing ? `${gridSpacing.spacing_pct}%` : `${getModeSpacing(template.mode, modeConfigs)}% (TP)`}
-                    </span>
-                    <span className="text-xs text-muted-foreground">per level</span>
-                  </>
-                )}
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {gridSpacing
-                  ? `ATR ${gridSpacing.atr_pct}% × factor ${gridSpacing.adaptive_factor} vs TP ${gridSpacing.tp_range_pct}%${gridSpacing.used_fallback ? ' (fallback — insufficient candles)' : ''}`
-                  : `TP target for Mode ${template.mode}. Select a coin to compute ATR-based spacing.`}
-              </p>
-            </div>
-            <div className="sm:col-span-2">
-              <label className="text-sm font-medium">Grid Count (auto-calculated)</label>
-              <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
-                <span className="text-sm font-semibold">{template.gridCount}</span>
-                <span className="text-xs text-muted-foreground">levels</span>
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {template.gridCount} layers × ${template.investmentPerGrid}/layer
-                {' = '}
-                <strong>${(template.gridCount * template.investmentPerGrid).toFixed(2)}</strong> total grid capital per coin.
-                {selectedCoins.length > 0 && (
-                  <> × {selectedCoins.length} coins = <strong>${(template.gridCount * template.investmentPerGrid * selectedCoins.length).toFixed(2)}</strong> total.</>
-                )}
-              </p>
-            </div>
-          </div>
-          {template.upperPrice <= template.lowerPrice && (
-            <div className="rounded-md bg-red-500/10 p-3 text-xs text-red-600">
-              Upper price must be greater than lower price.
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Section 5: Circuit Breaker */}
+      {/* Section 4: Circuit Breaker (grid levels auto-generated from market price) */}
       <Card glass id="setup-breaker" className="scroll-mt-20">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -742,7 +636,7 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
               <div>
                 <label className="text-sm font-medium">Continuation Rate</label>
                 <p className="text-xs text-muted-foreground mb-2">
-                  The threshold is derived from historical daily candles: a drop &quot;continues&quot; if the price is still lower {`N`} days later. Higher rate = larger threshold = fewer triggers.
+                  Bot menghitung dari data historis: berapa persen drop yang berlanjut turun. Pilih persentase yang lebih tinggi = bot lebih yakin dulu sebelum berhenti beli.
                 </p>
                 <div className="grid gap-2">
                   {CONTINUATION_RATES.map((r) => (
@@ -1056,22 +950,24 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
                 <dd className="font-medium">
                   {selectedCoins.length > 0
                     ? `${selectedCoins.length} coin${selectedCoins.length > 1 ? 's' : ''}: ${selectedCoins.join(', ')}`
-                    : '— (select in Grid Profile)'}
+                    : '— (select in Coins Selection)'}
                 </dd>
               </div>
               <div className="flex justify-between rounded-md bg-muted/40 px-3 py-2">
-                <dt className="text-muted-foreground">Grid Range</dt>
-                <dd className="font-medium">${template.lowerPrice} – ${template.upperPrice}</dd>
-              </div>
-              <div className="flex justify-between rounded-md bg-muted/40 px-3 py-2">
-                <dt className="text-muted-foreground">Grid Spacing</dt>
+                <dt className="text-muted-foreground">Averaging Steps</dt>
                 <dd className="font-medium">
-                  {gridSpacing ? `${gridSpacing.spacing_pct}% (ATR)` : `${getModeSpacing(template.mode, modeConfigs)}% (TP)`} — Mode {template.mode}
+                  {mmResult ? `${mmResult.steps} steps` : '— (calculate MM first)'}
                 </dd>
               </div>
               <div className="flex justify-between rounded-md bg-muted/40 px-3 py-2">
-                <dt className="text-muted-foreground">Grid Layers</dt>
-                <dd className="font-medium">{template.gridCount} × ${template.investmentPerGrid}</dd>
+                <dt className="text-muted-foreground">Buy Amount/Layer</dt>
+                <dd className="font-medium">
+                  {mmResult ? `$${Number(mmResult.buy_amount).toFixed(2)}` : '— (calculate MM first)'}
+                </dd>
+              </div>
+              <div className="flex justify-between rounded-md bg-muted/40 px-3 py-2">
+                <dt className="text-muted-foreground">Entry Mode</dt>
+                <dd className="font-medium">Auto (market price + averaging)</dd>
               </div>
               <div className="flex justify-between rounded-md bg-muted/40 px-3 py-2">
                 <dt className="text-muted-foreground">TA Gate</dt>
@@ -1082,14 +978,14 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
             </dl>
             <Button
               onClick={handleLaunch}
-              disabled={busy || !selectedAccount || !selectedStrategy || template.upperPrice <= template.lowerPrice}
+              disabled={busy || !selectedAccount || !selectedStrategy || selectedCoins.length === 0}
               className="mt-4 w-full"
             >
               {busy ? 'Creating...' : 'Create Trading Bot'}
             </Button>
             <p className="mt-2 text-center text-xs text-muted-foreground">
-              After creation, the bot will be in <Badge variant="secondary">created</Badge> status.
-              Use the Bots list to Prepare → Start it.
+              Bot enters at current market price and averages down automatically.
+              {' '}Status: <Badge variant="secondary">created</Badge> → auto prepare → <Badge variant="success">running</Badge>.
             </p>
           </CardContent>
         </Card>
