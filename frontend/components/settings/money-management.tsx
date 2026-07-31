@@ -87,6 +87,11 @@ export function MoneyManagementSection({
             >
               <div className="font-semibold">{p.name}</div>
               <div className="text-[10px] text-muted-foreground">{p.description}</div>
+              {p.min_capital && (
+                <div className="mt-1 text-[10px] font-medium text-violet-600 dark:text-violet-400">
+                  Min ${Number(p.min_capital).toLocaleString()}
+                </div>
+              )}
             </button>
           ))}
         </div>
@@ -105,6 +110,12 @@ export function MoneyManagementSection({
       {!coinGroupName && (
         <p className="text-xs text-amber-600 dark:text-amber-400">
           Select a coin group above to enable allocation calculation.
+        </p>
+      )}
+
+      {selected && capital > 0 && Number(selected.min_capital) > 0 && capital < Number(selected.min_capital) && (
+        <p className="text-xs text-amber-600 dark:text-amber-400">
+          Capital is below the {selected.name} minimum of ${Number(selected.min_capital).toLocaleString()}.
         </p>
       )}
 

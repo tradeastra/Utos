@@ -106,7 +106,7 @@ class TestMMCalculatorValidation:
             )
 
     def test_capital_below_preset_minimum_rejected(self) -> None:
-        # MM50 min capital = $500
+        # MM50 min capital = $7,500
         with pytest.raises(ValidationError, match="below minimum"):
             self.calc.calculate(
                 preset_type="mm50",
@@ -126,23 +126,24 @@ class TestMMCalculatorValidation:
             )
 
     def test_buy_amount_below_15_rejected(self) -> None:
-        # $1200 / (50 * 10) = $2.40 — below $15 min
+        # MM30 min_capital=$1,350 (for Top 3). With Top 5 (5 coins):
+        # $1,350 / (30 * 5) = $9.00 — below $15 min
         with pytest.raises(ValidationError, match="below minimum"):
             self.calc.calculate(
-                preset_type="mm50",
-                capital=Decimal("1200"),
-                coin_group_name="Top 10",
-                coin_group_max_coins=10,
+                preset_type="mm30",
+                capital=Decimal("1350"),
+                coin_group_name="Top 5",
+                coin_group_max_coins=5,
             )
 
     def test_buy_amount_below_15_error_mentions_required_capital(self) -> None:
-        # $1200 / (50 * 10) = $2.40; required = 50 * 10 * 15 = $7500
-        with pytest.raises(ValidationError, match=r"7500"):
+        # $1,350 / (30 * 5) = $9.00; required = 30 * 5 * 15 = $2250
+        with pytest.raises(ValidationError, match=r"2250"):
             self.calc.calculate(
-                preset_type="mm50",
-                capital=Decimal("1200"),
-                coin_group_name="Top 10",
-                coin_group_max_coins=10,
+                preset_type="mm30",
+                capital=Decimal("1350"),
+                coin_group_name="Top 5",
+                coin_group_max_coins=5,
             )
 
 

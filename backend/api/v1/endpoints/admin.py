@@ -297,6 +297,7 @@ class StrategyModeUpdate(BaseModel):
     tp_range_min: float | None = Field(None, ge=0)
     tp_range_max: float | None = Field(None, ge=0)
     risk_level: str | None = Field(None, max_length=20)
+    description: str | None = Field(None)
 
 
 @router.get("/strategy-modes", response_model=list[dict])
@@ -322,6 +323,7 @@ async def admin_update_strategy_mode(
         tp_range_min=data.tp_range_min,
         tp_range_max=data.tp_range_max,
         risk_level=data.risk_level,
+        description=data.description,
     )
     if updated is None:
         raise HTTPException(

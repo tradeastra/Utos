@@ -13,11 +13,17 @@ capital when every coin reaches its full averaging ladder is:
   total = buy_amount * steps * num_coins = capital
 
 Validation rules:
-  MM30: min_capital=$300, only for Top 3 / Top 5
-  MM50: min_capital=$500, for Top 10 / Top 20
-  MM70: min_capital=$700, for Top 20 / Top 50 / All
+  MM30: min_capital=$1,350, only for Top 3 / Top 5
+  MM50: min_capital=$7,500, for Top 10 / Top 20
+  MM70: min_capital=$21,000, for Top 20 / Top 50 / All
   Custom: user-defined steps, min_capital=$100 (Pro+ only)
   All presets: buy_amount must be >= MIN_BUY_AMOUNT ($15)
+
+min_capital for built-in presets is derived from the smallest allowed coin
+group: MIN_BUY_AMOUNT × steps × max_coins. This guarantees the per-layer buy
+amount is at least $15 when using the smallest group, so the capital check
+catches insufficient capital early with a clear message. Larger coin groups
+may still fail the buy_amount check if capital is at the bare minimum.
 """
 
 from __future__ import annotations
@@ -36,7 +42,7 @@ BUILTIN_PRESETS = {
     "mm30": {
         "name": "MM30",
         "steps": 30,
-        "min_capital": Decimal("300"),
+        "min_capital": Decimal("1350"),
         "max_capital": None,
         "description": "30-step money management — conservative, suitable for Top 3 / Top 5",
         "allowed_coin_groups": ["Top 3", "Top 5"],
@@ -44,7 +50,7 @@ BUILTIN_PRESETS = {
     "mm50": {
         "name": "MM50",
         "steps": 50,
-        "min_capital": Decimal("500"),
+        "min_capital": Decimal("7500"),
         "max_capital": None,
         "description": "50-step money management — balanced, suitable for Top 10 / Top 20",
         "allowed_coin_groups": ["Top 10", "Top 20"],
@@ -52,7 +58,7 @@ BUILTIN_PRESETS = {
     "mm70": {
         "name": "MM70",
         "steps": 70,
-        "min_capital": Decimal("700"),
+        "min_capital": Decimal("21000"),
         "max_capital": None,
         "description": "70-step money management — aggressive, suitable for Top 20 / Top 50 / All",
         "allowed_coin_groups": ["Top 20", "Top 50", "All"],

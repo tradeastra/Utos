@@ -86,7 +86,7 @@ class TelegramChannel(NotificationChannel):
     def channel_name(self) -> str:
         return "telegram"
 
-     async def send(
+    async def send(
         self,
         recipient: str,
         title: str,

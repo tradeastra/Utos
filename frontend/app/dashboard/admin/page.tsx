@@ -19,7 +19,7 @@ interface AdminMMPreset {
 }
 
 interface AdminStrategyMode {
-  mode: string; label: string; tp_range_min: number; tp_range_max: number; risk_level: string;
+  mode: string; label: string; tp_range_min: number; tp_range_max: number; risk_level: string; description: string | null;
 }
 
 interface AdminBreakerThreshold {
@@ -225,7 +225,7 @@ export default function AdminSettingsPage() {
     } catch {}
   };
 
-  const updateStrategyModeDraft = (mode: string, field: keyof AdminStrategyMode, value: string | number) => {
+  const updateStrategyModeDraft = (mode: string, field: keyof AdminStrategyMode, value: string | number | null) => {
     setStrategyModeDrafts((prev) => {
       const original = strategyModes.find((s) => s.mode === mode);
       const base = prev[mode] ?? original!;
@@ -245,6 +245,7 @@ export default function AdminSettingsPage() {
         tp_range_min: draft.tp_range_min,
         tp_range_max: draft.tp_range_max,
         risk_level: draft.risk_level,
+        description: draft.description ?? undefined,
       });
       setStrategyModes((prev) => prev.map((s) => (s.mode === mode ? updated : s)));
       setStrategyModeDrafts((prev) => {
@@ -560,6 +561,15 @@ export default function AdminSettingsPage() {
                           className="w-full rounded-lg border border-border bg-background px-2 py-1 text-sm focus:border-violet-500 focus:outline-none"
                         />
                       </div>
+                    </div>
+                    <div className="mt-3">
+                      <label className="mb-1 block text-xs text-muted-foreground">Description</label>
+                      <textarea
+                        rows={2}
+                        value={sm.description ?? ''}
+                        onChange={(e) => updateStrategyModeDraft(sm.mode, 'description', e.target.value)}
+                        className="w-full rounded-lg border border-border bg-background px-2 py-1 text-sm focus:border-violet-500 focus:outline-none"
+                      />
                     </div>
                   </div>
                 ))}

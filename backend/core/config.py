@@ -7,7 +7,7 @@ pydantic-settings v2. Never has hardcoded production secrets.
 
 from typing import Annotated, List, Optional
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic_settings.sources import NoDecode
 
@@ -54,6 +54,18 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             return [origin.strip() for origin in v.split(",")]
         return v  # type: ignore[return-value]
+
+    @model_validator(mode="after")
+    def validate_production_security(self) -> "Settings":
+        """Reject insecure defaults when APP_ENV is production."""
+        if self.APP_ENV == "production":
+            if self.SECRET_KEY == "change-me-to-a-long-random-string-at-least-32-chars":
+                raise ValueError("SECRET_KEY must be changed from default in production")
+            if len(self.SECRET_KEY) < 32:
+                raise ValueError("SECRET_KEY must be at least 32 characters in production")
+            if self.DEBUG:
+                raise ValueError("DEBUG must be False in production")
+        return self
 
     # ── Database ─────────────────────────────────────────────────────────────
     DATABASE_URL: str = Field(
