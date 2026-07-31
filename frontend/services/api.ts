@@ -931,4 +931,24 @@ class ApiClient {
   }
 }
 
-export const api = new ApiClient();
+// Lazy singleton — the ApiClient (and thus resolveApiBase()) is only
+// instantiated on first property access, which happens in the browser
+// at runtime where window.location.protocol is available for the
+// http→https upgrade. This avoids the bundler pre-evaluating the
+// singleton at build time where window is undefined.
+let _apiInstance: ApiClient | null = null;
+
+export const api = new Proxy({} as ApiClient, {
+  get(_target, prop, receiver) {
+    if (!_apiInstance) {
+      _apiInstance = new ApiClient();
+    }
+    return Reflect.get(_apiInstance, prop, receiver);
+  },
+  set(_target, prop, value, receiver) {
+    if (!_apiInstance) {
+      _apiInstance = new ApiClient();
+    }
+    return Reflect.set(_apiInstance, prop, value, receiver);
+  },
+});
