@@ -8,15 +8,16 @@ function resolveApiBase(): string {
   return raw;
 }
 
-const API_BASE = resolveApiBase();
-
 class ApiClient {
   private baseUrl: string;
   private token: string | null = null;
   private refreshPromise: Promise<string | null> | null = null;
 
-  constructor(baseUrl: string = API_BASE) {
-    this.baseUrl = baseUrl;
+  constructor(baseUrl?: string) {
+    // Lazy evaluation — resolveApiBase() runs at runtime (in the browser),
+    // NOT at build time. This ensures the http→https upgrade works even
+    // if the bundler pre-evaluates module-level constants.
+    this.baseUrl = baseUrl ?? resolveApiBase();
     if (typeof window !== 'undefined') {
       this.token = localStorage.getItem('access_token');
     }
