@@ -275,6 +275,12 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
       setMMResult(null);
       return;
     }
+    // Skip if preset restricts coin groups and the selected group isn't allowed.
+    const allowedGroups = selected.allowed_coin_groups;
+    if (allowedGroups && allowedGroups.length > 0 && !allowedGroups.includes(group.name)) {
+      setMMResult(null);
+      return;
+    }
     try {
       // Pass num_coins = number of coins the user actually selected, so
       // capital is allocated across only the chosen coins (e.g. 1 coin
