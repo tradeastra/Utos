@@ -5,11 +5,8 @@ Loads all settings from environment variables / .env file using
 pydantic-settings v2. Never has hardcoded production secrets.
 """
 
-<<<<<<< HEAD
-=======
 from typing import Annotated, List, Optional
 
->>>>>>> develop
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic_settings.sources import NoDecode
@@ -25,7 +22,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # ── Application ──────────────────────────────────────────────────────────
+    # ── Application ────────────────────────────────────────────────────────────
     APP_NAME: str = "UTOS Trading Engine"
     VERSION: str = "1.0.0"
     APP_ENV: str = Field(default="development")
@@ -33,19 +30,15 @@ class Settings(BaseSettings):
     HOST: str = Field(default="0.0.0.0")
     PORT: int = Field(default=8000)
 
-    # ── Security ─────────────────────────────────────────────────────────────
+    # ── Security ───────────────────────────────────────────────────────────────
     SECRET_KEY: str = Field(
         default="change-me-to-a-long-random-string-at-least-32-chars"
     )
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30)
-    REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7)
-    ENCRYPTION_KEY: str = Field(default="")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-    # ── CORS ─────────────────────────────────────────────────────────────────
-<<<<<<< HEAD
-    CORS_ORIGINS: list[str] = Field(default=["http://localhost:3000"])
-=======
+    # ── CORS ───────────────────────────────────────────────────────────────────
     # NoDecode tells pydantic-settings' EnvSettingsSource to NOT JSON-parse the
     # raw env string; the field_validator below then splits on commas. Without
     # this, a comma-separated value like "https://a,http://b" raises
@@ -53,7 +46,6 @@ class Settings(BaseSettings):
     CORS_ORIGINS: Annotated[List[str], NoDecode] = Field(
         default=["http://localhost:3000"]
     )
->>>>>>> develop
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
@@ -63,22 +55,6 @@ class Settings(BaseSettings):
         return v  # type: ignore[return-value]
 
     @model_validator(mode="after")
-<<<<<<< HEAD
-    def validate_production_secrets(self) -> "Settings":
-        """In production, SECRET_KEY must not be the default."""
-        if self.APP_ENV == "production":
-            if self.SECRET_KEY == "change-me-to-a-long-random-string-at-least-32-chars":
-                raise ValueError(
-                    "SECRET_KEY must be set to a secure value in production. "
-                    'Generate one with: python -c "import secrets; print(secrets.token_hex(32))"'
-                )
-            if len(self.SECRET_KEY) < 32:
-                raise ValueError(
-                    "SECRET_KEY must be at least 32 characters in production."
-                )
-            if self.DEBUG:
-                raise ValueError("DEBUG must be False in production.")
-=======
     def validate_production_security(self) -> "Settings":
         """Reject insecure defaults when APP_ENV is production."""
         if self.APP_ENV == "production":
@@ -88,7 +64,6 @@ class Settings(BaseSettings):
                 raise ValueError("SECRET_KEY must be at least 32 characters in production")
             if self.DEBUG:
                 raise ValueError("DEBUG must be False in production")
->>>>>>> develop
         return self
 
     # ── Database ─────────────────────────────────────────────────────────────
@@ -130,12 +105,7 @@ class Settings(BaseSettings):
     # ── Testing ───────────────────────────────────────────────────────────────
     TESTING: bool = Field(default=False)
 
-<<<<<<< HEAD
-    # ── OpenTelemetry ─────────────────────────────────────────────────────────
-    OTEL_EXPORTER_OTLP_ENDPOINT: str = Field(default="http://localhost:4317")
-=======
     # ── OpenTelemetry ──────────────────────────────────────────────────────────
->>>>>>> develop
     OTEL_ENABLED: bool = Field(default=False)
 
 

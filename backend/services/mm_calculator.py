@@ -44,13 +44,8 @@ BUILTIN_PRESETS = {
         "steps": 30,
         "min_capital": Decimal("1350"),
         "max_capital": None,
-<<<<<<< HEAD
-        "description": "30-step money management — conservative",
-        "allowed_coin_groups": [],
-=======
         "description": "30-step money management — conservative, suitable for Top 3 / Top 5",
         "allowed_coin_groups": ["Top 3", "Top 5"],
->>>>>>> develop
     },
     "mm50": {
         "name": "MM50",
@@ -131,8 +126,6 @@ class MMCalculator:
             steps = preset["steps"]
             min_capital = preset["min_capital"]
 
-<<<<<<< HEAD
-=======
             if coin_group_name and preset.get("allowed_coin_groups"):
                 if coin_group_name not in preset["allowed_coin_groups"]:
                     raise ValidationError(
@@ -146,7 +139,6 @@ class MMCalculator:
         if num_coins and num_coins >= 1 and num_coins < coin_group_max_coins:
             min_capital = MIN_BUY_AMOUNT * Decimal(steps) * Decimal(effective_coins)
 
->>>>>>> develop
         if capital < min_capital:
             raise ValidationError(
                 f"Capital {capital} is below minimum {min_capital} for preset {preset_type} "

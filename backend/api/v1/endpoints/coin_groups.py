@@ -15,8 +15,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 
-<<<<<<< HEAD
-=======
 BUILTIN_GROUPS = [
     {"name": "Top 3", "description": "Top 3 coins by volume", "max_coins": 3, "coins": ["BTC", "ETH", "BNB"]},
     {"name": "Top 5", "description": "Top 5 coins by volume", "max_coins": 5, "coins": ["BTC", "ETH", "BNB", "SOL", "XRP"]},
@@ -45,7 +43,6 @@ async def _ensure_builtin_groups(db: AsyncSession):
         ))
     await db.commit()
 
->>>>>>> develop
 
 class CoinGroupResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
