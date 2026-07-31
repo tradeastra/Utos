@@ -5,8 +5,14 @@ Loads all settings from environment variables / .env file using
 pydantic-settings v2. Never has hardcoded production secrets.
 """
 
+<<<<<<< HEAD
+=======
+from typing import Annotated, List, Optional
+
+>>>>>>> develop
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings.sources import NoDecode
 
 
 class Settings(BaseSettings):
@@ -37,7 +43,17 @@ class Settings(BaseSettings):
     ENCRYPTION_KEY: str = Field(default="")
 
     # ── CORS ─────────────────────────────────────────────────────────────────
+<<<<<<< HEAD
     CORS_ORIGINS: list[str] = Field(default=["http://localhost:3000"])
+=======
+    # NoDecode tells pydantic-settings' EnvSettingsSource to NOT JSON-parse the
+    # raw env string; the field_validator below then splits on commas. Without
+    # this, a comma-separated value like "https://a,http://b" raises
+    # SettingsError because the source tries json.loads first.
+    CORS_ORIGINS: Annotated[List[str], NoDecode] = Field(
+        default=["http://localhost:3000"]
+    )
+>>>>>>> develop
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
@@ -47,6 +63,7 @@ class Settings(BaseSettings):
         return v  # type: ignore[return-value]
 
     @model_validator(mode="after")
+<<<<<<< HEAD
     def validate_production_secrets(self) -> "Settings":
         """In production, SECRET_KEY must not be the default."""
         if self.APP_ENV == "production":
@@ -61,6 +78,17 @@ class Settings(BaseSettings):
                 )
             if self.DEBUG:
                 raise ValueError("DEBUG must be False in production.")
+=======
+    def validate_production_security(self) -> "Settings":
+        """Reject insecure defaults when APP_ENV is production."""
+        if self.APP_ENV == "production":
+            if self.SECRET_KEY == "change-me-to-a-long-random-string-at-least-32-chars":
+                raise ValueError("SECRET_KEY must be changed from default in production")
+            if len(self.SECRET_KEY) < 32:
+                raise ValueError("SECRET_KEY must be at least 32 characters in production")
+            if self.DEBUG:
+                raise ValueError("DEBUG must be False in production")
+>>>>>>> develop
         return self
 
     # ── Database ─────────────────────────────────────────────────────────────
@@ -102,8 +130,12 @@ class Settings(BaseSettings):
     # ── Testing ───────────────────────────────────────────────────────────────
     TESTING: bool = Field(default=False)
 
+<<<<<<< HEAD
     # ── OpenTelemetry ─────────────────────────────────────────────────────────
     OTEL_EXPORTER_OTLP_ENDPOINT: str = Field(default="http://localhost:4317")
+=======
+    # ── OpenTelemetry ──────────────────────────────────────────────────────────
+>>>>>>> develop
     OTEL_ENABLED: bool = Field(default=False)
 
 

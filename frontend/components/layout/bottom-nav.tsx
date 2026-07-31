@@ -5,8 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Home,
-  CandlestickChart,
-  Grid3x3,
+  Sliders,
   Wallet,
   MoreHorizontal,
   ShoppingCart,
@@ -15,12 +14,14 @@ import {
   Users,
   Radio,
   Bell,
-  CreditCard,
   Receipt,
   UserPlus,
   Settings,
   X,
+<<<<<<< HEAD
   Sliders,
+=======
+>>>>>>> develop
   LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -29,20 +30,17 @@ import { useAuthStore } from '@/stores/auth';
 
 const mainTabs = [
   { label: 'Home', href: '/dashboard', icon: Home },
-  { label: 'Trade', href: '/dashboard/trade', icon: CandlestickChart },
-  { label: 'Grid', href: '/dashboard/trading', icon: Grid3x3 },
+  { label: 'Strategy', href: '/dashboard/strategy-setting', icon: Sliders },
   { label: 'Portfolio', href: '/dashboard/portfolio', icon: Wallet },
 ];
 
 const moreItems = [
   { label: 'Orders', href: '/dashboard/orders', icon: ShoppingCart },
-  { label: 'Strategy', href: '/dashboard/strategy-setting', icon: Sliders },
   { label: 'Risk', href: '/dashboard/risk', icon: Shield },
   { label: 'Recovery', href: '/dashboard/recovery', icon: RefreshCw },
   { label: 'Workers', href: '/dashboard/workers', icon: Users },
   { label: 'Events', href: '/dashboard/events', icon: Radio },
   { label: 'Notifications', href: '/dashboard/notifications', icon: Bell },
-  { label: 'Subscription', href: '/dashboard/subscription', icon: CreditCard },
   { label: 'Billing', href: '/dashboard/billing', icon: Receipt },
   { label: 'Affiliate', href: '/dashboard/affiliate', icon: UserPlus },
   { label: 'Exchanges', href: '/settings/exchanges', icon: Settings },

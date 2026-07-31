@@ -10,18 +10,33 @@ from uuid import UUID
 
 from api.v1.endpoints.users import require_admin
 from database.base import get_db
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from models.coin_group import CoinGroup
 from models.mm_preset import MMPreset
 from pydantic import BaseModel, ConfigDict, Field
+from repositories.breaker_threshold_repository import BreakerThresholdRepository
 from repositories.coin_group_repository import CoinGroupRepository
 from repositories.mm_preset_repository import MMPresetRepository
 from schemas.auth import UserResponse
 from services.averaging_template import get_default_averaging_summary, get_default_averaging_template
+from services.breaker_screening_store import BreakerScreeningStore
+from services.circuit_breaker_screener import ScreenerConfig
 from services.mm_calculator import BUILTIN_PRESETS
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
+
+
+def _get_market_hub():
+    """Return the singleton MarketHub instance (lazy import to avoid circulars)."""
+    from main import market_hub
+
+    if market_hub is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Market Hub is not initialized",
+        )
+    return market_hub
 
 
 # ─── Coin Group Admin ───────────────────────────────────────────────
@@ -266,28 +281,31 @@ async def admin_delete_mm_preset(
 
 # ─── Strategy Mode Admin ────────────────────────────────────────────
 
-STRATEGY_MODES_CONFIG = [
-    {"mode": "A", "label": "Super Bearish", "daily_range_min": 0.5, "daily_range_max": 1.5, "risk_level": "Low"},
-    {"mode": "B", "label": "Conventional", "daily_range_min": 1.0, "daily_range_max": 3.0, "risk_level": "Medium"},
-    {"mode": "C", "label": "Aggressive", "daily_range_min": 2.0, "daily_range_max": 5.0, "risk_level": "High"},
-    {"mode": "D", "label": "Very Aggressive", "daily_range_min": 3.0, "daily_range_max": 8.0, "risk_level": "Very High"},
-    {"mode": "U", "label": "Ultimate", "daily_range_min": 5.0, "daily_range_max": 15.0, "risk_level": "Extreme"},
-]
+# Strategy modes are now persisted in the ``strategy_modes`` table and
+# accessed through ``services.strategy_mode_store``. The store falls back
+# to ``DEFAULT_STRATEGY_MODES`` if the table is empty or missing (e.g.
+# before migration 0012 has been applied).
+from services.strategy_mode_store import (  # noqa: E402
+    DEFAULT_STRATEGY_MODES as STRATEGY_MODES_CONFIG,
+    get_strategy_modes as _get_strategy_modes,
+    update_strategy_mode_with_session as _update_strategy_mode_with_session,
+)
 
 
 class StrategyModeUpdate(BaseModel):
     label: str | None = Field(None, max_length=50)
-    daily_range_min: float | None = Field(None, ge=0)
-    daily_range_max: float | None = Field(None, ge=0)
+    tp_range_min: float | None = Field(None, ge=0)
+    tp_range_max: float | None = Field(None, ge=0)
     risk_level: str | None = Field(None, max_length=20)
+    description: str | None = Field(None)
 
 
 @router.get("/strategy-modes", response_model=list[dict])
 async def admin_list_strategy_modes(
     admin: UserResponse = Depends(require_admin),
 ) -> list[dict[str, Any]]:
-    """List all strategy modes with their configuration."""
-    return STRATEGY_MODES_CONFIG
+    """List all strategy modes with their configuration (DB-backed)."""
+    return await _get_strategy_modes()
 
 
 @router.put("/strategy-modes/{mode}", response_model=dict)
@@ -295,21 +313,24 @@ async def admin_update_strategy_mode(
     mode: str,
     data: StrategyModeUpdate,
     admin: UserResponse = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """Update strategy mode configuration (in-memory, persisted via config in future)."""
-    mode = mode.upper()
-    for sm in STRATEGY_MODES_CONFIG:
-        if sm["mode"] == mode:
-            if data.label is not None:
-                sm["label"] = data.label
-            if data.daily_range_min is not None:
-                sm["daily_range_min"] = data.daily_range_min
-            if data.daily_range_max is not None:
-                sm["daily_range_max"] = data.daily_range_max
-            if data.risk_level is not None:
-                sm["risk_level"] = data.risk_level
-            return sm
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Strategy mode {mode} not found")
+    """Update strategy mode configuration (persisted to the ``strategy_modes`` table)."""
+    updated = await _update_strategy_mode_with_session(
+        db,
+        mode,
+        label=data.label,
+        tp_range_min=data.tp_range_min,
+        tp_range_max=data.tp_range_max,
+        risk_level=data.risk_level,
+        description=data.description,
+    )
+    if updated is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Strategy mode {mode.upper()} not found",
+        )
+    return updated
 
 
 # ─── Averaging Config Admin ─────────────────────────────────────────
@@ -422,3 +443,324 @@ async def admin_list_ta_templates(
             ],
         },
     ]
+
+
+# ─── Circuit Breaker Thresholds Admin ────────────────────────────────
+#
+# These endpoints let a superadmin validate the pre-computed breaker
+# thresholds that the BreakerScreeningStore persists for every trading
+# pair. The admin can:
+#   - list all thresholds (optionally filtered by continuation rate)
+#   - inspect a single symbol's threshold
+#   - trigger a manual re-screen (useful after market regime shifts or
+#     when thresholds look stale)
+#   - see screening health metadata (when last screened, fallback usage,
+#     candle counts) so they can judge whether the data is trustworthy.
+
+class BreakerRescreenRequest(BaseModel):
+    """Body for triggering a manual re-screen of breaker thresholds."""
+    symbols: list[str] = Field(
+        default_factory=list,
+        description="Symbols to re-screen. Empty = screen all coins in every active coin group.",
+    )
+    rates: list[float] = Field(
+        default=[0.70, 0.80, 0.90],
+        description="Continuation rates to screen for (0.70 / 0.80 / 0.90).",
+    )
+    lookback_days: int = Field(365, ge=30, le=1000)
+    continuation_window: int = Field(5, ge=1, le=30)
+    min_future_drop_pct: float = Field(3.0, ge=0.0, le=50.0)
+
+
+def _threshold_to_dict(t) -> dict[str, Any]:
+    """Serialize a BreakerThreshold row to a JSON-friendly dict."""
+    return {
+        "id": str(t.id),
+        "exchange": t.exchange,
+        "symbol": t.symbol,
+        "min_continuation_rate": float(t.min_continuation_rate),
+        "threshold_pct": float(t.threshold_pct),
+        "continuation_window": t.continuation_window,
+        "min_future_drop_pct": float(t.min_future_drop_pct),
+        "lookback_days": t.lookback_days,
+        "candle_count": t.candle_count,
+        "used_fallback": t.used_fallback,
+        "resume_mode": t.resume_mode,
+        "recovery_pct": float(t.recovery_pct),
+        "widen_multiplier": float(t.widen_multiplier),
+        "note": t.note,
+        "screened_at": t.screened_at.isoformat() if t.screened_at else None,
+        "created_at": t.created_at.isoformat() if t.created_at else None,
+        "updated_at": t.updated_at.isoformat() if t.updated_at else None,
+    }
+
+
+@router.get("/breaker-thresholds", response_model=list[dict])
+async def admin_list_breaker_thresholds(
+    rate: float | None = Query(None, description="Filter by continuation rate (e.g. 0.90)."),
+    exchange: str | None = Query(None, description="Filter by exchange (e.g. binance)."),
+    admin: UserResponse = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict[str, Any]]:
+    """List all pre-computed breaker thresholds.
+
+    Optional filters:
+      - ``rate``: only thresholds for a given continuation rate.
+      - ``exchange``: only thresholds for a given exchange.
+
+    The response includes screening metadata (``screened_at``,
+    ``used_fallback``, ``candle_count``) so admins can judge data freshness
+    and validity at a glance.
+    """
+    repo = BreakerThresholdRepository(db)
+    if rate is not None:
+        rows = await repo.get_all_for_rate(Decimal(str(rate)), exchange=exchange)
+    else:
+        # No rate filter — return everything (paginated implicitly by DB size).
+        from sqlalchemy import select
+        from models.breaker_threshold import BreakerThreshold
+        stmt = select(BreakerThreshold)
+        if exchange is not None:
+            stmt = stmt.where(BreakerThreshold.exchange == exchange.lower())
+        stmt = stmt.order_by(BreakerThreshold.symbol, BreakerThreshold.min_continuation_rate)
+        result = await db.execute(stmt)
+        rows = list(result.scalars().all())
+    return [_threshold_to_dict(t) for t in rows]
+
+
+@router.get("/breaker-thresholds/{symbol}", response_model=dict | list)
+async def admin_get_breaker_threshold(
+    symbol: str,
+    rate: float | None = Query(None, description="Specific continuation rate. Omit for all rates."),
+    exchange: str = Query("binance", description="Exchange name."),
+    admin: UserResponse = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any] | list[dict[str, Any]]:
+    """Get breaker threshold(s) for a single symbol.
+
+    If ``rate`` is provided, returns a single threshold dict (or 404).
+    Otherwise returns a list of all rates for that symbol.
+    """
+    repo = BreakerThresholdRepository(db)
+    if rate is not None:
+        row = await repo.get_threshold(exchange, symbol.upper(), Decimal(str(rate)))
+        if row is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No breaker threshold for {symbol} at rate {rate}",
+            )
+        return _threshold_to_dict(row)
+    # All rates for this symbol.
+    from sqlalchemy import select
+    from models.breaker_threshold import BreakerThreshold
+    stmt = (
+        select(BreakerThreshold)
+        .where(
+            BreakerThreshold.exchange == exchange.lower(),
+            BreakerThreshold.symbol == symbol.upper(),
+        )
+        .order_by(BreakerThreshold.min_continuation_rate)
+    )
+    result = await db.execute(stmt)
+    rows = list(result.scalars().all())
+    if not rows:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No breaker thresholds found for {symbol}",
+        )
+    return [_threshold_to_dict(t) for t in rows]
+
+
+@router.get("/breaker-thresholds/health/summary", response_model=dict)
+async def admin_breaker_health_summary(
+    admin: UserResponse = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Aggregate health summary for breaker thresholds.
+
+    Helps a superadmin quickly answer "is the breaker data valid?":
+      - total rows, rows per rate
+      - how many used the fallback (i.e. no real historical data)
+      - oldest / newest ``screened_at`` (staleness check)
+      - symbols missing thresholds (gaps in coverage)
+    """
+    from sqlalchemy import Integer, func, select
+    from models.breaker_threshold import BreakerThreshold
+
+    # Total count
+    total = (await db.execute(select(func.count()).select_from(BreakerThreshold))).scalar_one()
+
+    # Count per rate
+    rate_rows = await db.execute(
+        select(
+            BreakerThreshold.min_continuation_rate,
+            func.count(),
+            func.sum(BreakerThreshold.used_fallback.cast(Integer)),
+        ).group_by(BreakerThreshold.min_continuation_rate)
+    )
+    per_rate = {
+        float(r): {"count": int(c), "fallback_count": int(fb or 0)}
+        for r, c, fb in rate_rows.all()
+    }
+
+    # Oldest / newest screened_at
+    oldest = (
+        await db.execute(select(func.min(BreakerThreshold.screened_at)))
+    ).scalar_one_or_none()
+    newest = (
+        await db.execute(select(func.max(BreakerThreshold.screened_at)))
+    ).scalar_one_or_none()
+
+    # Distinct symbols screened
+    distinct_symbols = (
+        await db.execute(
+            select(func.count(func.distinct(BreakerThreshold.symbol)))
+        )
+    ).scalar_one()
+
+    return {
+        "total_rows": int(total),
+        "distinct_symbols": int(distinct_symbols),
+        "per_rate": per_rate,
+        "oldest_screened_at": oldest.isoformat() if oldest else None,
+        "newest_screened_at": newest.isoformat() if newest else None,
+        "fallback_total": sum(r["fallback_count"] for r in per_rate.values()),
+    }
+
+
+@router.post("/breaker-thresholds/rescreen", response_model=dict)
+async def admin_rescreen_breaker_thresholds(
+    data: BreakerRescreenRequest,
+    admin: UserResponse = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Trigger a manual re-screen of breaker thresholds.
+
+    This fetches historical candles for the requested symbols and
+    re-computes thresholds, upserting them into the database. Use this
+    when:
+      - thresholds look stale (``screened_at`` is days old)
+      - market regime shifted and thresholds may no longer be accurate
+      - new symbols were added to coin groups and need screening
+      - validating that the screening pipeline still works end-to-end
+
+    If ``symbols`` is empty, all coins from every active coin group are
+    screened.
+    """
+    hub = _get_market_hub()
+    store = BreakerScreeningStore(hub)
+
+    # Resolve symbols: explicit list, or all coins from active groups.
+    symbols = [s.upper() for s in data.symbols]
+    if not symbols:
+        cg_repo = CoinGroupRepository(db)
+        groups = await cg_repo.get_all(limit=500)
+        for g in groups:
+            if not g.is_active:
+                continue
+            for c in (g.coins or []):
+                if c.upper() not in symbols:
+                    symbols.append(c.upper())
+    if not symbols:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No symbols to screen (no explicit list and no active coin groups).",
+        )
+
+    rates = [Decimal(str(r)) for r in data.rates]
+    base_config = ScreenerConfig(
+        lookback_days=data.lookback_days,
+        continuation_window=data.continuation_window,
+        min_future_drop_pct=Decimal(str(data.min_future_drop_pct)),
+    )
+
+    all_results = await store.rescreen_for_rates(
+        db=db, symbols=symbols, rates=rates, base_config=base_config,
+    )
+
+    # Build a summary for the response (counts + fallback flags).
+    summary: dict[str, Any] = {
+        "screened_symbols": len(symbols),
+        "rates": [float(r) for r in rates],
+        "results": {},
+    }
+    for rate, results in all_results.items():
+        rate_key = float(rate)
+        summary["results"][str(rate_key)] = {
+            "symbol_count": len(results),
+            "fallback_count": sum(1 for r in results.values() if r.used_fallback),
+            "data_driven_count": sum(1 for r in results.values() if not r.used_fallback),
+            "symbols": sorted(results.keys()),
+        }
+    return summary
+
+
+# ---------------------------------------------------------------------------
+# Breaker resume config — admin override of post-trigger behavior.
+# ---------------------------------------------------------------------------
+# These endpoints let a superadmin override the tier-default resume behavior
+# (resume_mode / recovery_pct / widen_multiplier) for a specific symbol+rate
+# without re-running screening. Useful when an admin wants, e.g., all 90%
+# thresholds to use trailing_buy instead of widen_step.
+
+class BreakerResumeConfigRequest(BaseModel):
+    """Body for updating the resume behavior of a breaker threshold row."""
+    resume_mode: str | None = Field(
+        None,
+        description="One of: ta_confirm, widen_step, trailing_buy. "
+                    "If omitted, the field is left unchanged.",
+    )
+    recovery_pct: float | None = Field(
+        None, ge=0.0, le=50.0,
+        description="For trailing_buy mode — % recovery from the intraday "
+                    "low required before buys resume (e.g. 5.0 = 5%).",
+    )
+    widen_multiplier: float | None = Field(
+        None, ge=1.0, le=10.0,
+        description="For widen_step mode — grid step multiplier while the "
+                    "breaker is active (e.g. 2.0 = 2× wider spacing).",
+    )
+
+
+@router.patch("/breaker-thresholds/{symbol}/resume-config", response_model=dict)
+async def admin_update_breaker_resume_config(
+    symbol: str,
+    data: BreakerResumeConfigRequest,
+    rate: float = Query(..., description="Continuation rate (e.g. 0.90)."),
+    exchange: str = Query("binance", description="Exchange name."),
+    admin: UserResponse = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Override the resume behavior for a symbol's breaker threshold.
+
+    Updates only the resume fields (resume_mode, recovery_pct, widen_multiplier)
+    without re-running screening. The threshold itself is unchanged.
+
+    Returns the updated threshold row, or 404 if no row exists for the
+    given symbol + rate + exchange.
+    """
+    # Validate resume_mode if provided.
+    valid_modes = {"ta_confirm", "widen_step", "trailing_buy"}
+    if data.resume_mode is not None and data.resume_mode not in valid_modes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid resume_mode '{data.resume_mode}'. "
+                   f"Must be one of: {sorted(valid_modes)}",
+        )
+
+    repo = BreakerThresholdRepository(db)
+    row = await repo.update_resume_config(
+        exchange=exchange,
+        symbol=symbol.upper(),
+        min_continuation_rate=Decimal(str(rate)),
+        resume_mode=data.resume_mode,
+        recovery_pct=Decimal(str(data.recovery_pct)) if data.recovery_pct is not None else None,
+        widen_multiplier=Decimal(str(data.widen_multiplier)) if data.widen_multiplier is not None else None,
+    )
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No breaker threshold for {symbol.upper()} at rate {rate} on {exchange}.",
+        )
+    await db.commit()
+    return _threshold_to_dict(row)

@@ -1,9 +1,19 @@
 'use client';
 
+<<<<<<< HEAD
+=======
+import { useState } from 'react';
+>>>>>>> develop
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency, timeAgo } from '@/lib/utils';
 import { Receipt, CreditCard, CheckCircle2, Clock } from 'lucide-react';
+<<<<<<< HEAD
+=======
+import { SubscriptionPlans } from '@/components/billing/subscription-plans';
+import { TabNav } from '@/components/ui/tab-nav';
+import { useSearchParams } from 'next/navigation';
+>>>>>>> develop
 
 const invoices = [
   { id: 'inv-1', amount: 99, currency: 'USD', plan: 'pro', status: 'paid', provider: 'manual', created_at: new Date(Date.now() - 86400000).toISOString(), paid_at: new Date(Date.now() - 86000000).toISOString() },
@@ -12,6 +22,34 @@ const invoices = [
 ];
 
 export default function BillingPage() {
+<<<<<<< HEAD
+=======
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') === 'plans' ? 'plans' : 'invoices');
+
+  if (activeTab === 'plans') {
+    return (
+      <>
+        <div className="hidden md:block space-y-6">
+          <div>
+            <h1 className="text-2xl font-bold">Billing</h1>
+            <p className="text-muted-foreground">Manage plan, add-ons & invoices</p>
+          </div>
+          <TabNav
+            tabs={[
+              { key: 'plans', label: 'Plans' },
+              { key: 'invoices', label: 'Invoices' },
+            ]}
+            active={activeTab}
+            onChange={setActiveTab}
+          />
+        </div>
+        <SubscriptionPlans />
+      </>
+    );
+  }
+
+>>>>>>> develop
   return (
     <>
       {/* Mobile */}
@@ -30,6 +68,19 @@ export default function BillingPage() {
         </section>
 
         <div className="relative -mt-12 px-4 space-y-3">
+<<<<<<< HEAD
+=======
+          <div className="md:hidden">
+            <TabNav
+              tabs={[
+                { key: 'plans', label: 'Plans' },
+                { key: 'invoices', label: 'Invoices' },
+              ]}
+              active={activeTab}
+              onChange={setActiveTab}
+            />
+          </div>
+>>>>>>> develop
           {invoices.map((inv) => {
             const isPaid = inv.status === 'paid';
             return (
@@ -66,7 +117,22 @@ export default function BillingPage() {
 
       {/* Desktop */}
       <div className="hidden space-y-6 md:block">
+<<<<<<< HEAD
         <h1 className="text-2xl font-bold">Billing</h1>
+=======
+        <div>
+          <h1 className="text-2xl font-bold">Billing</h1>
+          <p className="text-muted-foreground">Manage plan, add-ons & invoices</p>
+        </div>
+        <TabNav
+          tabs={[
+            { key: 'plans', label: 'Plans' },
+            { key: 'invoices', label: 'Invoices' },
+          ]}
+          active={activeTab}
+          onChange={setActiveTab}
+        />
+>>>>>>> develop
         <Card>
           <CardHeader><CardTitle>Invoice History</CardTitle></CardHeader>
           <CardContent>

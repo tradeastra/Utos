@@ -4,8 +4,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
-  CandlestickChart,
-  Grid3x3,
   ShoppingCart,
   Wallet,
   Shield,
@@ -13,7 +11,6 @@ import {
   Users,
   Radio,
   Bell,
-  CreditCard,
   Receipt,
   UserPlus,
   Settings,
@@ -28,9 +25,7 @@ import { useAuthStore } from '@/stores/auth';
 
 const navItems = [
   { label: 'Overview', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'Trade', href: '/dashboard/trade', icon: CandlestickChart },
-  { label: 'Trading', href: '/dashboard/trading', icon: Grid3x3 },
-  { label: 'Strategy Setting', href: '/dashboard/strategy-setting', icon: Sliders },
+  { label: 'Strategy', href: '/dashboard/strategy-setting', icon: Sliders },
   { label: 'Orders', href: '/dashboard/orders', icon: ShoppingCart },
   { label: 'Portfolio', href: '/dashboard/portfolio', icon: Wallet },
   { label: 'Risk', href: '/dashboard/risk', icon: Shield },
@@ -41,7 +36,6 @@ const navItems = [
 ];
 
 const saasItems = [
-  { label: 'Subscription', href: '/dashboard/subscription', icon: CreditCard },
   { label: 'Billing', href: '/dashboard/billing', icon: Receipt },
   { label: 'Affiliate', href: '/dashboard/affiliate', icon: UserPlus },
 ];
@@ -127,7 +121,7 @@ export function Sidebar({ collapsed, onToggle, mobile = false }: SidebarProps) {
       <div className="flex-1 overflow-y-auto p-2 no-scrollbar">
         {(!collapsed || mobile) && (
           <div className="mb-1 px-3 pt-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-            Trading
+            Strategy
           </div>
         )}
         <ul className="space-y-0.5">

@@ -1,11 +1,23 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import type { BreakerThreshold } from '@/types';
+
+function resolveApiBase(): string {
+  const raw = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:' && raw.startsWith('http://')) {
+    return raw.replace('http://', 'https://');
+  }
+  return raw;
+}
 
 class ApiClient {
   private baseUrl: string;
   private token: string | null = null;
+  private refreshPromise: Promise<string | null> | null = null;
 
-  constructor(baseUrl: string = API_BASE) {
-    this.baseUrl = baseUrl;
+  constructor(baseUrl?: string) {
+    // Lazy evaluation — resolveApiBase() runs at runtime (in the browser),
+    // NOT at build time. This ensures the http→https upgrade works even
+    // if the bundler pre-evaluates module-level constants.
+    this.baseUrl = baseUrl ?? resolveApiBase();
     if (typeof window !== 'undefined') {
       this.token = localStorage.getItem('access_token');
     }
@@ -22,8 +34,64 @@ class ApiClient {
     }
   }
 
+  setRefreshToken(token: string | null) {
+    if (typeof window !== 'undefined') {
+      if (token) {
+        localStorage.setItem('refresh_token', token);
+      } else {
+        localStorage.removeItem('refresh_token');
+      }
+    }
+  }
+
+  getRefreshToken(): string | null {
+    return typeof window !== 'undefined' ? localStorage.getItem('refresh_token') : null;
+  }
+
   getToken(): string | null {
     return this.token;
+  }
+
+  private clearAuthAndRedirect() {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      this.token = null;
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
+    }
+  }
+
+  private async tryRefresh(): Promise<string | null> {
+    if (this.refreshPromise) return this.refreshPromise;
+
+    const refreshToken = this.getRefreshToken();
+    if (!refreshToken) return null;
+
+    this.refreshPromise = (async () => {
+      try {
+        const res = await fetch(`${this.baseUrl}/api/v1/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+        });
+        if (!res.ok) return null;
+        const json = await res.json();
+        const newToken = json.data?.access_token ?? json.access_token;
+        if (newToken) {
+          this.setToken(newToken);
+          return newToken;
+        }
+        return null;
+      } catch {
+        return null;
+      } finally {
+        this.refreshPromise = null;
+      }
+    })();
+
+    return this.refreshPromise;
   }
 
   private async request<T>(
@@ -41,18 +109,47 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const res = await fetch(`${this.baseUrl}${path}`, {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    let res = await fetch(`${this.baseUrl}${path}`, {
       ...options,
       headers,
+      signal: options.signal ?? controller.signal,
     });
+
+    clearTimeout(timeoutId);
+
+    // On 401, try to refresh the token and retry once
+    if (res.status === 401 && typeof window !== 'undefined' && !path.includes('/auth/')) {
+      const newToken = await this.tryRefresh();
+      if (newToken) {
+        headers['Authorization'] = `Bearer ${newToken}`;
+        const retryController = new AbortController();
+        const retryTimeoutId = setTimeout(() => retryController.abort(), 10000);
+        res = await fetch(`${this.baseUrl}${path}`, {
+          ...options,
+          headers,
+          signal: options.signal ?? retryController.signal,
+        });
+        clearTimeout(retryTimeoutId);
+      } else {
+        this.clearAuthAndRedirect();
+        throw new Error('Session expired. Please log in again.');
+      }
+    }
 
     if (!res.ok) {
       if (res.status === 401 && typeof window !== 'undefined') {
+<<<<<<< HEAD
         const isLoginEndpoint = path.includes('/auth/login') || path.includes('/auth/register');
         if (!isLoginEndpoint && window.location.pathname !== '/login') {
           localStorage.removeItem('access_token');
           window.location.href = '/login';
         }
+=======
+        this.clearAuthAndRedirect();
+>>>>>>> develop
       }
       const error = await res.json().catch(() => ({ message: res.statusText }));
       throw new Error(error?.error?.message || error?.message || `HTTP ${res.status}`);
@@ -100,6 +197,7 @@ class ApiClient {
       expires_in: number;
     }>('/api/v1/auth/login', { email, password });
     this.setToken(data.access_token);
+    this.setRefreshToken(data.refresh_token);
     return data;
   }
 
@@ -109,6 +207,7 @@ class ApiClient {
 
   async logout() {
     this.setToken(null);
+    this.setRefreshToken(null);
   }
 
   // Trading
@@ -159,6 +258,7 @@ class ApiClient {
     }>(`/api/v1/market/ticker/${exchange}/${symbol}`);
   }
 
+<<<<<<< HEAD
   async getMarketTickers(exchange: string, limit: number = 100) {
     return this.get<{
       symbol: string;
@@ -166,6 +266,17 @@ class ApiClient {
       volume: string;
       quote_volume: string | null;
     }[]>(`/api/v1/market/tickers/${exchange}?limit=${limit}`);
+=======
+  async getMarketTickers(exchange: string, limit: number = 200) {
+    return this.get<Array<{
+      symbol: string;
+      last_price: string;
+      price_change_percent: string;
+      quote_volume: string;
+      high_price: string;
+      low_price: string;
+    }>>(`/api/v1/market/tickers/${exchange}?limit=${limit}`);
+>>>>>>> develop
   }
 
   async getMarketSnapshot() {
@@ -194,8 +305,20 @@ class ApiClient {
   }
 
   // Exchange accounts
+<<<<<<< HEAD
   async listSupportedExchanges() {
     return this.get<{ exchanges: string[] }>('/api/v1/exchange-accounts/supported');
+=======
+  async getSupportedExchanges() {
+    return this.get<Array<{
+      id: string;
+      name: string;
+      testnet_url: string;
+      has_testnet: boolean;
+      status: string;
+      requires_passphrase: boolean;
+    }>>('/api/v1/exchange-accounts/supported');
+>>>>>>> develop
   }
 
   async saveExchangeAccount(data: {
@@ -271,6 +394,30 @@ class ApiClient {
     }>>('/api/v1/strategies/');
   }
 
+  async listStrategyModes() {
+    return this.get<Array<{
+      mode: string;
+      label: string;
+      tp_range_min: number;
+      tp_range_max: number;
+      risk_level: string;
+      description: string | null;
+      is_active: boolean;
+      sort_order: number;
+    }>>('/api/v1/strategies/modes');
+  }
+
+  async getGridSpacing(symbol: string, mode: string, exchange?: string) {
+    const qs = new URLSearchParams({ mode });
+    if (exchange) qs.set('exchange', exchange);
+    return this.get<{
+      symbol: string; exchange: string; mode: string;
+      tp_range_pct: number; atr_pct: number; avg_atr_pct: number;
+      adaptive_factor: number; spacing_pct: number;
+      used_fallback: boolean; candle_count: number;
+    }>(`/api/v1/strategies/grid-spacing/${symbol.toUpperCase()}?${qs.toString()}`);
+  }
+
   // Grid Profiles
   async listGridProfiles() {
     return this.get<Array<{
@@ -327,6 +474,11 @@ class ApiClient {
     start_price?: number | null;
     base_currency?: string;
     quote_currency?: string;
+    strategy_mode?: string;
+    selected_coins?: string[];
+    continuation_rate?: number;
+    breaker_enabled?: boolean;
+    auto_start?: boolean;
   }) {
     return this.post<{
       id: string;
@@ -496,7 +648,7 @@ class ApiClient {
     }[]>('/api/v1/mm-presets');
   }
 
-  async calculateMM(presetType: string, capital: number, coinGroupName?: string, customSteps?: number) {
+  async calculateMM(presetType: string, capital: number, coinGroupName: string, customSteps?: number, numCoins?: number) {
     return this.post<{
       buy_amount: string;
       max_coins: number;
@@ -509,6 +661,7 @@ class ApiClient {
       capital,
       coin_group_name: coinGroupName,
       custom_steps: customSteps,
+      num_coins: numCoins,
     });
   }
 
@@ -585,16 +738,92 @@ class ApiClient {
 
   async adminListStrategyModes() {
     return this.get<{
-      mode: string; label: string; daily_range_min: number; daily_range_max: number; risk_level: string;
+      mode: string; label: string; tp_range_min: number; tp_range_max: number; risk_level: string; description: string | null;
     }[]>('/api/v1/admin/strategy-modes');
   }
 
   async adminUpdateStrategyMode(mode: string, data: {
-    label?: string; daily_range_min?: number; daily_range_max?: number; risk_level?: string;
+    label?: string; tp_range_min?: number; tp_range_max?: number; risk_level?: string; description?: string;
   }) {
     return this.put<{
-      mode: string; label: string; daily_range_min: number; daily_range_max: number; risk_level: string;
+      mode: string; label: string; tp_range_min: number; tp_range_max: number; risk_level: string; description: string | null;
     }>(`/api/v1/admin/strategy-modes/${mode}`, data);
+  }
+
+  // ─── Admin: Circuit Breaker Thresholds ──────────────────────
+
+  async adminListBreakerThresholds(params?: { rate?: number; exchange?: string }) {
+    const qs = new URLSearchParams();
+    if (params?.rate !== undefined) qs.set('rate', String(params.rate));
+    if (params?.exchange) qs.set('exchange', params.exchange);
+    const q = qs.toString();
+    return this.get<{
+      id: string; exchange: string; symbol: string; min_continuation_rate: number;
+      threshold_pct: number; continuation_window: number; min_future_drop_pct: number;
+      lookback_days: number; candle_count: number; used_fallback: boolean;
+      note: string | null; screened_at: string | null; created_at: string | null;
+      updated_at: string | null;
+    }[]>(`/api/v1/admin/breaker-thresholds${q ? `?${q}` : ''}`);
+  }
+
+  async adminGetBreakerThreshold(symbol: string, params?: { rate?: number; exchange?: string }) {
+    const qs = new URLSearchParams();
+    if (params?.rate !== undefined) qs.set('rate', String(params.rate));
+    if (params?.exchange) qs.set('exchange', params.exchange);
+    const q = qs.toString();
+    return this.get<any>(`/api/v1/admin/breaker-thresholds/${symbol.toUpperCase()}${q ? `?${q}` : ''}`);
+  }
+
+  async adminBreakerHealthSummary() {
+    return this.get<{
+      total_rows: number; distinct_symbols: number;
+      per_rate: Record<string, { count: number; fallback_count: number }>;
+      oldest_screened_at: string | null; newest_screened_at: string | null;
+      fallback_total: number;
+    }>('/api/v1/admin/breaker-thresholds/health/summary');
+  }
+
+  async adminRescreenBreakerThresholds(data: {
+    symbols?: string[];
+    rates?: number[];
+    lookback_days?: number;
+    continuation_window?: number;
+    min_future_drop_pct?: number;
+  }) {
+    return this.post<{
+      screened_symbols: number; rates: number[];
+      results: Record<string, {
+        symbol_count: number; fallback_count: number; data_driven_count: number; symbols: string[];
+      }>;
+    }>('/api/v1/admin/breaker-thresholds/rescreen', data);
+  }
+
+  async adminUpdateBreakerResumeConfig(
+    symbol: string,
+    params: { rate: number; exchange?: string },
+    data: {
+      resume_mode?: 'ta_confirm' | 'widen_step' | 'trailing_buy';
+      recovery_pct?: number;
+      widen_multiplier?: number;
+    },
+  ) {
+    const qs = new URLSearchParams();
+    qs.set('rate', String(params.rate));
+    if (params.exchange) qs.set('exchange', params.exchange);
+    return this.patch<BreakerThreshold>(
+      `/api/v1/admin/breaker-thresholds/${symbol.toUpperCase()}/resume-config?${qs.toString()}`,
+      data,
+    );
+  }
+
+  // ─── User-facing: Circuit Breaker Thresholds (read-only) ────
+
+  async getBreakerThresholds(symbol: string, params?: { rate?: number; exchange?: string }) {
+    const qs = new URLSearchParams();
+    if (params?.rate !== undefined) qs.set('rate', String(params.rate));
+    if (params?.exchange) qs.set('exchange', params.exchange);
+    const q = qs.toString();
+    return this.get<BreakerThreshold[]>(`/api/v1/breaker-thresholds/${symbol.toUpperCase()}${q ? `?${q}` : ''}`);
   }
 
   // ─── Averaging Config ──────────────────────────────────────
@@ -726,4 +955,24 @@ class ApiClient {
   }
 }
 
-export const api = new ApiClient();
+// Lazy singleton — the ApiClient (and thus resolveApiBase()) is only
+// instantiated on first property access, which happens in the browser
+// at runtime where window.location.protocol is available for the
+// http→https upgrade. This avoids the bundler pre-evaluating the
+// singleton at build time where window is undefined.
+let _apiInstance: ApiClient | null = null;
+
+export const api = new Proxy({} as ApiClient, {
+  get(_target, prop, receiver) {
+    if (!_apiInstance) {
+      _apiInstance = new ApiClient();
+    }
+    return Reflect.get(_apiInstance, prop, receiver);
+  },
+  set(_target, prop, value, receiver) {
+    if (!_apiInstance) {
+      _apiInstance = new ApiClient();
+    }
+    return Reflect.set(_apiInstance, prop, value, receiver);
+  },
+});

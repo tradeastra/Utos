@@ -26,6 +26,7 @@ from core.logging import get_logger
 from engine.execution.execution_engine import ExecutionEngine
 from engine.execution.models import OrderRequest
 from engine.grid.calculator import GridCalculator
+from engine.grid.circuit_breaker import BreakerResumeMode, CircuitBreakerState
 from engine.grid.planner import GridAction, GridPlanner
 from engine.grid.state import GridStateStore, GridStatus
 from engine.profit_lock.engine import ProfitLockEngine
@@ -52,6 +53,10 @@ class GridEngine:
         self._trailing_config: dict[str, dict[str, Decimal]] = {}
         self._ta_configs: dict[str, list[dict]] = {}
         self._ta_candles: dict[str, list[dict]] = {}
+        # Circuit breaker state per instance (daily drop protection).
+        self._breakers: dict[str, CircuitBreakerState] = {}
+        # 15m candle cache per instance, used while the breaker is active.
+        self._ta_candles_15m: dict[str, list[dict]] = {}
 
     # ------------------------------------------------------------------
     # Trailing profit configuration
@@ -120,6 +125,82 @@ class GridEngine:
     ) -> None:
         """Update cached candle data for TA evaluation."""
         self._ta_candles[instance_id] = candles
+
+    # ------------------------------------------------------------------
+    # Circuit breaker configuration
+    # ------------------------------------------------------------------
+
+    def configure_circuit_breaker(
+        self,
+        instance_id: str,
+        critical_threshold: Decimal,
+        min_continuation_rate: Decimal = Decimal("0.80"),
+        resume_mode: BreakerResumeMode = BreakerResumeMode.TA_CONFIRM,
+        recovery_pct: Decimal | None = None,
+        widen_multiplier: Decimal | None = None,
+        day_open_price: Decimal | None = None,
+        ta_15m_configs: list[dict] | None = None,
+    ) -> None:
+        """Install a daily drop circuit breaker for a grid instance.
+
+        Args:
+            instance_id: Trading instance id.
+            critical_threshold: Intraday drop % (positive number) that triggers
+                the breaker — derived from DailyDropAnalyzer.
+            min_continuation_rate: Continuation rate used to derive the
+                threshold (kept for audit/logging).
+            resume_mode: What the bot does after the breaker triggers. See
+                ``BreakerResumeMode``. Defaults to ``TA_CONFIRM`` (legacy:
+                wait for 15m TA reversal). Alternatives:
+                - ``WIDEN_STEP``: keep buying but with grid step × multiplier.
+                - ``TRAILING_BUY``: stop buys, resume after price recovers
+                  ``recovery_pct`` from the intraday low.
+            recovery_pct: For ``TRAILING_BUY`` mode — % recovery from the low
+                required to resume (defaults to 5.0%).
+            widen_multiplier: For ``WIDEN_STEP`` mode — grid step multiplier
+                while active (defaults to 2 = 2× wider spacing).
+            day_open_price: Price at the start of the current UTC day. If
+                ``None``, the next price update will seed it.
+            ta_15m_configs: Optional override for the reversal-confirmation TA
+                configs (only used by ``TA_CONFIRM`` mode; defaults to
+                RSI<30 AND MACD bullish cross on 15m).
+        """
+        from engine.grid.circuit_breaker import DEFAULT_RECOVERY_PCT, DEFAULT_WIDEN_MULTIPLIER
+        breaker = CircuitBreakerState(
+            instance_id=instance_id,
+            critical_threshold=critical_threshold,
+            min_continuation_rate=min_continuation_rate,
+            resume_mode=resume_mode,
+            recovery_pct=recovery_pct if recovery_pct is not None else DEFAULT_RECOVERY_PCT,
+            widen_multiplier=widen_multiplier if widen_multiplier is not None else DEFAULT_WIDEN_MULTIPLIER,
+            day_open_price=day_open_price,
+            ta_15m_configs=ta_15m_configs or [],
+        )
+        self._breakers[instance_id] = breaker
+        logger.info(
+            "Circuit breaker configured",
+            extra={
+                "instance_id": instance_id,
+                "critical_threshold": str(critical_threshold),
+                "min_continuation_rate": str(min_continuation_rate),
+                "resume_mode": resume_mode.value,
+                "recovery_pct": str(breaker.recovery_pct),
+                "widen_multiplier": str(breaker.widen_multiplier),
+                "day_open": str(day_open_price) if day_open_price else "pending",
+            },
+        )
+
+    def update_ta_candles_15m(
+        self,
+        instance_id: str,
+        candles: list[dict],
+    ) -> None:
+        """Update the 15m candle cache used while the breaker is active."""
+        self._ta_candles_15m[instance_id] = candles
+
+    def get_circuit_breaker(self, instance_id: str) -> CircuitBreakerState | None:
+        """Return the breaker state for an instance (or ``None`` if none)."""
+        return self._breakers.get(instance_id)
 
     # ------------------------------------------------------------------
     # Grid lifecycle
@@ -259,7 +340,17 @@ class GridEngine:
     # ------------------------------------------------------------------
 
     async def on_price_update(self, instance_id: str, price: Decimal) -> None:
-        """Handle a price update from Market Hub — place/cancel orders and forward to profit lock."""
+        """Handle a price update from Market Hub — place/cancel orders and forward to profit lock.
+
+        The daily drop circuit breaker (if configured) is evaluated first:
+          - On a new UTC day the breaker is rolled over and ``day_open`` is set.
+          - If intraday drop reaches the critical threshold, the breaker
+            triggers: pending buys are cancelled and no new buys are placed.
+            Sells on already-filled levels still proceed.
+          - While triggered, buys are only allowed after the 15m TA reversal
+            gate (RSI<30 AND MACD bullish cross by default) passes. On pass,
+            the breaker resets and the grid resumes normal operation.
+        """
         state = self._store.get(instance_id)
         if state is None:
             return
@@ -267,13 +358,138 @@ class GridEngine:
             return
 
         state.current_price = price
-        plan = self._planner.plan(instance_id, price)
 
-        # TA gate: check if buy orders should be filtered by TA config
+        # ── Circuit breaker: day rollover & trigger check ──────────────
+        breaker = self._breakers.get(instance_id)
+        breaker_just_triggered = False
+        if breaker is not None:
+            breaker.check_new_day(price)
+            if breaker.should_trigger(price):
+                breaker.trigger(price)
+                breaker_just_triggered = True
+                # Cancel every pending buy so we stop averaging into the drop.
+                await self._cancel_all_pending_buys(instance_id)
+
+        # Pass breaker context to the planner so WIDEN_STEP mode can skip
+        # buy levels (widen the grid spacing) while the breaker is active.
+        breaker_active = breaker is not None and breaker.triggered
+        widen_mult = (
+            breaker.widen_multiplier
+            if breaker_active
+            and breaker.resume_mode == BreakerResumeMode.WIDEN_STEP
+            else Decimal("1")
+        )
+        plan = self._planner.plan(
+            instance_id,
+            price,
+            breaker_active=breaker_active,
+            widen_multiplier=widen_mult,
+        )
+
+        # ── TA gate / resume logic ────────────────────────────────────
+        # While the breaker is active, the resume behavior depends on its
+        # ``resume_mode``:
+        #   - TA_CONFIRM: override the TA gate with the 15m reversal-confirmation
+        #     configs. A pass resets the breaker and allows exactly one buy at
+        #     the current price; the grid then resumes normally.
+        #   - WIDEN_STEP: do NOT block buys — keep placing buys but with the
+        #     grid step widened by ``widen_multiplier``. The breaker stays
+        #     triggered (so the widened step remains in effect) until TA 15m
+        #     confirms a reversal OR a new UTC day rolls over.
+        #   - TRAILING_BUY: block buys until price recovers ``recovery_pct``
+        #     from the intraday low. On recovery, reset the breaker and resume.
         ta_configs = self._ta_configs.get(instance_id)
         ta_candles = self._ta_candles.get(instance_id)
         ta_gate_passed = True
-        if ta_configs and ta_candles:
+
+        if breaker is not None and breaker.triggered:
+            # Track the intraday low for TRAILING_BUY mode (cheap to always do).
+            breaker.update_bottom(price)
+
+            if breaker.resume_mode == BreakerResumeMode.WIDEN_STEP:
+                # Keep buying — do not block. The widened step is applied by
+                # the planner when it sees the breaker is active (TODO: planner
+                # integration). For now, buys proceed normally; the breaker
+                # resets only on TA 15m confirmation or new day.
+                ta_gate_passed = True
+                # Still try TA 15m to reset the breaker (back to normal step).
+                from services.ta_engine import TAEngine
+                ta_engine = TAEngine()
+                breaker_configs = breaker.get_ta_15m_configs()
+                breaker_candles = self._ta_candles_15m.get(instance_id)
+                if breaker_configs and breaker_candles:
+                    ta_result = ta_engine.evaluate(breaker_configs, breaker_candles, price)
+                    if ta_result.passed:
+                        breaker.reset()
+                        logger.info(
+                            "Circuit breaker cleared by TA 15m (WIDEN_STEP → normal step)",
+                            extra={
+                                "instance_id": instance_id,
+                                "price": str(price),
+                                "ta_summary": ta_result.summary,
+                            },
+                        )
+            elif breaker.resume_mode == BreakerResumeMode.TRAILING_BUY:
+                # Block buys until price recovers recovery_pct from the low.
+                if breaker.should_resume_trailing(price):
+                    breaker.reset()
+                    ta_gate_passed = True
+                    logger.info(
+                        "Circuit breaker cleared by trailing recovery",
+                        extra={
+                            "instance_id": instance_id,
+                            "price": str(price),
+                            "bottom_price": str(breaker.bottom_price),
+                            "recovery_pct": str(breaker.recovery_pct),
+                        },
+                    )
+                else:
+                    ta_gate_passed = False
+                    logger.debug(
+                        "Circuit breaker active (TRAILING_BUY) — waiting for recovery",
+                        extra={
+                            "instance_id": instance_id,
+                            "price": str(price),
+                            "bottom_price": str(breaker.bottom_price)
+                            if breaker.bottom_price
+                            else "none",
+                        },
+                    )
+            else:  # BreakerResumeMode.TA_CONFIRM (default / legacy)
+                from services.ta_engine import TAEngine
+                ta_engine = TAEngine()
+                breaker_configs = breaker.get_ta_15m_configs()
+                breaker_candles = self._ta_candles_15m.get(instance_id)
+                if breaker_configs and breaker_candles:
+                    ta_result = ta_engine.evaluate(breaker_configs, breaker_candles, price)
+                    ta_gate_passed = ta_result.passed
+                    if ta_gate_passed:
+                        # Reversal confirmed — clear the breaker, resume normal grid.
+                        breaker.reset()
+                        logger.info(
+                            "Circuit breaker cleared by TA 15m confirmation",
+                            extra={
+                                "instance_id": instance_id,
+                                "price": str(price),
+                                "ta_summary": ta_result.summary,
+                            },
+                        )
+                    else:
+                        logger.info(
+                            "Circuit breaker active — TA 15m gate blocked buy",
+                            extra={
+                                "instance_id": instance_id,
+                                "ta_summary": ta_result.summary,
+                            },
+                        )
+                else:
+                    # No 15m candles available yet — stay protected, block buys.
+                    ta_gate_passed = False
+                    logger.debug(
+                        "Circuit breaker active — no 15m candles, buys blocked",
+                        extra={"instance_id": instance_id},
+                    )
+        elif ta_configs and ta_candles:
             from services.ta_engine import TAEngine
             ta_engine = TAEngine()
             ta_result = ta_engine.evaluate(ta_configs, ta_candles, price)
@@ -287,16 +503,25 @@ class GridEngine:
                     },
                 )
 
+        # ── Execute plan ───────────────────────────────────────────────
+        # When the breaker just triggered we already cancelled pending buys;
+        # skip placing new buys this tick (sells from the plan still run).
         for action in plan.actions:
             if action.action == "cancel":
                 await self._cancel_order(instance_id, action)
-            elif action.action == "place_buy" and not ta_gate_passed:
-                # Skip buy orders when TA gate fails — only skip buys, not sells
-                logger.debug(
-                    "TA gate skipped buy order",
-                    extra={"instance_id": instance_id, "level": action.level},
-                )
-                continue
+            elif action.action == "place_buy":
+                if breaker_just_triggered or not ta_gate_passed:
+                    logger.debug(
+                        "Buy skipped (breaker/TA gate)",
+                        extra={
+                            "instance_id": instance_id,
+                            "level": action.level,
+                            "breaker_just_triggered": breaker_just_triggered,
+                            "ta_gate_passed": ta_gate_passed,
+                        },
+                    )
+                    continue
+                await self._place_order(instance_id, action)
             else:
                 await self._place_order(instance_id, action)
 
@@ -312,6 +537,33 @@ class GridEngine:
                             f"ProfitLock price update failed for level {lv.level}: {exc}",
                             extra={"instance_id": instance_id, "grid_level": lv.level},
                         )
+
+    async def _cancel_all_pending_buys(self, instance_id: str) -> None:
+        """Cancel every WAITING grid level's open buy order for an instance."""
+        state = self._store.get(instance_id)
+        if state is None:
+            return
+        exchange_account_id = state.exchange_account_id
+        levels = self._store.list_levels(instance_id)
+        for lv in levels:
+            if lv.status == GridLevelStatus.WAITING and lv.buy_order_id:
+                try:
+                    await self._exec.cancel_order(
+                        exchange_account_id, lv.buy_order_id
+                    )
+                    lv.buy_order_id = None
+                    logger.info(
+                        "Cancelled pending buy (circuit breaker)",
+                        extra={
+                            "instance_id": instance_id,
+                            "level": lv.level,
+                        },
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        f"Failed to cancel pending buy for level {lv.level}: {exc}",
+                        extra={"instance_id": instance_id, "level": lv.level},
+                    )
 
     async def on_buy_filled(
         self,

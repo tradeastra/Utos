@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
@@ -256,4 +257,10 @@ export default function SubscriptionPage() {
       </div>
     </>
   );
+=======
+import { redirect } from 'next/navigation';
+
+export default function SubscriptionPage() {
+  redirect('/dashboard/billing?tab=plans');
+>>>>>>> develop
 }

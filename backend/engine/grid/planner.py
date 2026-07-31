@@ -49,18 +49,52 @@ class GridPlanner:
         self,
         instance_id: str,
         current_price: Decimal,
+        breaker_active: bool = False,
+        widen_multiplier: Decimal = Decimal("1"),
     ) -> GridPlan:
-        """Produce a plan of actions for the grid given the current price."""
+        """Produce a plan of actions for the grid given the current price.
+
+        Args:
+            instance_id: Grid instance id.
+            current_price: Latest market price.
+            breaker_active: Whether the daily drop circuit breaker is currently
+                triggered. When True and ``widen_multiplier > 1``, buy actions
+                are only placed at every Nth level (N = widen_multiplier) so the
+                grid averages more conservatively into the drop. Sell actions
+                are unaffected (exits always proceed).
+            widen_multiplier: Grid step multiplier while the breaker is active
+                (e.g. 2 = place buys at every 2nd level = 2× wider spacing).
+                Ignored when ``breaker_active`` is False.
+        """
         levels = self._store.list_levels(instance_id)
         if not levels:
             return GridPlan()
+
+        # When the breaker is active with a widened step, skip buy levels whose
+        # index is not a multiple of the multiplier. E.g. multiplier=2 → only
+        # levels 0, 2, 4, ... get buys (every other level = 2× wider spacing).
+        skip_buy_levels: set[int] | None = None
+        if breaker_active and widen_multiplier and widen_multiplier > 1:
+            mult_int = int(widen_multiplier)
+            if mult_int > 1:
+                skip_buy_levels = {
+                    lv.level for lv in levels if lv.level % mult_int != 0
+                }
 
         actions: list[GridAction] = []
 
         for lv in levels:
             action = self._plan_level(lv, current_price)
-            if action is not None:
-                actions.append(action)
+            if action is None:
+                continue
+            # WIDEN_STEP: skip buys at non-multiple levels. Sells always proceed.
+            if (
+                skip_buy_levels is not None
+                and action.action == "place_buy"
+                and action.level in skip_buy_levels
+            ):
+                continue
+            actions.append(action)
 
         return GridPlan(actions=actions)
 

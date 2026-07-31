@@ -28,6 +28,7 @@ class TradingProcess:
     worker_id: str
     lock_value: str
     redis: Any = field(repr=False)
+    subscription_id: str | None = None  # MarketHub subscription id (for unsubscribe)
 
     def set_status(self, status: TradingInstanceStatus) -> None:
         """Update both runtime status and process memory."""

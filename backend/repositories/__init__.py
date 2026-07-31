@@ -4,6 +4,7 @@ Repository package for UTOS Trading Engine.
 
 from .affiliate_repository import AffiliateRepository
 from .balance_repository import BalanceRepository
+from .breaker_threshold_repository import BreakerThresholdRepository
 from .coin_group_repository import CoinGroupRepository
 from .mm_preset_repository import MMPresetRepository
 from .base import IRepository
@@ -36,4 +37,5 @@ __all__ = [
     "UserAddOnRepository",
     "CoinGroupRepository",
     "MMPresetRepository",
+    "BreakerThresholdRepository",
 ]

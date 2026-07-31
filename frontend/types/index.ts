@@ -188,7 +188,7 @@ export type StrategyMode = 'A' | 'B' | 'C' | 'D' | 'U';
 export interface StrategyModeInfo {
   mode: StrategyMode;
   label: string;
-  dailyRange: string;
+  tpRange: string;
   riskLevel: string;
 }
 
@@ -301,3 +301,88 @@ export interface TATemplate {
   description: string;
   configs: TAConfig[];
 }
+
+// ─── Circuit Breaker Thresholds ────────────────────────────────────
+
+export interface BreakerThreshold {
+  id: string;
+  exchange: string;
+  symbol: string;
+  min_continuation_rate: number;
+  threshold_pct: number;
+  continuation_window: number;
+  min_future_drop_pct: number;
+  lookback_days: number;
+  candle_count: number;
+  used_fallback: boolean;
+  // Resume behavior after the breaker triggers.
+  resume_mode: 'ta_confirm' | 'widen_step' | 'trailing_buy';
+  recovery_pct: number;  // for trailing_buy mode
+  widen_multiplier: number;  // for widen_step mode
+  note: string | null;
+  screened_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+// Resume mode labels for UI display.
+export type BreakerResumeMode = 'ta_confirm' | 'widen_step' | 'trailing_buy';
+
+export const BREAKER_RESUME_MODES: {
+  value: BreakerResumeMode;
+  label: string;
+  desc: string;
+}[] = [
+  {
+    value: 'ta_confirm',
+    label: 'TA Confirm — wait for reversal',
+    desc: 'Stop buying. Resume only when 15m TA (RSI < 30 + MACD bullish cross) confirms a reversal. Most conservative.',
+  },
+  {
+    value: 'widen_step',
+    label: 'Widen Step — keep buying, slower',
+    desc: 'Keep averaging but with 2× wider grid spacing (buy at every 2nd level). Slower accumulation into the drop.',
+  },
+  {
+    value: 'trailing_buy',
+    label: 'Trailing Buy — resume on recovery',
+    desc: 'Stop buying. Resume when price recovers 5% from the intraday low. Conservative re-entry after a bounce.',
+  },
+];
+
+// ─── Grid Spacing (ATR-based auto-calculation) ──────────────────────
+
+export interface GridSpacingResult {
+  symbol: string;
+  exchange: string;
+  mode: string;
+  tp_range_pct: number;
+  atr_pct: number;
+  avg_atr_pct: number;
+  adaptive_factor: number;
+  spacing_pct: number;
+  used_fallback: boolean;
+  candle_count: number;
+}
+
+export interface BreakerHealthSummary {
+  total_rows: number;
+  distinct_symbols: number;
+  per_rate: Record<string, { count: number; fallback_count: number }>;
+  oldest_screened_at: string | null;
+  newest_screened_at: string | null;
+  fallback_total: number;
+}
+
+export interface BreakerRescreenResult {
+  screened_symbols: number;
+  rates: number[];
+  results: Record<string, {
+    symbol_count: number;
+    fallback_count: number;
+    data_driven_count: number;
+    symbols: string[];
+  }>;
+}
+
+export type ContinuationRate = 0.70 | 0.80 | 0.90;

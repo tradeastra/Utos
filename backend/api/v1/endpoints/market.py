@@ -343,6 +343,55 @@ async def test_connection(exchange: str) -> TestConnectionResponse:
         )
 
 
+class TickerListItem(BaseModel):
+    symbol: str
+    last_price: str
+    price_change_percent: str
+    quote_volume: str
+    high_price: str
+    low_price: str
+
+
+@router.get("/tickers/{exchange}", response_model=list[TickerListItem])
+async def get_all_tickers(
+    exchange: str,
+    limit: int = Query(200, ge=1, le=1000, description="Maximum tickers to return"),
+) -> list[TickerListItem]:
+    """Return 24h tickers for all symbols on an exchange, sorted by quote volume."""
+    hub = _get_hub()
+    connector = hub._connectors.get(exchange.lower())
+    if connector is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Exchange {exchange} not registered in MarketHub",
+        )
+
+    adapter = connector.adapter
+    try:
+        data = adapter._parse_json(
+            await adapter.http.get("/api/v3/ticker/24hr")
+        )
+        items = [
+            TickerListItem(
+                symbol=item["symbol"],
+                last_price=item.get("lastPrice", "0"),
+                price_change_percent=item.get("priceChangePercent", "0"),
+                quote_volume=item.get("quoteVolume", "0"),
+                high_price=item.get("highPrice", "0"),
+                low_price=item.get("lowPrice", "0"),
+            )
+            for item in data
+            if isinstance(item, dict) and "symbol" in item
+        ]
+        items.sort(key=lambda t: float(t.quote_volume), reverse=True)
+        return items[:limit]
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to fetch tickers: {exc}",
+        )
+
+
 @router.get("/snapshot", response_model=HubSnapshotResponse)
 async def get_hub_snapshot() -> HubSnapshotResponse:
     hub = _get_hub()

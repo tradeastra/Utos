@@ -68,10 +68,11 @@ class TestGridCalculatorLevels:
             investment_per_grid=Decimal("100"),
         )
         spacing = Decimal("10")  # (100-50)/5 = 10
+        tp_mult = GridCalculator.TP_MULTIPLIER  # 2.5
         for i, lv in enumerate(levels):
             expected_buy = Decimal("50") + spacing * Decimal(i)
             assert lv.buy_price == expected_buy
-            expected_sell = expected_buy + spacing
+            expected_sell = expected_buy + spacing * tp_mult
             if expected_sell > Decimal("100"):
                 expected_sell = Decimal("100")
             assert lv.sell_price == expected_sell

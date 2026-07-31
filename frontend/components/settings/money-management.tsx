@@ -10,7 +10,11 @@ interface MoneyManagementProps {
   presets: MMPreset[];
   capital: number;
   selectedPreset: string;
+<<<<<<< HEAD
   selectedCoinGroup?: string;
+=======
+  coinGroupName?: string;
+>>>>>>> develop
   onCapitalChange: (capital: number) => void;
   onPresetChange: (preset: string) => void;
   onCalculation?: (result: MMCalculationResult) => void;
@@ -20,13 +24,18 @@ export function MoneyManagementSection({
   presets,
   capital,
   selectedPreset,
+<<<<<<< HEAD
   selectedCoinGroup,
+=======
+  coinGroupName,
+>>>>>>> develop
   onCapitalChange,
   onPresetChange,
   onCalculation,
 }: MoneyManagementProps) {
   const [calculating, setCalculating] = useState(false);
   const [calcResult, setCalcResult] = useState<MMCalculationResult | null>(null);
+  const [calcError, setCalcError] = useState<string | null>(null);
 
   const selected = presets.find((p) => p.preset_type === selectedPreset);
   const canShowPresets = capital > 0 && !!selectedCoinGroup;
@@ -35,13 +44,24 @@ export function MoneyManagementSection({
 
   async function handleCalculate() {
     if (!selected || !capital) return;
+    if (!coinGroupName) {
+      setCalcError('Select a coin group first — max coins is derived from the coin group.');
+      return;
+    }
     setCalculating(true);
+    setCalcError(null);
     try {
+<<<<<<< HEAD
       const result = await api.calculateMM(selected.preset_type, capital, selectedCoinGroup);
+=======
+      const result = await api.calculateMM(selected.preset_type, capital, coinGroupName);
+>>>>>>> develop
       setCalcResult(result);
       onCalculation?.(result);
-    } catch {
+    } catch (err) {
       setCalcResult(null);
+      const message = err instanceof Error ? err.message : 'Calculation failed';
+      setCalcError(message);
     } finally {
       setCalculating(false);
     }
@@ -67,6 +87,7 @@ export function MoneyManagementSection({
         </div>
       </div>
 
+<<<<<<< HEAD
       {/* MM Preset — only visible after capital is entered and coins are selected */}
       {canShowPresets && (
         <div className="space-y-3">
@@ -127,20 +148,74 @@ export function MoneyManagementSection({
               : 'Select coins to see available MM presets.'}
         </div>
       )}
+=======
+      {/* MM Preset */}
+      <div>
+        <label className="mb-1 text-sm font-medium">Money Management Preset</label>
+        <div className="grid gap-2 grid-cols-2 sm:grid-cols-4">
+          {presets.map((p) => (
+            <button
+              key={p.preset_type}
+              onClick={() => onPresetChange(p.preset_type)}
+              className={cn(
+                'rounded-xl border p-3 text-left transition-all active:scale-[0.98]',
+                selectedPreset === p.preset_type ? 'border-2 border-violet-500 bg-violet-500/10' : 'border-border bg-card hover:bg-accent',
+              )}
+            >
+              <div className="font-semibold">{p.name}</div>
+              <div className="text-[10px] text-muted-foreground">{p.description}</div>
+              {p.min_capital && (
+                <div className="mt-1 text-[10px] font-medium text-violet-600 dark:text-violet-400">
+                  Min ${Number(p.min_capital).toLocaleString()}
+                </div>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Calculate Button */}
+      <button
+        disabled={!selected || !capital || !coinGroupName || calculating}
+        onClick={handleCalculate}
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-violet-700 disabled:opacity-50"
+      >
+        <Calculator className="h-4 w-4" />
+        {calculating ? 'Calculating...' : 'Calculate Allocation'}
+      </button>
+>>>>>>> develop
+
+      {!coinGroupName && (
+        <p className="text-xs text-amber-600 dark:text-amber-400">
+          Select a coin group above to enable allocation calculation.
+        </p>
+      )}
+
+      {selected && capital > 0 && Number(selected.min_capital) > 0 && capital < Number(selected.min_capital) && (
+        <p className="text-xs text-amber-600 dark:text-amber-400">
+          Capital is below the {selected.name} minimum of ${Number(selected.min_capital).toLocaleString()}.
+        </p>
+      )}
+
+      {calcError && (
+        <div className="rounded-lg bg-red-500/10 p-3 text-xs text-red-600 dark:text-red-400">
+          {calcError}
+        </div>
+      )}
 
       {/* Calculation Output */}
       {calcResult && (
         <div className="grid gap-3 rounded-xl border border-violet-500/20 bg-violet-500/10 p-4 sm:grid-cols-3">
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Per Buy</div>
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Per Layer</div>
             <div className="text-lg font-semibold tabular-nums">${Number(calcResult.buy_amount).toFixed(2)}</div>
           </div>
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Max Coins</div>
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Coins (from group)</div>
             <div className="text-lg font-semibold tabular-nums">{calcResult.max_coins}</div>
           </div>
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Steps</div>
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Layers / coin</div>
             <div className="text-lg font-semibold tabular-nums">{calcResult.steps}</div>
           </div>
         </div>

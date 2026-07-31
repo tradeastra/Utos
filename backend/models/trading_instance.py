@@ -59,6 +59,16 @@ class TradingInstance(Base):
     )
     selected_coins: Mapped[list[str] | None] = mapped_column(JSONBCompat(), nullable=True)
 
+    # Circuit breaker config (chosen by user in setup wizard).
+    # continuation_rate: 0.70 / 0.80 / 0.90 — selects which breaker threshold tier to use.
+    # breaker_enabled: master toggle.
+    continuation_rate: Mapped[float | None] = mapped_column(
+        Numeric(3, 2), nullable=True
+    )
+    breaker_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=True, nullable=False
+    )
+
     mm_preset_id: Mapped[uuid.UUID | None] = mapped_column(
         GUID(), ForeignKey("mm_presets.id"), nullable=True
     )

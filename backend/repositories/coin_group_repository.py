@@ -32,3 +32,10 @@ class CoinGroupRepository(IRepository[CoinGroup]):
             )
         )
         return list(result.scalars().all())
+
+    async def get_by_name(self, name: str) -> CoinGroup | None:
+        """Look up a coin group by its exact name (built-in or user-owned)."""
+        result = await self._session.execute(
+            select(CoinGroup).where(CoinGroup.name == name)
+        )
+        return result.scalar_one_or_none()

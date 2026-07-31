@@ -122,7 +122,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     Falls back to allowing all requests if Redis is unavailable.
     Returns 429 with Retry-After header when limit exceeded.
+
+    Includes a circuit breaker: after 3 consecutive Redis failures,
+    skips rate limiting for 30 seconds before retrying.
     """
+
+    _redis_failures: int = 0
+    _circuit_open_until: float = 0.0
 
     async def dispatch(
         self,
@@ -135,6 +141,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         limit = RATE_LIMITS.get(path, DEFAULT_API_LIMIT)
         client_ip = request.client.host if request.client else "unknown"
+
+        # Circuit breaker: skip Redis if it has been failing
+        now = time.time()
+        if now < self._circuit_open_until:
+            return await call_next(request)
 
         redis = self._get_redis()
         if redis is None:
@@ -152,6 +163,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             pipe.expire(key, window_seconds)
             results = await pipe.execute()
             count = results[2]
+
+            # Reset failure counter on success
+            self._redis_failures = 0
 
             if count > limit:
                 logger.warning(
@@ -175,7 +189,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 )
 
         except Exception as exc:  # noqa: BLE001
-            logger.warning(f"Rate limit check failed: {exc}")
+            self._redis_failures += 1
+            if self._redis_failures >= 3:
+                self._circuit_open_until = time.time() + 30
+                logger.warning(
+                    f"Redis circuit breaker opened for 30s after {self._redis_failures} failures"
+                )
+            else:
+                logger.warning(f"Rate limit check failed ({self._redis_failures}/3): {exc}")
 
         return await call_next(request)
 

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -642,4 +643,10 @@ export default function TradePage() {
       </Card>
     </div>
   );
+=======
+import { redirect } from 'next/navigation';
+
+export default function TradePage() {
+  redirect('/dashboard/strategy-setting?tab=positions');
+>>>>>>> develop
 }

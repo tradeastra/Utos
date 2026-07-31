@@ -56,7 +56,10 @@ class TestTokenManager:
     def setup_method(self):
         self.tm = TokenManager()
 
+<<<<<<< HEAD
     @pytest.mark.asyncio
+=======
+>>>>>>> develop
     async def test_create_and_verify_access_token(self):
         token = self.tm.create_access_token({"sub": "user-123", "email": "a@b.com"})
         assert isinstance(token, str)
@@ -64,14 +67,20 @@ class TestTokenManager:
         assert payload["sub"] == "user-123"
         assert payload["type"] == "access"
 
+<<<<<<< HEAD
     @pytest.mark.asyncio
+=======
+>>>>>>> develop
     async def test_create_and_verify_refresh_token(self):
         token = self.tm.create_refresh_token({"sub": "user-123"})
         payload = await self.tm.verify_token(token, token_type="refresh")
         assert payload["sub"] == "user-123"
         assert payload["type"] == "refresh"
 
+<<<<<<< HEAD
     @pytest.mark.asyncio
+=======
+>>>>>>> develop
     async def test_expired_token_raises_authentication_error(self):
         from datetime import timedelta
 
@@ -81,7 +90,10 @@ class TestTokenManager:
         with pytest.raises(AuthenticationError):
             await self.tm.verify_token(token)
 
+<<<<<<< HEAD
     @pytest.mark.asyncio
+=======
+>>>>>>> develop
     async def test_wrong_token_type_raises_authentication_error(self):
         token = self.tm.create_access_token({"sub": "x"})
         with pytest.raises(AuthenticationError):

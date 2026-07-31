@@ -5,10 +5,12 @@ from typing import Any
 from uuid import UUID
 
 from api.v1.endpoints.users import get_current_user_from_token
+from core.exceptions import ValidationError
 from database.base import get_db
 from fastapi import APIRouter, Depends, HTTPException, status
 from models.mm_preset import MMPreset
 from pydantic import BaseModel, ConfigDict, Field
+from repositories.coin_group_repository import CoinGroupRepository
 from repositories.mm_preset_repository import MMPresetRepository
 from schemas.auth import UserResponse
 from services.mm_calculator import BUILTIN_PRESETS, MMCalculator
@@ -19,25 +21,61 @@ router = APIRouter()
 _mm_calc = MMCalculator()
 
 
+async def _ensure_builtin_coin_groups(db: AsyncSession) -> None:
+    """Seed built-in coin groups if none exist (needed for name lookup in /calculate)."""
+    from api.v1.endpoints.coin_groups import _ensure_builtin_groups
+
+    await _ensure_builtin_groups(db)
+
+
 async def _ensure_builtin_presets(db: AsyncSession):
-    """Seed built-in MM presets if none exist."""
+    """Seed built-in MM presets if missing, and sync their fields with the
+    source of truth in services.mm_calculator.BUILTIN_PRESETS.
+
+    Self-healing: if a built-in row already exists but its description /
+    allowed_coin_groups / steps / min_capital drifted from BUILTIN_PRESETS
+    (e.g. because a rename migration forgot to update the description),
+    the row is updated in place. This prevents stale labels like
+    "3 Kings / 5 Kings" from persisting in the DB.
+    """
     repo = MMPresetRepository(db)
     existing = await repo.get_builtin_presets()
-    if existing:
-        return
+    existing_by_type = {p.preset_type: p for p in existing}
+
     for key, p in BUILTIN_PRESETS.items():
-        db.add(MMPreset(
-            name=p["name"],
-            preset_type=key,
-            steps=p["steps"],
-            min_capital=p["min_capital"],
-            max_capital=p["max_capital"],
-            description=p["description"],
-            allowed_coin_groups=p["allowed_coin_groups"],
-            is_builtin=True,
-            is_active=True,
-            user_id=None,
-        ))
+        row = existing_by_type.get(key)
+        if row is None:
+            db.add(MMPreset(
+                name=p["name"],
+                preset_type=key,
+                steps=p["steps"],
+                min_capital=p["min_capital"],
+                max_capital=p["max_capital"],
+                description=p["description"],
+                allowed_coin_groups=p["allowed_coin_groups"],
+                is_builtin=True,
+                is_active=True,
+                user_id=None,
+            ))
+            continue
+        # Sync drifted fields on existing built-in rows.
+        drifted = (
+            row.description != p["description"]
+            or row.allowed_coin_groups != p["allowed_coin_groups"]
+            or row.steps != p["steps"]
+            or row.name != p["name"]
+        )
+        # min_capital is Numeric; compare as Decimal to avoid float noise.
+        if str(row.min_capital) != str(p["min_capital"]):
+            drifted = True
+        if drifted:
+            row.name = p["name"]
+            row.steps = p["steps"]
+            row.min_capital = p["min_capital"]
+            row.max_capital = p["max_capital"]
+            row.description = p["description"]
+            row.allowed_coin_groups = p["allowed_coin_groups"]
+
     await db.commit()
 
 
@@ -59,8 +97,9 @@ class MMPresetResponse(BaseModel):
 class MMCalculationRequest(BaseModel):
     preset_type: str = Field(..., description="mm30, mm50, mm70, or custom")
     capital: float = Field(..., gt=0, description="Total capital to allocate")
-    coin_group_name: str | None = Field(None, description="Coin group name for compatibility validation")
+    coin_group_name: str = Field(..., description="Coin group name — required to derive max_coins for the per-coin DCA allocation")
     custom_steps: int | None = Field(None, ge=1, le=200, description="Steps for custom preset")
+    num_coins: int | None = Field(None, ge=1, description="Number of coins the user actually selected — overrides coin group max so capital is allocated across only the chosen coins")
 
 
 class MMCalculationResponse(BaseModel):
@@ -113,15 +152,30 @@ async def calculate_mm(
     current_user: UserResponse = Depends(get_current_user_from_token),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """Calculate buy amount, max coins, and volume filter from preset + capital."""
+    """Calculate buy amount, max coins, and volume filter from preset + capital.
+
+    The coin group is REQUIRED: each coin receives `steps` DCA layers, so the
+    per-layer buy amount is `capital / (steps * coin_group.max_coins)`.
+    """
+    await _ensure_builtin_coin_groups(db)
+    group_repo = CoinGroupRepository(db)
+    coin_group = await group_repo.get_by_name(data.coin_group_name)
+    if coin_group is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Coin group '{data.coin_group_name}' not found",
+        )
+
     try:
         result = _mm_calc.calculate(
             preset_type=data.preset_type,
             capital=Decimal(str(data.capital)),
             coin_group_name=data.coin_group_name,
+            coin_group_max_coins=coin_group.max_coins,
             custom_steps=data.custom_steps,
+            num_coins=data.num_coins,
         )
-    except ValueError as exc:
+    except ValidationError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),

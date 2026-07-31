@@ -7,12 +7,12 @@ app = 'utos-staging-backend'
 primary_region = 'sin'
 
 [build]
-  dockerfile = 'docker/backend.Dockerfile'
+  dockerfile = 'Dockerfile.backend'
 
 [env]
   APP_ENV = 'staging'
   BACKUP_DIR = '/tmp/backups'
-  CORS_ORIGINS = '["https://utos-staging-frontend.fly.dev","http://localhost:3000"]'
+  CORS_ORIGINS = 'https://utos-staging-frontend.fly.dev,http://localhost:3000'
   DEBUG = 'false'
   LOG_FORMAT = 'json'
   OTEL_ENABLED = 'false'

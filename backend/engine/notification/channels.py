@@ -80,7 +80,7 @@ class EmailChannel(NotificationChannel):
 
 
 class TelegramChannel(NotificationChannel):
-    """Telegram notification channel."""
+    """Telegram notification channel — sends messages via Telegram Bot API."""
 
     @property
     def channel_name(self) -> str:

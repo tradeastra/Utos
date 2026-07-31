@@ -1,54 +1,7 @@
-'use client';
-
-import { useCallback, useEffect, useState } from 'react';
-import { api } from '@/services/api';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { formatNumber } from '@/lib/utils';
-
-interface GridLevelData {
-  index: number;
-  price: number;
-  buy_price: number;
-  sell_price: number;
-  side: string;
-  status: string;
-  quantity: number;
-  order_id: string | null;
-}
-
-interface GridStateData {
-  instance_id: string;
-  status: string;
-  symbol: string;
-  current_price: number | null;
-  upper_price: number;
-  lower_price: number;
-  grid_count: number;
-  grid_spacing: number;
-  investment_per_grid: number;
-  total_cycles: number;
-  total_profit: number;
-  levels: GridLevelData[];
-}
-
-interface TradingInstance {
-  id: string;
-  status: string;
-  symbol: string;
-  total_investment: number;
-}
-
-const statusColors: Record<string, 'default' | 'secondary' | 'success' | 'destructive' | 'warning'> = {
-  waiting: 'secondary',
-  open: 'default',
-  filled: 'success',
-  cancelled: 'destructive',
-  tp_hit: 'warning',
-};
+import { redirect } from 'next/navigation';
 
 export default function GridPage() {
+<<<<<<< HEAD
   const [instances, setInstances] = useState<TradingInstance[]>([]);
   const [selectedInstance, setSelectedInstance] = useState('');
   const [gridState, setGridState] = useState<GridStateData | null>(null);
@@ -207,4 +160,7 @@ export default function GridPage() {
       )}
     </div>
   );
+=======
+  redirect('/dashboard/strategy-setting?tab=grid');
+>>>>>>> develop
 }

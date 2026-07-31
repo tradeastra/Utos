@@ -11,6 +11,10 @@ from typing import Any
 import redis.asyncio as aioredis
 from redis.retry import Retry
 from redis.backoff import ExponentialBackoff
+<<<<<<< HEAD
+=======
+from redis.exceptions import ConnectionError, TimeoutError
+>>>>>>> develop
 from core.config import get_redis_url
 from core.logging import get_logger
 
@@ -31,8 +35,14 @@ async def init_redis(redis_url: str | None = None) -> aioredis.Redis:  # type: i
         socket_timeout=2,
         socket_connect_timeout=2,
         retry_on_timeout=True,
+<<<<<<< HEAD
         retry_on_error=[aioredis.ConnectionError, aioredis.TimeoutError],
         retry=Retry(ExponentialBackoff(), 2),
+=======
+        retry_on_error=[ConnectionError, TimeoutError],
+        retry=Retry(ExponentialBackoff(), 2),
+        ssl_cert_reqs="none",
+>>>>>>> develop
     )
     try:
         await _redis.ping()

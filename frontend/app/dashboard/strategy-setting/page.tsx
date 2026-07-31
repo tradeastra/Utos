@@ -1,5 +1,6 @@
 'use client';
 
+<<<<<<< HEAD
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Save, Pause, Play, Sliders, Bitcoin, Wallet, Activity } from 'lucide-react';
@@ -16,14 +17,28 @@ import type {
   TAConfig,
   TAIndicatorDescription,
 } from '@/types';
+=======
+import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { TabNav } from '@/components/ui/tab-nav';
+import { SetupWizard } from '@/components/strategy/setup-wizard';
+import { BotsList } from '@/components/strategy/bots-list';
+import { PositionsTab } from '@/components/strategy/positions-tab';
+import { ManualActions } from '@/components/strategy/manual-actions';
+>>>>>>> develop
 
-interface SettingInstance {
-  id: string;
-  status: string;
-  symbol: string;
-}
+const validTabs = ['setup', 'bots', 'positions', 'actions'] as const;
+type TabKey = typeof validTabs[number];
+
+const TAB_LABELS: Record<TabKey, string> = {
+  setup: 'Setup',
+  bots: 'Bots',
+  positions: 'Positions',
+  actions: 'Manual Actions',
+};
 
 export default function StrategySettingPage() {
+<<<<<<< HEAD
   const [mode, setMode] = useState<StrategyMode>('B');
   const [limits, setLimits] = useState<CoinSelectionLimit | null>(null);
   const [presets, setPresets] = useState<MMPreset[]>([]);
@@ -127,10 +142,19 @@ export default function StrategySettingPage() {
       </div>
     );
   }
+=======
+  const searchParams = useSearchParams();
+  const paramTab = searchParams.get('tab') as TabKey | null;
+  const [activeTab, setActiveTab] = useState<TabKey>(
+    paramTab && validTabs.includes(paramTab) ? paramTab : 'setup'
+  );
+  const [botsRefreshKey, setBotsRefreshKey] = useState(0);
+>>>>>>> develop
 
   return (
     <div className="space-y-6">
       {/* Header */}
+<<<<<<< HEAD
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-bold tracking-tight">Strategy Settings</h2>
@@ -156,13 +180,22 @@ export default function StrategySettingPage() {
             {updating ? 'Saving...' : 'Update'}
           </button>
         </div>
+=======
+      <div>
+        <h2 className="text-xl font-bold tracking-tight">Strategy</h2>
+        <p className="text-sm text-muted-foreground">
+          Configure your bot, manage running instances, and monitor positions
+        </p>
+>>>>>>> develop
       </div>
 
-      {/* Active count */}
-      <div className="rounded-xl border border-violet-500/20 bg-violet-500/10 px-4 py-2.5 text-sm text-violet-600 dark:text-violet-400">
-        {activeCount} active instance{activeCount !== 1 ? 's' : ''} · {instances.length} total
-      </div>
+      <TabNav
+        tabs={validTabs.map((key) => ({ key, label: TAB_LABELS[key] }))}
+        active={activeTab}
+        onChange={(key) => setActiveTab(key as TabKey)}
+      />
 
+<<<<<<< HEAD
       {/* Update feedback */}
       {updateMsg && (
         <div className={`rounded-lg p-3 text-sm ${updateMsg.type === 'success' ? 'bg-green-500/10 text-green-600 dark:text-green-400' : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'}`}>
@@ -220,25 +253,23 @@ export default function StrategySettingPage() {
           />
         </CardContent>
       </Card>
+=======
+      {activeTab === 'setup' && (
+        <SetupWizard onInstanceCreated={() => setBotsRefreshKey((k) => k + 1)} />
+      )}
 
-      {/* Technical Analysis */}
-      <Card glass>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Activity className="h-5 w-5 text-violet-500" />
-            Technical Analysis
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <TechnicalAnalysisSettings
-            indicators={indicators}
-            configs={taConfigs}
-            enabled={taEnabled}
-            onEnabledChange={setTaEnabled}
-            onConfigsChange={setTaConfigs}
-          />
-        </CardContent>
-      </Card>
+      {activeTab === 'bots' && (
+        <BotsList refreshKey={botsRefreshKey} />
+      )}
+
+      {activeTab === 'positions' && (
+        <PositionsTab />
+      )}
+>>>>>>> develop
+
+      {activeTab === 'actions' && (
+        <ManualActions />
+      )}
     </div>
   );
 }

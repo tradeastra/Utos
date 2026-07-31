@@ -1,61 +1,7 @@
-'use client';
-
-import { useCallback, useEffect, useState } from 'react';
-import { api } from '@/services/api';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-
-interface ExchangeAccount {
-  id: string;
-  exchange_name: string;
-  is_testnet: boolean;
-  is_active: boolean;
-  connection_status: string;
-}
-
-interface Strategy {
-  id: string;
-  name: string;
-  type: string;
-  description: string | null;
-  min_investment: number;
-  max_investment: number | null;
-}
-
-interface GridProfile {
-  id: string;
-  name: string;
-  upper_price: number;
-  lower_price: number;
-  grid_count: number;
-  grid_spacing: number | null;
-  investment_per_grid: number;
-}
-
-interface TradingInstance {
-  id: string;
-  status: string;
-  symbol: string;
-  total_investment: number;
-  start_price: number | null;
-  current_price: number | null;
-  started_at: string | null;
-  stopped_at: string | null;
-  error_message: string | null;
-}
-
-const STATUS_COLORS: Record<string, 'success' | 'warning' | 'secondary' | 'destructive'> = {
-  created: 'secondary',
-  ready: 'warning',
-  running: 'success',
-  paused: 'warning',
-  stopped: 'destructive',
-  error: 'destructive',
-};
+import { redirect } from 'next/navigation';
 
 export default function TradingPage() {
+<<<<<<< HEAD
   const [accounts, setAccounts] = useState<ExchangeAccount[]>([]);
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [profiles, setProfiles] = useState<GridProfile[]>([]);
@@ -569,4 +515,7 @@ export default function TradingPage() {
       </Card>
     </div>
   );
+=======
+  redirect('/dashboard/trade?tab=bots');
+>>>>>>> develop
 }

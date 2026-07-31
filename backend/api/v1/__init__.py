@@ -6,6 +6,7 @@ from api.v1.endpoints.auth import router as auth_router
 from api.v1.endpoints.addons import router as addons_router
 from api.v1.endpoints.admin import router as admin_router
 from api.v1.endpoints.averaging_config import router as averaging_config_router
+from api.v1.endpoints.breaker_thresholds import router as breaker_thresholds_router
 from api.v1.endpoints.coin_groups import router as coin_groups_router
 from api.v1.endpoints.exchange_accounts import router as exchange_accounts_router
 from api.v1.endpoints.grid_profiles import router as grid_profiles_router
@@ -47,6 +48,9 @@ api_router.include_router(
 )
 api_router.include_router(
     admin_router, prefix="/admin", tags=["admin"]
+)
+api_router.include_router(
+    breaker_thresholds_router, prefix="/breaker-thresholds", tags=["breaker-thresholds"]
 )
 api_router.include_router(
     averaging_config_router, prefix="/trading-instances", tags=["averaging-config"]

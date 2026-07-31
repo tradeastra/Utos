@@ -1,57 +1,7 @@
-'use client';
-
-import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Pause, Play, TrendingUp, TrendingDown, Activity, Settings, Zap } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { api } from '@/services/api';
-import { MetricCard } from '@/components/trade/metric-card';
-import { ForceActions } from '@/components/trade/force-actions';
-
-interface CoinDetail {
-  id: string;
-  symbol: string;
-  status: string;
-  exchange: string;
-  currentPrice: number;
-  startPrice: number | null;
-  totalInvestment: number;
-  qty: number;
-  avgPrice: number | null;
-  step: number | null;
-  totalSteps: number | null;
-  profit: number | null;
-  profitPct: number | null;
-  change24h: number;
-}
-
-interface GridMetrics {
-  nextStepPrice: number | null;
-  dropRate: number | null;
-  tpPrice: number | null;
-  tpPct: number | null;
-  buyAmount: number | null;
-  averagingLimit: number | null;
-}
-
-const STATUS_COLORS: Record<string, string> = {
-  running: 'bg-emerald-500',
-  paused: 'bg-amber-500',
-  stopped: 'bg-red-500',
-  error: 'bg-red-500',
-  created: 'bg-blue-500',
-  ready: 'bg-cyan-500',
-};
-
-function formatPrice(price: number): string {
-  if (price >= 1000) return price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  if (price >= 1) return price.toFixed(4);
-  if (price >= 0.01) return price.toFixed(6);
-  return price.toFixed(8);
-}
+import { redirect } from 'next/navigation';
 
 export default function CoinDetailPage() {
+<<<<<<< HEAD
   const params = useParams();
   const router = useRouter();
   const symbol = decodeURIComponent(params.symbol as string);
@@ -444,4 +394,7 @@ export default function CoinDetailPage() {
       </Card>
     </div>
   );
+=======
+  redirect('/dashboard/strategy-setting?tab=positions');
+>>>>>>> develop
 }
