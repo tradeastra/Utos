@@ -358,6 +358,15 @@ class TradingProcessManager:
         if not ExchangeFactory.is_registered(account.exchange_name.value):
             raise ConfigurationError(f"No adapter for {account.exchange_name.value}")
 
+        existing = await self.instance_repo.get_active_by_symbol_and_account(
+            symbol, exchange_account_id
+        )
+        if existing:
+            raise ValidationError(
+                f"An active bot for {symbol.upper()} already exists on this exchange account. "
+                f"Stop or delete it before creating a new one."
+            )
+
         instance = await self.instance_repo.create(
             user_id=user_id,
             exchange_account_id=exchange_account_id,

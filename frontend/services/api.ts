@@ -2,8 +2,8 @@ import type { BreakerThreshold } from '@/types';
 
 function resolveApiBase(): string {
   const raw = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-  if (typeof window !== 'undefined' && window.location.protocol === 'https:' && raw.startsWith('http://')) {
-    return raw.replace('http://', 'https://');
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+    return raw.replace(/^http:\/\//, 'https://');
   }
   return raw;
 }

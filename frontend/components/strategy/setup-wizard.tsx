@@ -161,6 +161,7 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
 
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const [activeSymbols, setActiveSymbols] = useState<Set<string>>(new Set());
 
   // Hydrate template from localStorage on mount
   useEffect(() => {
@@ -176,13 +177,14 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
   // Load reference data
   const loadReference = useCallback(async () => {
     try {
-      const [lim, groups, prs, inds, accs, strat] = await Promise.all([
+      const [lim, groups, prs, inds, accs, strat, instances] = await Promise.all([
         api.getCoinSelectionLimits().catch(() => null),
         api.getCoinGroups().catch(() => [] as CoinGroup[]),
         api.getMMPresets().catch(() => [] as MMPreset[]),
         api.getTAIndicators().catch(() => [] as TAIndicatorDescription[]),
         api.listExchangeAccounts().catch(() => [] as ExchangeAccount[]),
         api.listStrategies().catch(() => [] as Strategy[]),
+        api.listTradingInstances().catch(() => [] as TradingInstance[]),
       ]);
       setLimits(lim);
       setCoinGroups(groups || []);
@@ -190,6 +192,13 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
       setIndicators(inds || []);
       setAccounts(accs || []);
       setStrategies(strat || []);
+      const active = new Set<string>();
+      for (const inst of instances || []) {
+        if (inst.status !== 'stopped' && inst.status !== 'error') {
+          active.add(inst.symbol.toUpperCase());
+        }
+      }
+      setActiveSymbols(active);
 
       // Auto-pick the first active strategy (strategy selector is hidden
       // from the UI — all strategies run the same averaging engine, so the
@@ -395,7 +404,8 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
           }
           created.push(coin.toUpperCase());
         } catch (err) {
-          failed.push(coin.toUpperCase());
+          const errMsg = err instanceof Error ? err.message : 'Unknown error';
+          failed.push(`${coin.toUpperCase()} (${errMsg})`);
           console.error(`Failed to create bot for ${coin}:`, err);
         }
       }
@@ -411,9 +421,12 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
           text: `Created ${created.length} bots (${created.join(', ')}). Failed: ${failed.join(', ')}.`,
         });
       } else {
-        setMsg({ type: 'error', text: `Failed to create all ${failed.length} bots: ${failed.join(', ')}` });
+        setMsg({ type: 'error', text: `Failed to create bots: ${failed.join(', ')}` });
       }
-      if (created.length > 0) onInstanceCreated?.({} as TradingInstance);
+      if (created.length > 0) {
+        onInstanceCreated?.({} as TradingInstance);
+        loadReference();
+      }
     } catch (err) {
       setMsg({ type: 'error', text: err instanceof Error ? err.message : 'Failed to create bot' });
     } finally {
@@ -559,18 +572,22 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
                     <div className="flex flex-wrap gap-2">
                       {group.coins.map((coin) => {
                         const selected = selectedCoins.includes(coin);
+                        const hasBot = activeSymbols.has(`${coin.toUpperCase()}USDT`);
                         return (
                           <button
                             key={coin}
-                            onClick={() => toggleCoin(coin)}
+                            onClick={() => !hasBot && toggleCoin(coin)}
+                            disabled={hasBot}
                             className={cn(
                               'rounded-lg border px-3 py-1.5 text-sm font-medium transition',
-                              selected
-                                ? 'border-violet-500 bg-violet-500/10 text-violet-600 dark:text-violet-400'
-                                : 'border-border bg-card hover:bg-accent',
+                              hasBot
+                                ? 'border-green-500/40 bg-green-500/5 text-green-600 dark:text-green-500 cursor-not-allowed opacity-70'
+                                : selected
+                                  ? 'border-violet-500 bg-violet-500/10 text-violet-600 dark:text-violet-400'
+                                  : 'border-border bg-card hover:bg-accent',
                             )}
                           >
-                            {coin}
+                            {coin}{hasBot ? ' · active' : ''}
                           </button>
                         );
                       })}
