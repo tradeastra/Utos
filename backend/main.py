@@ -365,8 +365,8 @@ async def health() -> JSONResponse:
 
     redis_ok = await redis_ping()
 
-    overall = "healthy" if (db_ok and redis_ok) else "degraded"
-    http_status = 200 if overall == "healthy" else 503
+    overall = "healthy" if db_ok else "degraded"
+    http_status = 200 if db_ok else 503
 
     payload = {
         "status": overall,
