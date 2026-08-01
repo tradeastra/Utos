@@ -23,17 +23,17 @@ const FALLBACK_MODES: ModeConfig[] = [
   {
     mode: 'A', label: 'Hyper', tp_range_min: 0.0, tp_range_max: 0.3,
     risk_level: 'Very Aggressive',
-    description: 'Tightest grid (0.3% spacing). Maximum trade frequency — many small profits, fast capital rotation. Best for ranging markets. TP 0.75% per level.',
+    description: null,
   },
   {
     mode: 'B', label: 'Aggressive', tp_range_min: 0.0, tp_range_max: 0.6,
     risk_level: 'Aggressive',
-    description: 'Tight grid (0.6% spacing). High trade frequency with moderate profit per level. Good for normal volatility. TP 1.5% per level.',
+    description: null,
   },
   {
     mode: 'C', label: 'Balanced', tp_range_min: 0.0, tp_range_max: 0.9,
     risk_level: 'Balanced',
-    description: 'Moderate grid (0.9% spacing). Balanced trade frequency and profit. General-purpose mode. TP 2.25% per level.',
+    description: null,
   },
 ];
 
@@ -84,11 +84,6 @@ export function StrategyModeSelector({ value, onChange }: StrategyModeProps) {
               {sm.risk_level}
             </span>
           </div>
-          {sm.description && (
-            <p className="mt-2 text-[10px] leading-tight text-muted-foreground line-clamp-3">
-              {sm.description}
-            </p>
-          )}
         </button>
       ))}
     </div>

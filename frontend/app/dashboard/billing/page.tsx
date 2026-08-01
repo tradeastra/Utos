@@ -1,17 +1,23 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { SubscriptionPlans } from '@/components/billing/subscription-plans';
 import { TabNav } from '@/components/ui/tab-nav';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, Clock, CreditCard, Receipt } from 'lucide-react';
+import { api } from '@/services/api';
 
-const invoices = [
-  { id: 'inv-1', amount: 99, currency: 'USD', plan: 'pro', status: 'paid', provider: 'manual', created_at: new Date(Date.now() - 86400000).toISOString(), paid_at: new Date(Date.now() - 86000000).toISOString() },
-  { id: 'inv-2', amount: 99, currency: 'USD', plan: 'pro', status: 'paid', provider: 'stripe', created_at: new Date(Date.now() - 172800000).toISOString(), paid_at: new Date(Date.now() - 172000000).toISOString() },
-  { id: 'inv-3', amount: 99, currency: 'USD', plan: 'pro', status: 'pending', provider: null, created_at: new Date().toISOString(), paid_at: null },
-];
+interface Invoice {
+  id: string;
+  amount: number;
+  currency: string;
+  plan: string;
+  status: string;
+  provider: string | null;
+  created_at: string;
+  paid_at: string | null;
+}
 
 function formatCurrency(amount: number, currency: string) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
@@ -28,6 +34,25 @@ function timeAgo(dateStr: string) {
 
 export default function BillingPage() {
   const [activeTab, setActiveTab] = useState<string>('plans');
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    async function load() {
+      try {
+        const data = await api.getInvoices();
+        if (mounted) setInvoices((data as Invoice[]) ?? []);
+      } catch {
+        // Backend not available — show empty state, not fake data
+        if (mounted) setInvoices([]);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+    load();
+    return () => { mounted = false; };
+  }, []);
 
   if (activeTab === 'plans') {
     return (
@@ -67,37 +92,47 @@ export default function BillingPage() {
               onChange={setActiveTab}
             />
           </div>
-          {invoices.map((inv) => {
-            const isPaid = inv.status === 'paid';
-            return (
-              <div key={inv.id} className='overflow-hidden rounded-2xl bg-white shadow-lg shadow-slate-900/5 transition-transform active:scale-[0.99] dark:bg-card'>
-                <div className='flex items-center justify-between p-4'>
-                  <div className='flex items-center gap-3'>
-                    <span className={'flex h-10 w-10 items-center justify-center rounded-xl ' + (isPaid ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/10' : 'bg-amber-100 text-amber-600 dark:bg-amber-500/10')}>
-                      {isPaid ? <CheckCircle2 className='h-5 w-5' /> : <Clock className='h-5 w-5' />}
-                    </span>
-                    <div>
-                      <p className='font-semibold'>{inv.id}</p>
-                      <p className='text-xs text-muted-foreground uppercase'>{inv.plan} plan</p>
+          {loading ? (
+            <div className='rounded-2xl bg-white p-8 text-center text-sm text-muted-foreground shadow-lg shadow-slate-900/5 dark:bg-card'>
+              Loading invoices…
+            </div>
+          ) : invoices.length === 0 ? (
+            <div className='rounded-2xl bg-white p-8 text-center text-sm text-muted-foreground shadow-lg shadow-slate-900/5 dark:bg-card'>
+              No invoices yet.
+            </div>
+          ) : (
+            invoices.map((inv) => {
+              const isPaid = inv.status === 'paid';
+              return (
+                <div key={inv.id} className='overflow-hidden rounded-2xl bg-white shadow-lg shadow-slate-900/5 transition-transform active:scale-[0.99] dark:bg-card'>
+                  <div className='flex items-center justify-between p-4'>
+                    <div className='flex items-center gap-3'>
+                      <span className={'flex h-10 w-10 items-center justify-center rounded-xl ' + (isPaid ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/10' : 'bg-amber-100 text-amber-600 dark:bg-amber-500/10')}>
+                        {isPaid ? <CheckCircle2 className='h-5 w-5' /> : <Clock className='h-5 w-5' />}
+                      </span>
+                      <div>
+                        <p className='font-semibold'>{inv.id}</p>
+                        <p className='text-xs text-muted-foreground uppercase'>{inv.plan} plan</p>
+                      </div>
+                    </div>
+                    <div className='text-right'>
+                      <p className='font-bold'>{formatCurrency(inv.amount, inv.currency)}</p>
+                      <span className={'rounded-full px-2.5 py-1 text-xs font-medium ' + (isPaid ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/10' : 'bg-amber-100 text-amber-600 dark:bg-amber-500/10')}>
+                        {inv.status}
+                      </span>
                     </div>
                   </div>
-                  <div className='text-right'>
-                    <p className='font-bold'>{formatCurrency(inv.amount, inv.currency)}</p>
-                    <span className={'rounded-full px-2.5 py-1 text-xs font-medium ' + (isPaid ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/10' : 'bg-amber-100 text-amber-600 dark:bg-amber-500/10')}>
-                      {inv.status}
+                  <div className='flex items-center justify-between border-t border-slate-100 px-4 py-2.5 text-xs text-muted-foreground dark:border-border'>
+                    <span className='flex items-center gap-1'>
+                      <CreditCard className='h-3.5 w-3.5' />
+                      {inv.provider || '—'}
                     </span>
+                    <span>{timeAgo(inv.created_at)}</span>
                   </div>
                 </div>
-                <div className='flex items-center justify-between border-t border-slate-100 px-4 py-2.5 text-xs text-muted-foreground dark:border-border'>
-                  <span className='flex items-center gap-1'>
-                    <CreditCard className='h-3.5 w-3.5' />
-                    {inv.provider || '—'}
-                  </span>
-                  <span>{timeAgo(inv.created_at)}</span>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
       </div>
       <div className='hidden space-y-6 md:block'>
@@ -113,34 +148,40 @@ export default function BillingPage() {
         <Card>
           <CardHeader><CardTitle>Invoice History</CardTitle></CardHeader>
           <CardContent>
-            <div className='overflow-x-auto'>
-              <table className='w-full text-sm'>
-                <thead>
-                  <tr className='border-b text-left text-muted-foreground'>
-                    <th className='pb-2'>Invoice</th>
-                    <th className='pb-2'>Amount</th>
-                    <th className='pb-2'>Plan</th>
-                    <th className='pb-2'>Provider</th>
-                    <th className='pb-2'>Status</th>
-                    <th className='pb-2'>Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {invoices.map((inv) => (
-                    <tr key={inv.id} className='border-b'>
-                      <td className='py-3 font-medium'>{inv.id}</td>
-                      <td className='py-3'>{formatCurrency(inv.amount, inv.currency)}</td>
-                      <td className='py-3 uppercase'>{inv.plan}</td>
-                      <td className='py-3'>{inv.provider || '—'}</td>
-                      <td className='py-3'>
-                        <Badge variant={inv.status === 'paid' ? 'success' : 'warning'}>{inv.status}</Badge>
-                      </td>
-                      <td className='py-3 text-muted-foreground'>{timeAgo(inv.created_at)}</td>
+            {loading ? (
+              <p className='text-sm text-muted-foreground'>Loading invoices…</p>
+            ) : invoices.length === 0 ? (
+              <p className='text-sm text-muted-foreground'>No invoices yet.</p>
+            ) : (
+              <div className='overflow-x-auto'>
+                <table className='w-full text-sm'>
+                  <thead>
+                    <tr className='border-b text-left text-muted-foreground'>
+                      <th className='pb-2'>Invoice</th>
+                      <th className='pb-2'>Amount</th>
+                      <th className='pb-2'>Plan</th>
+                      <th className='pb-2'>Provider</th>
+                      <th className='pb-2'>Status</th>
+                      <th className='pb-2'>Date</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {invoices.map((inv) => (
+                      <tr key={inv.id} className='border-b'>
+                        <td className='py-3 font-medium'>{inv.id}</td>
+                        <td className='py-3'>{formatCurrency(inv.amount, inv.currency)}</td>
+                        <td className='py-3 uppercase'>{inv.plan}</td>
+                        <td className='py-3'>{inv.provider || '—'}</td>
+                        <td className='py-3'>
+                          <Badge variant={inv.status === 'paid' ? 'success' : 'warning'}>{inv.status}</Badge>
+                        </td>
+                        <td className='py-3 text-muted-foreground'>{timeAgo(inv.created_at)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

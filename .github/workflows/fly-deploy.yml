@@ -65,7 +65,7 @@ jobs:
           file: Dockerfile.backend
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/utos-backend:staging
+            ghcr.io/${{ github.repository_owner }}/utos-backend:${{ inputs.environment || 'staging' }}
             ghcr.io/${{ github.repository_owner }}/utos-backend:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max

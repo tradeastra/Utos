@@ -41,7 +41,7 @@ async def init_redis(redis_url: str | None = None) -> aioredis.Redis:  # type: i
         logger.info("Redis connected", extra={"url": url})
     except Exception as exc:  # noqa: BLE001
         logger.warning(
-            "Redis ping failed ΓÇö continuing without cache", extra={"error": str(exc)}
+            "Redis ping failed — continuing without cache", extra={"error": str(exc)}
         )
     return _redis
 

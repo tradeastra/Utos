@@ -1,5 +1,5 @@
 """
-Unit tests for core modules ΓÇö Sprint 01 scope.
+Unit tests for core modules — Sprint 01 scope.
 """
 
 import pytest
@@ -8,7 +8,7 @@ from core.security import PasswordManager, TokenManager
 
 
 class TestExceptions:
-    """Test custom exceptions ΓÇö Sprint 01."""
+    """Test custom exceptions — Sprint 01."""
 
     def test_utos_exception(self):
         exc = UTOSException(

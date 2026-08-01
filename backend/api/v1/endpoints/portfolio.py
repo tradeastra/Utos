@@ -36,6 +36,7 @@ class PositionResponse(BaseModel):
     """Position response model."""
 
     id: str
+    trading_instance_id: str
     symbol: str
     side: str
     quantity: Decimal
@@ -99,6 +100,7 @@ async def get_portfolio(
             positions=[
                 PositionResponse(
                     id=str(p.id),
+                    trading_instance_id=str(p.trading_instance_id),
                     symbol=p.symbol,
                     side=p.side.value if hasattr(p.side, "value") else str(p.side),
                     quantity=p.quantity,
@@ -143,6 +145,7 @@ async def get_positions(
         return [
             PositionResponse(
                 id=str(p.id),
+                trading_instance_id=str(p.trading_instance_id),
                 symbol=p.symbol,
                 side=p.side.value if hasattr(p.side, "value") else str(p.side),
                 quantity=p.quantity,

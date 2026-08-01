@@ -336,17 +336,17 @@ export const BREAKER_RESUME_MODES: {
   {
     value: 'ta_confirm',
     label: 'TA Confirm — wait for reversal',
-    desc: 'Stop buying. Resume only when 15m TA (RSI < 30 + MACD bullish cross) confirms a reversal. Most conservative.',
+    desc: '',
   },
   {
     value: 'widen_step',
     label: 'Widen Step — keep buying, slower',
-    desc: 'Keep averaging but with 2× wider grid spacing (buy at every 2nd level). Slower accumulation into the drop.',
+    desc: '',
   },
   {
     value: 'trailing_buy',
     label: 'Trailing Buy — resume on recovery',
-    desc: 'Stop buying. Resume when price recovers 5% from the intraday low. Conservative re-entry after a bounce.',
+    desc: '',
   },
 ];
 

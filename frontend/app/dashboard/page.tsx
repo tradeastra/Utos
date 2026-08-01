@@ -20,7 +20,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency, formatPercent } from '@/lib/utils';
-import type { PortfolioSummary, RiskStatus, WorkerHealth } from '@/types';
+import { api } from '@/services/api';
 
 const quickActions = [
   { label: 'API', icon: Link2, href: '/settings/exchanges', color: 'from-violet-500 to-fuchsia-500' },
@@ -35,37 +35,59 @@ const utilityLinks = [
   { label: 'Strategy Settings', detail: 'Configure your trading app', icon: Settings, href: '/dashboard/strategy-setting', color: 'bg-violet-100 text-violet-600' },
 ];
 
+interface PortfolioSummary {
+  total_value: string;
+  total_investment: string;
+  total_pnl: string;
+  pnl_percentage: string;
+}
+
+interface TradingInstanceSummary {
+  id: string;
+  status: string;
+  symbol: string;
+  total_investment: number;
+}
+
 export default function DashboardOverview() {
   const [portfolio, setPortfolio] = useState<PortfolioSummary | null>(null);
-  const [risk, setRisk] = useState<RiskStatus | null>(null);
-  const [workers, setWorkers] = useState<WorkerHealth[]>([]);
+  const [instances, setInstances] = useState<TradingInstanceSummary[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setPortfolio({
-      total_value: 125000,
-      total_pnl: 3450.75,
-      total_pnl_pct: 2.84,
-      total_exposure: 45000,
-      open_positions: 8,
-      positions: [],
-    });
-    setRisk({
-      max_exposure_per_symbol: 20000,
-      max_exposure_per_exchange: 100000,
-      max_open_positions: 20,
-      max_position_size: 5000,
-      current_exposure: 45000,
-      open_positions: 8,
-      orders_checked: 1542,
-      orders_allowed: 1538,
-      orders_denied: 4,
-    });
-    setWorkers([
-      { id: '1', name: 'GridEngine-1', status: 'running', last_heartbeat: new Date().toISOString(), error_count: 0 },
-      { id: '2', name: 'ExecutionEngine-1', status: 'running', last_heartbeat: new Date().toISOString(), error_count: 0 },
-      { id: '3', name: 'MarketHub-1', status: 'running', last_heartbeat: new Date().toISOString(), error_count: 0 },
-    ]);
+    let mounted = true;
+    async function load() {
+      try {
+        const [pf, insts] = await Promise.all([
+          api.getPortfolio().catch(() => null),
+          api.listTradingInstances().catch(() => [] as TradingInstanceSummary[]),
+        ]);
+        if (!mounted) return;
+        if (pf) {
+          const summary = (pf as Record<string, unknown>).summary as Record<string, string> | undefined;
+          setPortfolio({
+            total_value: summary?.total_value ?? '0',
+            total_investment: summary?.total_investment ?? '0',
+            total_pnl: summary?.total_pnl ?? '0',
+            pnl_percentage: summary?.pnl_percentage ?? '0',
+          });
+        }
+        setInstances((insts as TradingInstanceSummary[]) ?? []);
+      } catch {
+        // ignore — values stay null / empty
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+    load();
+    return () => { mounted = false; };
   }, []);
+
+  const totalValue = portfolio ? parseFloat(portfolio.total_value) : null;
+  const totalPnl = portfolio ? parseFloat(portfolio.total_pnl) : null;
+  const totalPnlPct = portfolio ? parseFloat(portfolio.pnl_percentage) : null;
+  const totalInvestment = portfolio ? parseFloat(portfolio.total_investment) : null;
+  const activeBots = instances.filter((i) => i.status === 'running').length;
 
   return (
     <>
@@ -95,24 +117,24 @@ export default function DashboardOverview() {
             <div className="grid grid-cols-2 divide-x divide-slate-200 dark:divide-border">
               <div className="p-4">
                 <p className="text-xs font-semibold text-muted-foreground">USDT</p>
-                <p className="mt-1 text-xl font-bold tracking-tight">{portfolio ? formatCurrency(portfolio.total_value) : '—'}</p>
+                <p className="mt-1 text-xl font-bold tracking-tight">{totalValue !== null ? formatCurrency(totalValue) : (loading ? '…' : '—')}</p>
                 <p className="mt-1 flex items-center gap-1 text-xs text-emerald-500"><RefreshCw className="h-3 w-3" /> Available balance</p>
               </div>
               <div className="p-4">
                 <p className="text-xs font-semibold text-muted-foreground">Coin Asset</p>
-                <p className="mt-1 text-xl font-bold tracking-tight">{portfolio ? formatCurrency(portfolio.total_exposure) : '—'}</p>
+                <p className="mt-1 text-xl font-bold tracking-tight">{totalInvestment !== null ? formatCurrency(totalInvestment) : (loading ? '…' : '—')}</p>
                 <p className="mt-1 text-xs text-muted-foreground">In active strategies</p>
               </div>
             </div>
             <Link href="/dashboard/portfolio" className="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-sm dark:border-border">
-              <span className="text-muted-foreground">My Trading Volume (D-1)</span>
-              <span className="flex items-center gap-1 font-semibold">{portfolio ? formatCurrency(portfolio.total_pnl) : '—'} <ChevronRight className="h-4 w-4" /></span>
+              <span className="text-muted-foreground">Total PnL</span>
+              <span className="flex items-center gap-1 font-semibold">{totalPnl !== null ? formatCurrency(totalPnl) : (loading ? '…' : '—')} <ChevronRight className="h-4 w-4" /></span>
             </Link>
           </div>
 
           <div className="flex items-center justify-between px-1 py-5 text-sm">
-            <span>Credit: <strong>{portfolio ? formatCurrency(portfolio.total_value) : '—'}</strong></span>
-            <Link href="/dashboard/billing" className="flex items-center gap-1 font-semibold text-emerald-600">Recharge now <ArrowRight className="h-4 w-4" /></Link>
+            <span>Active bots: <strong>{activeBots}</strong></span>
+            <Link href="/dashboard/strategy-setting?tab=bots" className="flex items-center gap-1 font-semibold text-emerald-600">Manage bots <ArrowRight className="h-4 w-4" /></Link>
           </div>
 
           <div className="grid grid-cols-4 gap-2 pb-7">
@@ -138,14 +160,43 @@ export default function DashboardOverview() {
 
       <div className="hidden space-y-6 md:block">
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-          <Card glass><CardContent className="p-5"><p className="text-sm font-medium text-muted-foreground">Total Value</p><p className="mt-1 text-2xl font-bold tracking-tight">{portfolio ? formatCurrency(portfolio.total_value) : '—'}</p></CardContent></Card>
-          <Card glass><CardContent className="p-5"><p className="text-sm font-medium text-muted-foreground">Total PnL</p><p className="mt-1 text-2xl font-bold tracking-tight text-profit">{portfolio ? formatCurrency(portfolio.total_pnl) : '—'}</p><p className="text-sm text-profit">{portfolio ? formatPercent(portfolio.total_pnl_pct) : ''}</p></CardContent></Card>
-          <Card glass><CardContent className="p-5"><p className="text-sm font-medium text-muted-foreground">Exposure</p><p className="mt-1 text-2xl font-bold tracking-tight">{portfolio ? formatCurrency(portfolio.total_exposure) : '—'}</p></CardContent></Card>
-          <Card glass><CardContent className="p-5"><p className="text-sm font-medium text-muted-foreground">Open Positions</p><p className="mt-1 text-2xl font-bold tracking-tight">{portfolio?.open_positions ?? '—'}</p></CardContent></Card>
+          <Card glass><CardContent className="p-5"><p className="text-sm font-medium text-muted-foreground">Total Value</p><p className="mt-1 text-2xl font-bold tracking-tight">{totalValue !== null ? formatCurrency(totalValue) : (loading ? '…' : '—')}</p></CardContent></Card>
+          <Card glass><CardContent className="p-5"><p className="text-sm font-medium text-muted-foreground">Total PnL</p><p className="mt-1 text-2xl font-bold tracking-tight text-profit">{totalPnl !== null ? formatCurrency(totalPnl) : (loading ? '…' : '—')}</p><p className="text-sm text-profit">{totalPnlPct !== null ? formatPercent(totalPnlPct) : ''}</p></CardContent></Card>
+          <Card glass><CardContent className="p-5"><p className="text-sm font-medium text-muted-foreground">Investment</p><p className="mt-1 text-2xl font-bold tracking-tight">{totalInvestment !== null ? formatCurrency(totalInvestment) : (loading ? '…' : '—')}</p></CardContent></Card>
+          <Card glass><CardContent className="p-5"><p className="text-sm font-medium text-muted-foreground">Active Bots</p><p className="mt-1 text-2xl font-bold tracking-tight">{activeBots}</p></CardContent></Card>
         </div>
         <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
-          <Card><CardHeader><CardTitle>Risk Status</CardTitle></CardHeader><CardContent className="space-y-3">{risk ? <><div className="flex justify-between text-sm"><span className="text-muted-foreground">Current Exposure</span><span className="font-medium">{formatCurrency(risk.current_exposure)}</span></div><div className="flex justify-between text-sm"><span className="text-muted-foreground">Open Positions</span><span className="font-medium">{risk.open_positions} / {risk.max_open_positions}</span></div><div className="flex justify-between text-sm"><span className="text-muted-foreground">Orders Checked</span><span className="font-medium">{risk.orders_checked}</span></div><div className="flex justify-between text-sm"><span className="text-muted-foreground">Orders Denied</span><Badge variant="loss">{risk.orders_denied}</Badge></div></> : <p className="text-muted-foreground">Loading...</p>}</CardContent></Card>
-          <Card><CardHeader><CardTitle>Worker Health</CardTitle></CardHeader><CardContent className="space-y-3">{workers.map((w) => <div key={w.id} className="flex items-center justify-between text-sm"><span className="font-medium">{w.name}</span><Badge variant={w.status === 'running' ? 'success' : 'destructive'}>{w.status}</Badge></div>)}</CardContent></Card>
+          <Card>
+            <CardHeader><CardTitle>Recent Bots</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              {loading ? (
+                <p className="text-muted-foreground">Loading…</p>
+              ) : instances.length === 0 ? (
+                <p className="text-muted-foreground">No bots yet. Create one from Strategy Settings.</p>
+              ) : (
+                instances.slice(0, 5).map((inst) => (
+                  <div key={inst.id} className="flex items-center justify-between text-sm">
+                    <span className="font-medium">{inst.symbol}</span>
+                    <Badge variant={inst.status === 'running' ? 'success' : 'secondary'}>{inst.status}</Badge>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle>Quick Links</CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              <Link href="/dashboard/portfolio" className="flex items-center justify-between text-sm hover:text-violet-600">
+                <span>Portfolio</span><ChevronRight className="h-4 w-4" />
+              </Link>
+              <Link href="/dashboard/orders" className="flex items-center justify-between text-sm hover:text-violet-600">
+                <span>Orders</span><ChevronRight className="h-4 w-4" />
+              </Link>
+              <Link href="/dashboard/strategy-setting" className="flex items-center justify-between text-sm hover:text-violet-600">
+                <span>Strategy Settings</span><ChevronRight className="h-4 w-4" />
+              </Link>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </>

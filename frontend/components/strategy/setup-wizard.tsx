@@ -904,36 +904,6 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
 
         <Card glass>
           <CardHeader>
-            <CardTitle>Select Strategy Algorithm</CardTitle>
-            <CardDescription>Trading strategy implementation</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {strategies.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Loading strategies...</p>
-            ) : (
-              <div className="space-y-2">
-                {strategies.map((s) => (
-                  <label key={s.id} className="flex items-start gap-3 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="strategy"
-                      value={s.id}
-                      checked={selectedStrategy === s.id}
-                      onChange={(e) => setSelectedStrategy(e.target.value)}
-                    />
-                    <div>
-                      <span className="font-medium">{s.name}</span>
-                      {s.description && <p className="text-sm text-muted-foreground">{s.description}</p>}
-                    </div>
-                  </label>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card glass>
-          <CardHeader>
             <CardTitle>Launch Summary</CardTitle>
             <CardDescription>Review before creating the bot</CardDescription>
           </CardHeader>

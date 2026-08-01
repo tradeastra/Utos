@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { TrendingUp, TrendingDown, Search, RefreshCw, DollarSign, BarChart3, Activity } from 'lucide-react';
+import { TrendingUp, TrendingDown, Search, RefreshCw, DollarSign, BarChart3, Activity, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/services/api';
 
@@ -35,6 +35,7 @@ interface PortfolioSummary {
 
 interface PositionData {
   id: string;
+  trading_instance_id: string;
   symbol: string;
   side: string;
   quantity: string;
@@ -43,6 +44,47 @@ interface PositionData {
   value: string;
   unrealized_pnl: string;
   realized_pnl: string;
+}
+
+interface OrderHistoryItem {
+  id: string;
+  exchange_order_id: string;
+  symbol: string;
+  side: string;
+  order_type: string;
+  quantity: string;
+  price: string | null;
+  filled_quantity: string;
+  average_fill_price: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface GridLevelData {
+  index: number;
+  price: number;
+  buy_price: number;
+  sell_price: number;
+  side: string;
+  status: string;
+  quantity: number;
+  order_id: string | null;
+}
+
+interface GridStateData {
+  instance_id: string;
+  status: string;
+  symbol: string;
+  current_price: number | null;
+  upper_price: number;
+  lower_price: number;
+  grid_count: number;
+  grid_spacing: number;
+  investment_per_grid: number;
+  total_cycles: number;
+  total_profit: number;
+  levels: GridLevelData[];
 }
 
 type SortKey = 'volume' | 'marketCap' | 'change';
@@ -73,6 +115,48 @@ export default function PortfolioPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('volume');
   const [activeTab, setActiveTab] = useState<'markets' | 'positions'>('markets');
+  const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
+  const [symbolOrders, setSymbolOrders] = useState<Record<string, OrderHistoryItem[]>>({});
+  const [ordersLoading, setOrdersLoading] = useState<string | null>(null);
+  const [symbolGridStates, setSymbolGridStates] = useState<Record<string, GridStateData[]>>({});
+  const [gridLoading, setGridLoading] = useState<string | null>(null);
+
+  async function toggleSymbolOrders(symbol: string, instanceIds: string[] = []) {
+    if (expandedSymbol === symbol) {
+      setExpandedSymbol(null);
+      return;
+    }
+    setExpandedSymbol(symbol);
+    // Load order history (deduped by symbol)
+    if (!symbolOrders[symbol]) {
+      setOrdersLoading(symbol);
+      try {
+        const data = await api.get(`/api/v1/orders?symbol=${encodeURIComponent(symbol)}&limit=50`);
+        setSymbolOrders((prev) => ({ ...prev, [symbol]: (data as OrderHistoryItem[]) ?? [] }));
+      } catch {
+        setSymbolOrders((prev) => ({ ...prev, [symbol]: [] }));
+      } finally {
+        setOrdersLoading(null);
+      }
+    }
+    // Load grid state per trading instance for this symbol
+    if (instanceIds.length > 0 && !symbolGridStates[symbol]) {
+      setGridLoading(symbol);
+      try {
+        const results = await Promise.all(
+          instanceIds.map((id) =>
+            api.getGridState(id).catch(() => null),
+          ),
+        );
+        const valid = (results.filter(Boolean) as GridStateData[]);
+        setSymbolGridStates((prev) => ({ ...prev, [symbol]: valid }));
+      } catch {
+        setSymbolGridStates((prev) => ({ ...prev, [symbol]: [] }));
+      } finally {
+        setGridLoading(null);
+      }
+    }
+  }
 
   const loadData = useCallback(async () => {
     setRefreshing(true);
@@ -278,10 +362,11 @@ export default function PortfolioPage() {
       </div>
 
       {activeTab === 'positions' ? (
-        /* My Positions Table */
+        /* My Positions Table — grouped by symbol, click to expand order history + grid levels */
         <Card glass>
           <CardHeader>
             <CardTitle>My Open Positions</CardTitle>
+            <p className="text-xs text-muted-foreground">Click a coin to view its grid levels & order history.</p>
           </CardHeader>
           <CardContent>
             {positions.length === 0 ? (
@@ -290,44 +375,71 @@ export default function PortfolioPage() {
                 <p className="text-sm text-muted-foreground">No open positions yet.</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                      <th className="py-2 pr-4">Symbol</th>
-                      <th className="py-2 pr-4">Side</th>
-                      <th className="py-2 pr-4">Qty</th>
-                      <th className="py-2 pr-4">Entry</th>
-                      <th className="py-2 pr-4">Current</th>
-                      <th className="py-2 pr-4">Value</th>
-                      <th className="py-2 pr-4 text-right">PnL</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {positions.map((pos) => {
-                      const pnl = parseFloat(pos.unrealized_pnl) + parseFloat(pos.realized_pnl);
-                      const isProfit = pnl >= 0;
-                      return (
-                        <tr key={pos.id} className="border-b border-border/50">
-                          <td className="py-2 pr-4 font-medium">{pos.symbol}</td>
-                          <td className="py-2 pr-4">
-                            <Badge variant={pos.side === 'BUY' ? 'success' : 'destructive'}>
-                              {pos.side}
-                            </Badge>
-                          </td>
-                          <td className="py-2 pr-4 tabular-nums">{pos.quantity}</td>
-                          <td className="py-2 pr-4 tabular-nums">${formatPrice(pos.entry_price)}</td>
-                          <td className="py-2 pr-4 tabular-nums">${formatPrice(pos.current_price)}</td>
-                          <td className="py-2 pr-4 tabular-nums">${formatPrice(pos.value)}</td>
-                          <td className={cn('py-2 pr-4 text-right font-medium tabular-nums', isProfit ? 'text-emerald-500' : 'text-red-500')}>
-                            {isProfit ? '+' : ''}${pnl.toFixed(2)}
-                          </td>
+              (() => {
+                // Group positions by symbol (a symbol may have multiple positions across bots)
+                const bySymbol = positions.reduce<Record<string, PositionData[]>>((acc, p) => {
+                  (acc[p.symbol] ??= []).push(p);
+                  return acc;
+                }, {});
+                const symbols = Object.keys(bySymbol).sort();
+                return (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                          <th className="py-2 pr-4 w-8"></th>
+                          <th className="py-2 pr-4">Symbol</th>
+                          <th className="py-2 pr-4">Positions</th>
+                          <th className="py-2 pr-4">Total Qty</th>
+                          <th className="py-2 pr-4">Avg Entry</th>
+                          <th className="py-2 pr-4">Current</th>
+                          <th className="py-2 pr-4">Total Value</th>
+                          <th className="py-2 pr-4 text-right">Total PnL</th>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                      </thead>
+                      <tbody>
+                        {symbols.map((symbol) => {
+                          const posList = bySymbol[symbol];
+                          const totalQty = posList.reduce((s, p) => s + parseFloat(p.quantity), 0);
+                          const totalValue = posList.reduce((s, p) => s + parseFloat(p.value), 0);
+                          const totalPnl = posList.reduce(
+                            (s, p) => s + parseFloat(p.unrealized_pnl) + parseFloat(p.realized_pnl),
+                            0,
+                          );
+                          const avgEntry =
+                            posList.reduce((s, p) => s + parseFloat(p.entry_price) * parseFloat(p.quantity), 0) /
+                            (totalQty || 1);
+                          const currentPrice = posList[0]?.current_price ?? '0';
+                          const isProfit = totalPnl >= 0;
+                          const isExpanded = expandedSymbol === symbol;
+                          const orders = symbolOrders[symbol];
+                          const gridStates = symbolGridStates[symbol];
+                          const instanceIds = posList.map((p) => p.trading_instance_id);
+                          return (
+                            <SymbolRow
+                              key={symbol}
+                              symbol={symbol}
+                              posCount={posList.length}
+                              totalQty={totalQty}
+                              avgEntry={avgEntry}
+                              currentPrice={currentPrice}
+                              totalValue={totalValue}
+                              totalPnl={totalPnl}
+                              isProfit={isProfit}
+                              isExpanded={isExpanded}
+                              onToggle={() => toggleSymbolOrders(symbol, instanceIds)}
+                              orders={orders}
+                              ordersLoading={ordersLoading === symbol}
+                              gridStates={gridStates}
+                              gridLoading={gridLoading === symbol}
+                            />
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()
             )}
           </CardContent>
         </Card>
@@ -448,5 +560,172 @@ export default function PortfolioPage() {
         </>
       )}
     </div>
+  );
+}
+
+interface SymbolRowProps {
+  symbol: string;
+  posCount: number;
+  totalQty: number;
+  avgEntry: number;
+  currentPrice: string;
+  totalValue: number;
+  totalPnl: number;
+  isProfit: boolean;
+  isExpanded: boolean;
+  onToggle: () => void;
+  orders: OrderHistoryItem[] | undefined;
+  ordersLoading: boolean;
+  gridStates: GridStateData[] | undefined;
+  gridLoading: boolean;
+}
+
+function SymbolRow({
+  symbol,
+  posCount,
+  totalQty,
+  avgEntry,
+  currentPrice,
+  totalValue,
+  totalPnl,
+  isProfit,
+  isExpanded,
+  onToggle,
+  orders,
+  ordersLoading,
+  gridStates,
+  gridLoading,
+}: SymbolRowProps) {
+  return (
+    <>
+      <tr
+        className="border-b border-border/50 cursor-pointer hover:bg-muted/30 transition"
+        onClick={onToggle}
+      >
+        <td className="py-2 pr-4 text-muted-foreground">
+          {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        </td>
+        <td className="py-2 pr-4 font-medium">{symbol}</td>
+        <td className="py-2 pr-4 tabular-nums text-muted-foreground">{posCount}</td>
+        <td className="py-2 pr-4 tabular-nums">{totalQty.toFixed(6)}</td>
+        <td className="py-2 pr-4 tabular-nums">${formatPrice(avgEntry)}</td>
+        <td className="py-2 pr-4 tabular-nums">${formatPrice(currentPrice)}</td>
+        <td className="py-2 pr-4 tabular-nums">${formatPrice(totalValue)}</td>
+        <td className={cn('py-2 pr-4 text-right font-medium tabular-nums', isProfit ? 'text-emerald-500' : 'text-red-500')}>
+          {isProfit ? '+' : ''}${totalPnl.toFixed(2)}
+        </td>
+      </tr>
+      {isExpanded && (
+        <tr className="border-b border-border/50 bg-muted/20">
+          <td colSpan={8} className="p-4 space-y-4">
+            {/* Grid levels per bot instance */}
+            <div>
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Grid Levels — {symbol}
+              </div>
+              {gridLoading ? (
+                <p className="text-sm text-muted-foreground">Loading grid levels…</p>
+              ) : !gridStates || gridStates.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No active grid for this symbol.</p>
+              ) : (
+                <div className="space-y-3">
+                  {gridStates.map((gs) => (
+                    <div key={gs.instance_id} className="rounded-lg border border-border/50 p-3">
+                      <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+                        <Badge variant={gs.status === 'running' ? 'success' : 'secondary'}>
+                          {gs.status}
+                        </Badge>
+                        <span className="text-muted-foreground">
+                          {gs.grid_count} levels · spacing {gs.grid_spacing?.toFixed(2)}% · cycles {gs.total_cycles} · profit ${gs.total_profit?.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-border text-left text-muted-foreground">
+                              <th className="py-1.5 pr-3">#</th>
+                              <th className="py-1.5 pr-3">Side</th>
+                              <th className="py-1.5 pr-3">Buy</th>
+                              <th className="py-1.5 pr-3">Sell</th>
+                              <th className="py-1.5 pr-3">Qty</th>
+                              <th className="py-1.5 pr-3">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {gs.levels.map((lvl) => (
+                              <tr key={lvl.index} className="border-b border-border/30">
+                                <td className="py-1.5 pr-3 tabular-nums">{lvl.index}</td>
+                                <td className="py-1.5 pr-3">{lvl.side}</td>
+                                <td className="py-1.5 pr-3 tabular-nums">${formatPrice(lvl.buy_price)}</td>
+                                <td className="py-1.5 pr-3 tabular-nums">${formatPrice(lvl.sell_price)}</td>
+                                <td className="py-1.5 pr-3 tabular-nums">{lvl.quantity}</td>
+                                <td className="py-1.5 pr-3">
+                                  <Badge
+                                    variant={
+                                      lvl.status === 'filled' ? 'success' :
+                                      lvl.status === 'tp_hit' ? 'warning' :
+                                      lvl.status === 'cancelled' ? 'destructive' : 'secondary'
+                                    }
+                                  >
+                                    {lvl.status.replace('_', ' ')}
+                                  </Badge>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Order history */}
+            <div>
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Order History — {symbol}
+              </div>
+              {ordersLoading ? (
+                <p className="text-sm text-muted-foreground">Loading orders…</p>
+              ) : !orders || orders.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No orders for this symbol yet.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-border text-left text-muted-foreground">
+                        <th className="py-1.5 pr-3">Side</th>
+                        <th className="py-1.5 pr-3">Type</th>
+                        <th className="py-1.5 pr-3">Qty</th>
+                        <th className="py-1.5 pr-3">Price</th>
+                        <th className="py-1.5 pr-3">Status</th>
+                        <th className="py-1.5 pr-3 text-right">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {orders.map((o) => (
+                        <tr key={o.id} className="border-b border-border/30">
+                          <td className="py-1.5 pr-3">
+                            <Badge variant={o.side === 'buy' ? 'success' : 'destructive'}>{o.side}</Badge>
+                          </td>
+                          <td className="py-1.5 pr-3">{o.order_type}</td>
+                          <td className="py-1.5 pr-3 tabular-nums">{o.quantity}</td>
+                          <td className="py-1.5 pr-3 tabular-nums">{o.price ? `$${formatPrice(o.price)}` : '—'}</td>
+                          <td className="py-1.5 pr-3">{o.status.replace('_', ' ')}</td>
+                          <td className="py-1.5 pr-3 text-right text-muted-foreground">
+                            {new Date(o.created_at).toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }

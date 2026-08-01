@@ -5,16 +5,14 @@ import { useSearchParams } from 'next/navigation';
 import { TabNav } from '@/components/ui/tab-nav';
 import { SetupWizard } from '@/components/strategy/setup-wizard';
 import { BotsList } from '@/components/strategy/bots-list';
-import { PositionsTab } from '@/components/strategy/positions-tab';
 import { ManualActions } from '@/components/strategy/manual-actions';
 
-const validTabs = ['setup', 'bots', 'positions', 'actions'] as const;
+const validTabs = ['setup', 'bots', 'actions'] as const;
 type TabKey = typeof validTabs[number];
 
 const TAB_LABELS: Record<TabKey, string> = {
   setup: 'Setup',
   bots: 'Bots',
-  positions: 'Positions',
   actions: 'Manual Actions',
 };
 
@@ -32,7 +30,7 @@ export default function StrategySettingPage() {
       <div>
         <h2 className="text-xl font-bold tracking-tight">Strategy</h2>
         <p className="text-sm text-muted-foreground">
-          Configure your bot, manage running instances, and monitor positions
+          Configure your bot, manage running instances, and execute manual actions
         </p>
       </div>
 
@@ -48,10 +46,6 @@ export default function StrategySettingPage() {
 
       {activeTab === 'bots' && (
         <BotsList refreshKey={botsRefreshKey} />
-      )}
-
-      {activeTab === 'positions' && (
-        <PositionsTab />
       )}
 
       {activeTab === 'actions' && (

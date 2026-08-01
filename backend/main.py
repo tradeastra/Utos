@@ -407,7 +407,7 @@ async def readiness() -> JSONResponse:
 
     redis_ok = await redis_ping()
 
-    ready = db_ok and redis_ok
+    ready = db_ok
     http_status = 200 if ready else 503
 
     payload = {
