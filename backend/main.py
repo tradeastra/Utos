@@ -236,6 +236,8 @@ async def lifespan(app: FastAPI):
         except Exception as exc:
             logger.warning(f"Failed to register {ex_name} adapter: {exc}")
 
+    # Start MarketHub in lazy mode — subscription manager is initialized
+    # but WS connectors only start when a trading instance subscribes.
     await market_hub.start()
     execution_engine = ExecutionEngine()
     profit_lock_engine = ProfitLockEngine(execution_engine)

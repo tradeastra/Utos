@@ -64,18 +64,14 @@ class MarketHub(IMarketHub):
         logger.info(f"Registered {exchange} adapter with MarketHub")
 
     async def start(self) -> None:
-        """Start all registered connectors and the subscription manager."""
+        """Start the subscription manager. Connectors start lazily on first subscribe."""
         async with self._lock:
             self._subscription_manager = SubscriptionManager(
                 subscribe_fn=self._subscribe_logical,
                 unsubscribe_fn=self._unsubscribe_logical,
             )
             self._running = True
-            await asyncio.gather(
-                *[connector.start() for connector in self._connectors.values()],
-                return_exceptions=True,
-            )
-        logger.info("MarketHub started")
+        logger.info("MarketHub started (lazy connector mode)")
 
     async def stop(self) -> None:
         """Stop all connectors and release subscriptions."""
@@ -189,6 +185,12 @@ class MarketHub(IMarketHub):
         connector = self._connectors.get(exchange.lower())
         if connector is None:
             raise SymbolNotSupported(symbol, exchange)
+        # Lazy start: ensure the connector's WS is open before subscribing.
+        if not connector._running:
+            try:
+                await connector.start()
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(f"Lazy start for {exchange} connector failed: {exc}")
         return await connector.subscribe(symbol, channel)
 
     async def _unsubscribe_logical(self, subscription_id: str) -> None:
