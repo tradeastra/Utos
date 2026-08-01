@@ -73,7 +73,11 @@ class _ProcessStateStore:
             if client is None:
                 if settings.TESTING:
                     return None
-                client = await init_redis()
+                try:
+                    client = await init_redis()
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(f"Redis init failed, using in-memory fallback: {exc}")
+                    return None
             self.redis = client
         return self.redis
 
@@ -81,7 +85,11 @@ class _ProcessStateStore:
         client = await self._ensure_redis()
         if client is None:
             return None
-        raw = await client.get(_state_key(instance_id))
+        try:
+            raw = await client.get(_state_key(instance_id))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"Redis get_state failed, ignoring: {exc}")
+            return None
         if raw is None:
             return None
         try:
@@ -93,8 +101,12 @@ class _ProcessStateStore:
         client = await self._ensure_redis()
         if client is None:
             return False
-        await client.set(_state_key(instance_id), json.dumps(state, default=str))
-        return True
+        try:
+            await client.set(_state_key(instance_id), json.dumps(state, default=str))
+            return True
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"Redis set_state failed, ignoring: {exc}")
+            return False
 
     async def acquire_lock(
         self, instance_id: uuid.UUID, worker_id: str, ttl: int = 60
@@ -102,16 +114,24 @@ class _ProcessStateStore:
         client = await self._ensure_redis()
         if client is None:
             return True
-        lock_value = f"{worker_id}:{datetime.now(tz=UTC).isoformat()}"
-        acquired = await client.set(_lock_key(instance_id), lock_value, nx=True, ex=ttl)
-        return bool(acquired)
+        try:
+            lock_value = f"{worker_id}:{datetime.now(tz=UTC).isoformat()}"
+            acquired = await client.set(_lock_key(instance_id), lock_value, nx=True, ex=ttl)
+            return bool(acquired)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"Redis acquire_lock failed, allowing: {exc}")
+            return True
 
     async def release_lock(self, instance_id: uuid.UUID) -> bool:
         client = await self._ensure_redis()
         if client is None:
             return True
-        await client.delete(_lock_key(instance_id))
-        return True
+        try:
+            await client.delete(_lock_key(instance_id))
+            return True
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"Redis release_lock failed, ignoring: {exc}")
+            return True
 
     async def refresh_lock(
         self, instance_id: uuid.UUID, worker_id: str, ttl: int = 60
@@ -119,13 +139,17 @@ class _ProcessStateStore:
         client = await self._ensure_redis()
         if client is None:
             return True
-        value = await client.get(_lock_key(instance_id))
-        if value is None:
-            return await self.acquire_lock(instance_id, worker_id, ttl)
-        if value.startswith(f"{worker_id}:"):
-            await client.set(_lock_key(instance_id), value, ex=ttl, xx=True)
+        try:
+            value = await client.get(_lock_key(instance_id))
+            if value is None:
+                return await self.acquire_lock(instance_id, worker_id, ttl)
+            if value.startswith(f"{worker_id}:"):
+                await client.set(_lock_key(instance_id), value, ex=ttl, xx=True)
+                return True
+            return False
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"Redis refresh_lock failed, ignoring: {exc}")
             return True
-        return False
 
 
 class TradingProcessManager:
