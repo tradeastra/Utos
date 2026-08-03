@@ -162,6 +162,10 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [activeSymbols, setActiveSymbols] = useState<Set<string>>(new Set());
+  const [exchangeBalance, setExchangeBalance] = useState<number | null>(null);
+  const [balanceLoading, setBalanceLoading] = useState(false);
+  const [allocatedCapital, setAllocatedCapital] = useState(0);
+  const [allInstances, setAllInstances] = useState<TradingInstance[]>([]);
 
   // Hydrate template from localStorage on mount
   useEffect(() => {
@@ -192,13 +196,17 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
       setIndicators(inds || []);
       setAccounts(accs || []);
       setStrategies(strat || []);
+      setAllInstances(instances || []);
       const active = new Set<string>();
+      let allocated = 0;
       for (const inst of instances || []) {
         if (inst.status === 'running' || inst.status === 'paused' || inst.status === 'recovering' || inst.status === 'stopping') {
           active.add(inst.symbol.toUpperCase());
+          allocated += Number(inst.total_investment) || 0;
         }
       }
       setActiveSymbols(active);
+      setAllocatedCapital(allocated);
 
       // Auto-pick the first active strategy (strategy selector is hidden
       // from the UI — all strategies run the same averaging engine, so the
@@ -229,6 +237,22 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
   useEffect(() => {
     loadReference();
   }, [loadReference]);
+
+  // Fetch exchange balance when account is selected
+  useEffect(() => {
+    if (!selectedAccount) {
+      setExchangeBalance(null);
+      return;
+    }
+    setBalanceLoading(true);
+    api.getExchangeAccountBalance(selectedAccount)
+      .then((res) => {
+        const usdt = res.balances.find((b) => b.currency === 'USDT');
+        setExchangeBalance(usdt ? Number(usdt.available) : 0);
+      })
+      .catch(() => setExchangeBalance(null))
+      .finally(() => setBalanceLoading(false));
+  }, [selectedAccount]);
 
   // Load breaker thresholds for the first selected coin (all rates).
   // This lets the user see the pre-computed threshold before launching
@@ -977,6 +1001,65 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
                 </dd>
               </div>
             </dl>
+            {/* Balance Summary */}
+            {selectedAccount && (
+              <div className="mt-4 rounded-lg border border-border p-4 space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Exchange Balance (USDT)</span>
+                  <span className="font-semibold">
+                    {balanceLoading ? 'Loading…' : exchangeBalance !== null ? `$${exchangeBalance.toFixed(2)}` : '—'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Already Allocated (active bots)</span>
+                  <span className="font-semibold text-amber-600 dark:text-amber-400">${allocatedCapital.toFixed(2)}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm border-t border-border pt-2">
+                  <span className="font-medium">Available for New Bots</span>
+                  <span className="font-bold text-green-600 dark:text-green-400">
+                    {exchangeBalance !== null ? `$${Math.max(0, exchangeBalance - allocatedCapital).toFixed(2)}` : '—'}
+                  </span>
+                </div>
+                {mmResult && selectedCoins.length > 0 && (
+                  <div className="flex items-center justify-between text-sm border-t border-border pt-2">
+                    <span className="text-muted-foreground">This launch needs ({selectedCoins.length} bots)</span>
+                    <span className="font-semibold">
+                      ${(() => {
+                        const perBot = Number(mmResult.buy_amount) * mmResult.steps;
+                        return (perBot * selectedCoins.length).toFixed(2);
+                      })()}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Disable reason feedback */}
+            {(() => {
+              const reasons: string[] = [];
+              if (!selectedAccount) reasons.push('Select an exchange account');
+              if (selectedCoins.length === 0) reasons.push('Select at least one coin');
+              if (exchangeBalance !== null && mmResult && selectedCoins.length > 0) {
+                const perBot = Number(mmResult.buy_amount) * mmResult.steps;
+                const totalNeeded = perBot * selectedCoins.length;
+                const available = exchangeBalance - allocatedCapital;
+                if (totalNeeded > available) {
+                  reasons.push(`Insufficient balance: need $${totalNeeded.toFixed(2)}, available $${available.toFixed(2)}`);
+                }
+              }
+              if (reasons.length > 0) {
+                return (
+                  <div className="mt-3 rounded-md bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400">
+                    <strong>Cannot create bot yet:</strong>
+                    <ul className="mt-1 ml-4 list-disc">
+                      {reasons.map((r, i) => <li key={i}>{r}</li>)}
+                    </ul>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
             <Button
               onClick={handleLaunch}
               disabled={busy || !selectedAccount || !selectedStrategy || selectedCoins.length === 0}

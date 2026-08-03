@@ -44,6 +44,7 @@ interface TradingInstance {
   started_at: string | null;
   stopped_at: string | null;
   error_message: string | null;
+  exchange_account_id?: string;
 }
 
 const STATUS_COLORS: Record<string, 'success' | 'warning' | 'secondary' | 'destructive'> = {
@@ -84,6 +85,8 @@ export function TradingBots() {
 
   const [trailingAccess, setTrailingAccess] = useState<{ has_access: boolean; via_tier: boolean; via_addon: boolean } | null>(null);
   const [purchasing, setPurchasing] = useState(false);
+  const [exchangeBalance, setExchangeBalance] = useState<number | null>(null);
+  const [allocatedCapital, setAllocatedCapital] = useState(0);
 
   const loadAll = useCallback(async () => {
     try {
@@ -98,6 +101,25 @@ export function TradingBots() {
       setStrategies(strat || []);
       setProfiles(profs || []);
       setInstances(insts || []);
+
+      // Calculate allocated capital from active instances
+      let allocated = 0;
+      for (const inst of insts || []) {
+        if (inst.status === 'running' || inst.status === 'paused' || inst.status === 'recovering' || inst.status === 'stopping') {
+          allocated += Number(inst.total_investment) || 0;
+        }
+      }
+      setAllocatedCapital(allocated);
+
+      // Fetch balance for the first account if available
+      if (accs && accs.length > 0) {
+        api.getExchangeAccountBalance(accs[0].id)
+          .then((res) => {
+            const usdt = res.balances.find((b) => b.currency === 'USDT');
+            setExchangeBalance(usdt ? Number(usdt.available) : 0);
+          })
+          .catch(() => setExchangeBalance(null));
+      }
       if (addonCheck) setTrailingAccess(addonCheck);
 
       // Auto-pick the first active strategy (strategy selector is hidden
@@ -229,6 +251,36 @@ export function TradingBots() {
           {msg.text}
         </div>
       )}
+
+      {/* Balance Summary */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Capital Overview</CardTitle>
+          <CardDescription>Exchange balance vs allocated capital</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="rounded-lg bg-muted/40 p-3 text-center">
+              <p className="text-xs text-muted-foreground">Exchange Balance</p>
+              <p className="text-xl font-bold">
+                {exchangeBalance !== null ? `$${exchangeBalance.toFixed(2)}` : '—'}
+              </p>
+            </div>
+            <div className="rounded-lg bg-amber-500/10 p-3 text-center">
+              <p className="text-xs text-muted-foreground">Allocated (Active Bots)</p>
+              <p className="text-xl font-bold text-amber-600 dark:text-amber-400">
+                ${allocatedCapital.toFixed(2)}
+              </p>
+            </div>
+            <div className="rounded-lg bg-green-500/10 p-3 text-center">
+              <p className="text-xs text-muted-foreground">Available</p>
+              <p className="text-xl font-bold text-green-600 dark:text-green-400">
+                {exchangeBalance !== null ? `$${Math.max(0, exchangeBalance - allocatedCapital).toFixed(2)}` : '—'}
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Step 1: Exchange Account */}
       <Card>
