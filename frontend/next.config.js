@@ -44,10 +44,12 @@ const nextConfig = {
   },
 
   async rewrites() {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const httpsApiUrl = apiUrl.replace(/^http:\/\//, 'https://');
     return [
       {
         source: '/api/:path*',
-        destination: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/:path*`,
+        destination: `${httpsApiUrl}/api/:path*`,
       },
     ];
   },

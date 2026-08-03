@@ -14,7 +14,14 @@ from core.domain_types import StrategyMode, TradingInstanceStatus
 from core.exceptions import (
     AuthenticationError,
     AuthorizationError,
+    ConfigurationError,
+    ExchangeAccountNotFound,
+    ExchangeConnectionError,
+    ExchangeRateLimitError,
+    InsufficientBalanceError,
     InvalidStateTransition,
+    StrategyError,
+    SymbolNotSupported,
     TradingInstanceNotFound,
     ValidationError,
 )
@@ -151,11 +158,25 @@ def _handle_manager_exception(exc: Exception) -> NoReturn:
     """Map domain exceptions to FastAPI HTTPException."""
     if isinstance(exc, TradingInstanceNotFound):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    if isinstance(exc, ExchangeAccountNotFound):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     if isinstance(exc, AuthenticationError):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     if isinstance(exc, AuthorizationError):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
     if isinstance(exc, (InvalidStateTransition, ValidationError)):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    if isinstance(exc, SymbolNotSupported):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    if isinstance(exc, ConfigurationError):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    if isinstance(exc, StrategyError):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    if isinstance(exc, ExchangeConnectionError):
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
+    if isinstance(exc, ExchangeRateLimitError):
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(exc))
+    if isinstance(exc, InsufficientBalanceError):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     raise HTTPException(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)
