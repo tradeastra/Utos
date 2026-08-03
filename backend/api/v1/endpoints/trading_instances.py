@@ -61,6 +61,11 @@ class TradingInstanceResponse(BaseModel):
     total_investment: float = 0.0
     base_currency: str = ""
     quote_currency: str = ""
+    strategy_mode: str | None = None
+    selected_coins: list[str] | None = None
+    breaker_enabled: bool = False
+    continuation_rate: float | None = None
+    capital: float | None = None
     profit_lock_enabled: bool = False
     portfolio_lock_enabled: bool = False
     avg_enabled: bool = True
@@ -120,6 +125,11 @@ def _to_response(instance: Any) -> dict[str, Any]:
         ),
         "base_currency": instance.base_currency or "",
         "quote_currency": instance.quote_currency or "",
+        "strategy_mode": instance.strategy_mode.value if instance.strategy_mode else None,
+        "selected_coins": instance.selected_coins if hasattr(instance, "selected_coins") else None,
+        "breaker_enabled": bool(instance.breaker_enabled) if hasattr(instance, "breaker_enabled") else False,
+        "continuation_rate": float(instance.continuation_rate) if instance.continuation_rate is not None else None,
+        "capital": float(instance.capital) if instance.capital is not None else None,
         "profit_lock_enabled": bool(instance.profit_lock_enabled),
         "portfolio_lock_enabled": bool(instance.portfolio_lock_enabled),
         "avg_enabled": bool(instance.avg_enabled) if hasattr(instance, "avg_enabled") else True,

@@ -45,6 +45,12 @@ interface TradingInstance {
   stopped_at: string | null;
   error_message: string | null;
   exchange_account_id?: string;
+  strategy_mode?: string | null;
+  selected_coins?: string[] | null;
+  breaker_enabled?: boolean;
+  continuation_rate?: number | null;
+  capital?: number | null;
+  created_at?: string | null;
 }
 
 const STATUS_COLORS: Record<string, 'success' | 'warning' | 'secondary' | 'destructive'> = {
@@ -87,6 +93,7 @@ export function TradingBots() {
   const [purchasing, setPurchasing] = useState(false);
   const [exchangeBalance, setExchangeBalance] = useState<number | null>(null);
   const [allocatedCapital, setAllocatedCapital] = useState(0);
+  const [expandedBot, setExpandedBot] = useState<string | null>(null);
 
   const loadAll = useCallback(async () => {
     try {
@@ -545,7 +552,12 @@ export function TradingBots() {
               <div key={inst.id} className="rounded-md border p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <span className="font-medium">{inst.symbol}</span>
+                    <button
+                      onClick={() => setExpandedBot(expandedBot === inst.id ? null : inst.id)}
+                      className="font-medium hover:text-violet-500 transition"
+                    >
+                      {expandedBot === inst.id ? '▼' : '▶'} {inst.symbol}
+                    </button>
                     <Badge variant={STATUS_COLORS[inst.status] || 'secondary'}>
                       {inst.status}
                     </Badge>
@@ -555,7 +567,52 @@ export function TradingBots() {
                   </div>
                 </div>
 
-                {inst.current_price && (
+                {expandedBot === inst.id && (
+                  <div className="rounded-md bg-muted/30 p-3 space-y-1.5 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Strategy Mode</span>
+                      <span className="font-medium">{inst.strategy_mode || '—'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Capital</span>
+                      <span className="font-medium">{inst.capital ? `$${inst.capital}` : '—'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Circuit Breaker</span>
+                      <span className="font-medium">{inst.breaker_enabled ? `On (${inst.continuation_rate ? (inst.continuation_rate * 100).toFixed(0) + '%' : '—'})` : 'Off'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Selected Coins</span>
+                      <span className="font-medium">{inst.selected_coins?.join(', ') || inst.symbol || '—'}</span>
+                    </div>
+                    {inst.start_price && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Start Price</span>
+                        <span className="font-medium">${inst.start_price}</span>
+                      </div>
+                    )}
+                    {inst.current_price && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Current Price</span>
+                        <span className="font-medium">${inst.current_price}</span>
+                      </div>
+                    )}
+                    {inst.started_at && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Started At</span>
+                        <span className="font-medium">{new Date(inst.started_at).toLocaleString()}</span>
+                      </div>
+                    )}
+                    {inst.created_at && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Created At</span>
+                        <span className="font-medium">{new Date(inst.created_at).toLocaleString()}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {inst.current_price && expandedBot !== inst.id && (
                   <div className="text-sm text-muted-foreground">
                     Current Price: ${inst.current_price}
                     {inst.start_price && ` | Start: $${inst.start_price}`}
