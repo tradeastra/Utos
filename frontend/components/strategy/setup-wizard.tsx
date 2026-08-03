@@ -194,7 +194,7 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
       setStrategies(strat || []);
       const active = new Set<string>();
       for (const inst of instances || []) {
-        if (inst.status !== 'stopped' && inst.status !== 'error') {
+        if (inst.status === 'running' || inst.status === 'paused' || inst.status === 'recovering' || inst.status === 'stopping') {
           active.add(inst.symbol.toUpperCase());
         }
       }

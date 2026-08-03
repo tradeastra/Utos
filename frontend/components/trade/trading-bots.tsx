@@ -99,6 +99,14 @@ export function TradingBots() {
       setProfiles(profs || []);
       setInstances(insts || []);
       if (addonCheck) setTrailingAccess(addonCheck);
+
+      // Auto-pick the first active strategy (strategy selector is hidden
+      // from the UI — all strategies run the same averaging engine, so the
+      // choice is cosmetic. strategy_id is still required by the backend
+      // as a foreign key, so we send the first available one.)
+      if (strat && strat.length > 0) {
+        setSelectedStrategy((prev) => prev || strat[0].id);
+      }
     } catch {
       // ignore
     }
@@ -199,6 +207,21 @@ export function TradingBots() {
     }
   }
 
+  async function handleDelete(instanceId: string, symbol: string) {
+    if (!confirm(`Delete bot for ${symbol}? This cannot be undone.`)) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      await api.deleteTradingInstance(instanceId);
+      setMsg({ type: 'success', text: `Bot for ${symbol} deleted` });
+      await loadAll();
+    } catch (err) {
+      setMsg({ type: 'error', text: err instanceof Error ? err.message : 'Failed to delete bot' });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       {msg && (
@@ -237,34 +260,18 @@ export function TradingBots() {
         </CardContent>
       </Card>
 
-      {/* Step 2: Strategy */}
+      {/* Step 2: Strategy — auto-selected (all strategies run the same engine) */}
       <Card>
         <CardHeader>
-          <CardTitle>2. Select Strategy</CardTitle>
-          <CardDescription>Choose a trading strategy</CardDescription>
+          <CardTitle>2. Strategy</CardTitle>
+          <CardDescription>Auto-selected</CardDescription>
         </CardHeader>
         <CardContent>
-          {strategies.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Loading strategies...</p>
-          ) : (
-            <div className="space-y-2">
-              {strategies.map((s) => (
-                <label key={s.id} className="flex items-start gap-3 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="strategy"
-                    value={s.id}
-                    checked={selectedStrategy === s.id}
-                    onChange={(e) => setSelectedStrategy(e.target.value)}
-                  />
-                  <div>
-                    <span className="font-medium">{s.name}</span>
-                    {s.description && <p className="text-sm text-muted-foreground">{s.description}</p>}
-                  </div>
-                </label>
-              ))}
-            </div>
-          )}
+          <p className="text-sm text-muted-foreground">
+            {strategies.length === 0
+              ? 'Loading…'
+              : 'Strategy configured automatically.'}
+          </p>
         </CardContent>
       </Card>
 
@@ -550,6 +557,17 @@ export function TradingBots() {
                   )}
                   {trailingConfigured[inst.id] && (
                     <Badge variant="success">Trailing Active</Badge>
+                  )}
+                  {inst.status !== 'running' && inst.status !== 'paused' && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-red-500 hover:bg-red-500/10"
+                      onClick={() => handleDelete(inst.id, inst.symbol)}
+                      disabled={busy}
+                    >
+                      Delete
+                    </Button>
                   )}
                 </div>
               </div>

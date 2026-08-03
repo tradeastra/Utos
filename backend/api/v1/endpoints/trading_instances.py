@@ -316,8 +316,8 @@ async def delete_trading_instance(
     """Soft-delete a trading process."""
     try:
         instance = await manager.get_status(UUID(instance_id), current_user.id)
-        if instance.status == TradingInstanceStatus.RUNNING:
-            raise ValidationError("Cannot delete a running process; stop it first")
+        if instance.status in (TradingInstanceStatus.RUNNING, TradingInstanceStatus.PAUSED):
+            raise ValidationError("Cannot delete a running or paused process; stop it first")
         instance.deleted_at = datetime.now(tz=UTC)
         manager.session.add(instance)
         await manager.session.flush()

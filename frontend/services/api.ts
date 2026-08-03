@@ -528,6 +528,10 @@ class ApiClient {
     }>(`/api/v1/trading-instances/${id}/stop`);
   }
 
+  async deleteTradingInstance(id: string) {
+    return this.delete<void>(`/api/v1/trading-instances/${id}`);
+  }
+
   async configureTrailingProfit(instanceId: string, triggerPercentage: number, trailPercentage: number, maxProfitPercentage: number = 0) {
     return this.post<{
       instance_id: string;

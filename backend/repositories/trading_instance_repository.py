@@ -37,13 +37,18 @@ class TradingInstanceRepository(IRepository[TradingInstance]):
     async def get_active_by_symbol_and_account(
         self, symbol: str, exchange_account_id: uuid.UUID
     ) -> list[TradingInstance]:
-        """Return instances for this symbol + account that are not stopped or error."""
-        terminal = {TradingInstanceStatus.STOPPED, TradingInstanceStatus.ERROR}
+        """Return instances for this symbol + account that are actively running or paused."""
+        active = {
+            TradingInstanceStatus.RUNNING,
+            TradingInstanceStatus.PAUSED,
+            TradingInstanceStatus.RECOVERING,
+            TradingInstanceStatus.STOPPING,
+        }
         result = await self._session.execute(
             select(TradingInstance).where(
                 TradingInstance.symbol == symbol.upper(),
                 TradingInstance.exchange_account_id == exchange_account_id,
-                TradingInstance.status.notin_(terminal),
+                TradingInstance.status.in_(active),
                 TradingInstance.deleted_at.is_(None),
             )
         )
