@@ -404,7 +404,7 @@ export function SetupWizard({ onInstanceCreated }: SetupWizardProps) {
             grid_profile_id: gridProfileId,
             symbol: `${coin.toUpperCase()}USDT`,
             strategy_mode: template.mode,
-            selected_coins: selectedCoins,
+            selected_coins: [coin.toUpperCase()],
             continuation_rate: template.breakerEnabled ? template.continuationRate : undefined,
             breaker_enabled: template.breakerEnabled,
             auto_start: true,

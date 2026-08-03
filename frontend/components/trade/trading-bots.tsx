@@ -541,8 +541,13 @@ export function TradingBots() {
       {/* Active Bots */}
       <Card>
         <CardHeader>
-          <CardTitle>Trading Bots</CardTitle>
-          <CardDescription>Your active and historical trading instances</CardDescription>
+          <CardTitle>
+            Trading Bots
+            <span className="ml-2 text-sm font-normal text-muted-foreground">
+              {instances.filter((i) => i.status === 'running' || i.status === 'paused').length} active · {instances.length} total bots
+            </span>
+          </CardTitle>
+          <CardDescription>Click a bot to view its settings. Each bot trades one pair.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {instances.length === 0 ? (
@@ -582,8 +587,8 @@ export function TradingBots() {
                       <span className="font-medium">{inst.breaker_enabled ? `On (${inst.continuation_rate ? (inst.continuation_rate * 100).toFixed(0) + '%' : '—'})` : 'Off'}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Selected Coins</span>
-                      <span className="font-medium">{inst.selected_coins?.join(', ') || inst.symbol || '—'}</span>
+                      <span className="text-muted-foreground">Trading Pair</span>
+                      <span className="font-medium">{inst.symbol}</span>
                     </div>
                     {inst.start_price && (
                       <div className="flex justify-between">
